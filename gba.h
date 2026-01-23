@@ -11,6 +11,8 @@ typedef unsigned int u32;
 #define MEM_PALETTE 0x05000000
 
 #define REG_DISPCNT *((volatile u16*)(MEM_IO))
+#define REG_VCOUNT  *((volatile u16*)0x04000006)
+
 #define VIDEOMODE_4 0x0004
 #define BGMODE_2    0x0400
 #define BACKBUFFER  0x0010
@@ -25,6 +27,7 @@ typedef unsigned int u32;
 #define COLOR_RED   1
 #define COLOR_GREEN 2
 #define COLOR_SKY   3
+#define COLOR_WHITE 4
 
 // DMA registers
 #define REG_DMA3SAD  (*(volatile u32*)0x040000D4)
