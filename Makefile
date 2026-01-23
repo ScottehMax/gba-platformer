@@ -5,30 +5,43 @@ GBAFIX = gbafix
 GRIT = grit
 PYTHON = python
 
-CFLAGS = -mthumb-interwork -mthumb -O2 -Wall
+GENDIR = generated
+CFLAGS = -mthumb-interwork -mthumb -O2 -Wall -I. -I$(GENDIR)
 LDFLAGS = -specs=gba.specs
 
 TARGET = game
-OBJS = main.o skelly.o ground.o ground2.o
+
+# Automatically find all PNG assets and create grit targets
+ASSET_PNGS = $(wildcard assets/*.png)
+GRIT_HEADERS = $(patsubst assets/%.png,$(GENDIR)/%.h,$(ASSET_PNGS))
+GRIT_SOURCES = $(patsubst assets/%.png,$(GENDIR)/%.c,$(ASSET_PNGS))
+GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 
 # Level files
 LEVEL_JSONS = $(wildcard levels/*.json)
-LEVEL_HEADERS = $(patsubst levels/%.json,%.h,$(LEVEL_JSONS))
+LEVEL_HEADERS = $(patsubst levels/%.json,$(GENDIR)/%.h,$(LEVEL_JSONS))
 
-all: $(LEVEL_HEADERS) $(TARGET).gba
+OBJS = main.o $(GRIT_OBJS)
 
-skelly.h: assets/skelly.png
-	$(GRIT) assets/skelly.png -gB8 -gt -gTFF00FF -ftc
+all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
-ground.h: assets/ground.png
-	$(GRIT) assets/ground.png -gB8 -gt -m! -ftc
+# Create generated directory if it doesn't exist
+$(GENDIR):
+	mkdir -p $(GENDIR)
 
-ground2.h: assets/ground2.png
-	$(GRIT) assets/ground2.png -gB8 -gt -m! -ftc
+# Grit rules for sprite PNGs (with transparency)
+$(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
+	$(GRIT) $< -gB8 -gt -gTFF00FF -ftc -o$(GENDIR)/skelly
 
-%.h: levels/%.json
+# Grit rules for tileset PNGs (no map)
+$(GENDIR)/%.h: assets/%.png | $(GENDIR)
+	$(GRIT) $< -gB8 -gt -m! -ftc -o$(GENDIR)/$*
+
+# Level converter
+$(GENDIR)/%.h: levels/%.json | $(GENDIR)
 	$(PYTHON) tools/level_converter.py $< $@
 
+# Build targets
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
 	$(GBAFIX) $@
@@ -36,22 +49,16 @@ $(TARGET).gba: $(TARGET).elf
 $(TARGET).elf: $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-skelly.o: skelly.c skelly.h
+# Object files from generated sources
+%.o: $(GENDIR)/%.c $(GENDIR)/%.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-ground.o: ground.c ground.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-ground2.o: ground2.c ground2.h
-	$(CC) $(CFLAGS) -c $< -o $@
-
-main.o: main.c gba.h skelly.h ground.h ground2.h $(LEVEL_HEADERS)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.c gba.h
+# Main object depends on all generated headers
+main.o: main.c gba.h $(GRIT_HEADERS) $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o *.elf *.gba skelly.h skelly.c ground.h ground.c ground2.h ground2.c $(LEVEL_HEADERS)
+	rm -f *.o *.elf *.gba
+	rm -rf $(GENDIR)
 
 .PHONY: all clean

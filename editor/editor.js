@@ -41,6 +41,9 @@ class LevelEditor {
         // Tile images
         this.tileImages = [];
         this.tilesLoaded = false;
+        this.tilesetColumns = 4;  // Default columns for tile palette grid
+        this.tilesetRows = 1;
+        this.tilesetImage = null;  // Full tileset image for palette display
         
         // Initialize
         this.initLevel();
@@ -70,67 +73,49 @@ class LevelEditor {
     loadTileImages() {
         // Load tile assets from PNG files
         this.tileImages = [];
-        let loadedCount = 0;
-        const totalImages = 2;
 
-        // Create tile 0 (sky/air) as placeholder
+        // Create tile 0 (sky/air) as placeholder - dark blue
         const skyTile = document.createElement('canvas');
         skyTile.width = 8;
         skyTile.height = 8;
         const skyCtx = skyTile.getContext('2d');
-        skyCtx.fillStyle = '#87CEEB';
+        skyCtx.fillStyle = '#183478'; // Dark blue to match game
         skyCtx.fillRect(0, 0, 8, 8);
         this.tileImages[0] = skyTile;
 
-        // Load ground.png (tiles 1-4)
-        const groundImg = new Image();
-        groundImg.onload = () => {
-            this.extractTiles(groundImg, 1, 4);
-            loadedCount++;
-            if (loadedCount === totalImages) {
-                this.tilesLoaded = true;
-                this.renderTilePalette();
-            }
+        // Load Grassy_stone.png (tiles 1+)
+        const grassyStoneImg = new Image();
+        grassyStoneImg.onload = () => {
+            // Calculate number of tiles based on image dimensions (8x8 tiles)
+            const tilesWide = Math.floor(grassyStoneImg.width / 8);
+            const tilesTall = Math.floor(grassyStoneImg.height / 8);
+            const numTiles = tilesWide * tilesTall;
+            this.tilesetColumns = tilesWide;
+            this.tilesetRows = tilesTall;
+            this.tilesetImage = grassyStoneImg;
+            this.extractTiles(grassyStoneImg, 1, numTiles);
+            this.tilesLoaded = true;
+            this.renderTilePalette();
         };
-        groundImg.onerror = () => {
-            console.error('Failed to load ground.png');
-            this.createPlaceholderTiles(1, 4, '#8B4513');
-            loadedCount++;
-            if (loadedCount === totalImages) {
-                this.tilesLoaded = true;
-                this.renderTilePalette();
-            }
+        grassyStoneImg.onerror = () => {
+            console.error('Failed to load Grassy_stone.png');
+            this.tilesetColumns = 11;
+            this.tilesetRows = 5;
+            this.createPlaceholderTiles(1, 55, '#8B4513');
+            this.tilesLoaded = true;
+            this.renderTilePalette();
         };
-        groundImg.src = 'ground.png';
-
-        // Load ground2.png (tiles 5-8)
-        const ground2Img = new Image();
-        ground2Img.onload = () => {
-            this.extractTiles(ground2Img, 5, 4);
-            loadedCount++;
-            if (loadedCount === totalImages) {
-                this.tilesLoaded = true;
-                this.renderTilePalette();
-            }
-        };
-        ground2Img.onerror = () => {
-            console.error('Failed to load ground2.png');
-            this.createPlaceholderTiles(5, 4, '#654321');
-            loadedCount++;
-            if (loadedCount === totalImages) {
-                this.tilesLoaded = true;
-                this.renderTilePalette();
-            }
-        };
-        ground2Img.src = 'ground2.png';
+        grassyStoneImg.src = 'Grassy_stone.png';
     }
 
     extractTiles(image, startIndex, count) {
         // Extract 8x8 tiles from the image
-        // Assumes tiles are arranged in a row or grid
+        // Tiles are arranged in a grid
         const tilesPerRow = Math.floor(image.width / 8);
+        const tilesPerCol = Math.floor(image.height / 8);
+        const totalTiles = count !== undefined ? count : tilesPerRow * tilesPerCol;
 
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < totalTiles; i++) {
             const tileX = (i % tilesPerRow) * 8;
             const tileY = Math.floor(i / tilesPerRow) * 8;
 
@@ -160,38 +145,107 @@ class LevelEditor {
     renderTilePalette() {
         const palette = document.getElementById('tilePalette');
         palette.innerHTML = '';
-        
-        this.tileImages.forEach((img, index) => {
-            const item = document.createElement('div');
-            item.className = 'tile-item';
-            if (index === this.selectedTile) {
-                item.classList.add('selected');
+
+        const scale = 4; // Scale up for visibility
+
+        // Create canvas for tile 0 (sky)
+        const skyCanvas = document.createElement('canvas');
+        skyCanvas.width = 8 * scale;
+        skyCanvas.height = 8 * scale;
+        skyCanvas.style.cursor = 'pointer';
+        skyCanvas.style.imageRendering = 'pixelated';
+        skyCanvas.style.imageRendering = 'crisp-edges';
+        skyCanvas.style.marginBottom = '8px';
+        skyCanvas.style.border = this.selectedTile === 0 ? '2px solid #61dafb' : '1px solid #404040';
+
+        const skyCtx = skyCanvas.getContext('2d');
+        skyCtx.imageSmoothingEnabled = false;
+        if (this.tileImages[0]) {
+            skyCtx.drawImage(this.tileImages[0], 0, 0, 8 * scale, 8 * scale);
+        }
+
+        skyCanvas.addEventListener('click', () => {
+            this.selectedTile = 0;
+            this.renderTilePalette();
+            if (this.currentTool === 'eraser') {
+                this.setTool('brush');
             }
-            
-            // Scale up the 8x8 tile for display
-            const displayCanvas = document.createElement('canvas');
-            displayCanvas.width = 48;
-            displayCanvas.height = 48;
-            const displayCtx = displayCanvas.getContext('2d');
-            displayCtx.imageSmoothingEnabled = false;
-            displayCtx.drawImage(img, 0, 0, 48, 48);
-            item.appendChild(displayCanvas);
-            
-            const idLabel = document.createElement('span');
-            idLabel.className = 'tile-id';
-            idLabel.textContent = index;
-            item.appendChild(idLabel);
-            
-            item.addEventListener('click', () => {
-                this.selectedTile = index;
+        });
+
+        // Create label for sky tile
+        const skyLabel = document.createElement('div');
+        skyLabel.textContent = 'Tile 0 (Sky)';
+        skyLabel.style.fontSize = '12px';
+        skyLabel.style.marginBottom = '12px';
+        skyLabel.style.color = '#b0b0b0';
+
+        // Create canvas for tileset palette
+        const canvas = document.createElement('canvas');
+        canvas.width = this.tilesetColumns * 8 * scale;
+        canvas.height = this.tilesetRows * 8 * scale;
+        canvas.style.cursor = 'pointer';
+        canvas.style.imageRendering = 'pixelated';
+        canvas.style.imageRendering = 'crisp-edges';
+
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        // Draw the full tileset image
+        if (this.tilesetImage) {
+            ctx.drawImage(this.tilesetImage, 0, 0, canvas.width, canvas.height);
+        }
+
+        // Draw grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= this.tilesetColumns; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * 8 * scale, 0);
+            ctx.lineTo(x * 8 * scale, canvas.height);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= this.tilesetRows; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * 8 * scale);
+            ctx.lineTo(canvas.width, y * 8 * scale);
+            ctx.stroke();
+        }
+
+        // Highlight selected tile (if not tile 0)
+        if (this.selectedTile > 0 && this.selectedTile < this.tileImages.length) {
+            // Adjust for tile 0 offset
+            const adjustedIndex = this.selectedTile - 1;
+            const tileX = adjustedIndex % this.tilesetColumns;
+            const tileY = Math.floor(adjustedIndex / this.tilesetColumns);
+
+            ctx.strokeStyle = '#61dafb';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(tileX * 8 * scale + 1, tileY * 8 * scale + 1, 8 * scale - 2, 8 * scale - 2);
+        }
+
+        // Handle clicks
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const tileX = Math.floor(x / (8 * scale));
+            const tileY = Math.floor(y / (8 * scale));
+            const adjustedIndex = tileY * this.tilesetColumns + tileX;
+            const tileIndex = adjustedIndex + 1; // Add 1 to account for tile 0
+
+            if (tileIndex > 0 && tileIndex < this.tileImages.length) {
+                this.selectedTile = tileIndex;
                 this.renderTilePalette();
                 if (this.currentTool === 'eraser') {
                     this.setTool('brush');
                 }
-            });
-            
-            palette.appendChild(item);
+            }
         });
+
+        palette.appendChild(skyCanvas);
+        palette.appendChild(skyLabel);
+        palette.appendChild(canvas);
     }
     
     setupEventListeners() {

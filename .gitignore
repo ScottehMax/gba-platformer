@@ -3,16 +3,8 @@
 *.elf
 *.gba
 
-# Generated asset files
-skelly.h
-skelly.c
-ground.h
-ground.c
-ground2.h
-ground2.c
-
-# Generated level files
-level*.h
+# Generated files (grit outputs and level headers)
+generated/
 
 # GBA save files
 *.sav

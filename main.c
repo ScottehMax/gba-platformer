@@ -1,8 +1,7 @@
 #include "gba.h"
 #include "skelly.h"
-#include "ground.h"
-#include "ground2.h"
-#include "level2.h"
+#include "grassy_stone.h"
+#include "level3.h"
 
 // Use fixed-point math (8 bits fractional) for smooth sub-pixel movement
 #define FIXED_SHIFT 8
@@ -50,9 +49,9 @@ u8 getTileAt(const Level* level, int tileX, int tileY) {
 }
 
 int isTileSolid(u8 tileId) {
-    // Tiles 1-8 are solid (ground tiles)
     // Tile 0 is empty/air
-    return tileId >= 1 && tileId <= 8;
+    // All other tiles (1-55) are solid
+    return tileId >= 1;
 }
 
 void updateCamera(Camera* camera, Player* player, const Level* level) {
@@ -346,17 +345,14 @@ int main() {
 
     // Set up background palette
     volatile u16* bgPalette = (volatile u16*)0x05000000;
-    setPalette(0, COLOR(15, 20, 31));  // Sky color (light blue) at index 0
-    
-    // Copy ground palette to indices 1-4
-    bgPalette[1] = groundPal[0];
-    bgPalette[2] = groundPal[1];
-    bgPalette[3] = groundPal[2];
-    bgPalette[4] = groundPal[3];
-    
-    // Copy ground2 palette to indices 5-6
-    bgPalette[5] = ground2Pal[0];
-    bgPalette[6] = ground2Pal[1];
+
+    // Copy Grassy_stone palette to background palette
+    for (int i = 0; i < 256; i++) {
+        bgPalette[i] = Grassy_stonePal[i];
+    }
+
+    // Override palette index 0 with dark blue for sky
+    bgPalette[0] = COLOR(3, 6, 15);
 
     // Create background tiles in VRAM
     volatile u32* bgTiles = (volatile u32*)0x06000000;
@@ -366,24 +362,11 @@ int main() {
         bgTiles[i] = 0x00000000;
     }
 
-    // Tiles 1-4: ground.png - remap palette indices: 0->1, 1->2, 2->3, 3->4
-    for (int i = 0; i < 64; i++) {
-        u32 tile = groundTiles[i];
-        u32 b0 = (tile & 0xFF) + 1;
-        u32 b1 = ((tile >> 8) & 0xFF) + 1;
-        u32 b2 = ((tile >> 16) & 0xFF) + 1;
-        u32 b3 = ((tile >> 24) & 0xFF) + 1;
-        bgTiles[16 + i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
-    }
-
-    // Tiles 5-8: ground2.png - remap palette indices: 0->5, 1->6
-    for (int i = 0; i < 64; i++) {
-        u32 tile = ground2Tiles[i];
-        u32 b0 = (tile & 0xFF) == 0 ? 5 : 6;
-        u32 b1 = ((tile >> 8) & 0xFF) == 0 ? 5 : 6;
-        u32 b2 = ((tile >> 16) & 0xFF) == 0 ? 5 : 6;
-        u32 b3 = ((tile >> 24) & 0xFF) == 0 ? 5 : 6;
-        bgTiles[80 + i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+    // Copy all Grassy_stone tiles (starting at tile index 1)
+    // Grassy_stoneTilesLen is the byte length, divide by 4 to get u32 count
+    int tileCount = Grassy_stoneTilesLen / 4;
+    for (int i = 0; i < tileCount; i++) {
+        bgTiles[16 + i] = Grassy_stoneTiles[i];
     }
 
     // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)

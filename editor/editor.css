@@ -149,11 +149,17 @@ select:focus {
 }
 
 .tile-palette {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: auto;
+    background: #1e1e1e;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.tile-palette canvas {
+    display: block;
+    border: 1px solid #404040;
 }
 
 .tile-item {
