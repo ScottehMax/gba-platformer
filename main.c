@@ -44,6 +44,7 @@ typedef struct {
     int dashing;
     int dashCooldown;
     int facingRight;  // 1 = right, 0 = left
+    u16 prevKeys;     // Previous frame keys for detecting button presses
 } Player;
 
 void vsync() {
@@ -52,13 +53,16 @@ void vsync() {
 }
 
 void updatePlayer(Player* player, u16 keys) {
+    // Detect button presses (pressed this frame but not last frame)
+    u16 pressed = keys & ~player->prevKeys;
+
     // Dash cooldown
     if (player->dashCooldown > 0) {
         player->dashCooldown--;
     }
 
-    // R button: Dash (8-directional or forward)
-    if ((keys & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
+    // R button: Dash (8-directional or forward) - only on press, not hold
+    if ((pressed & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
         player->dashing = 8; // Dash lasts 8 frames
         player->dashCooldown = 30; // 30 frames cooldown
 
@@ -117,8 +121,8 @@ void updatePlayer(Player* player, u16 keys) {
         }
     }
 
-    // A button: Jump
-    if ((keys & KEY_A) && player->onGround) {
+    // A button: Jump - only on press, not hold
+    if ((pressed & KEY_A) && player->onGround) {
         player->vy = -JUMP_STRENGTH;
         player->onGround = 0;
     }
@@ -164,6 +168,9 @@ void updatePlayer(Player* player, u16 keys) {
     } else {
         player->onGround = 0;
     }
+
+    // Update previous keys for next frame
+    player->prevKeys = keys;
 }
 
 void drawGame(Player* player) {
@@ -252,6 +259,7 @@ int main() {
     player.dashing = 0;
     player.dashCooldown = 0;
     player.facingRight = 1;  // Start facing right
+    player.prevKeys = 0;      // No keys pressed initially
 
     // Game loop
     while (1) {
