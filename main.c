@@ -17,7 +17,7 @@
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge
 
 #define PLAYER_RADIUS 8
-#define TRAIL_LENGTH 5
+#define TRAIL_LENGTH 3
 
 typedef struct {
     int x;  // Fixed-point
@@ -332,10 +332,10 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime--;  // Count down when airborne
     }
 
-    // Update dash trail (record every 2 frames for spacing, continue while fading)
+    // Update dash trail (record every 3 frames for spacing, continue while fading)
     if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 3) {
         player->trailTimer++;
-        if (player->trailTimer >= 2) {
+        if (player->trailTimer >= 3) {
             player->trailTimer = 0;
             player->trailIndex = (player->trailIndex + 1) % TRAIL_LENGTH;
             player->trailX[player->trailIndex] = player->x;
@@ -349,13 +349,13 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 }
 
 void drawGame(Player* player, Camera* camera) {
-    // Draw dash trail (sprites 1-5)
+    // Draw dash trail (sprites 1-n)
     for (int i = 0; i < TRAIL_LENGTH; i++) {
         // Calculate how many frames since dash ended (for gradual fade)
         int fadeSteps = player->trailFadeTimer / 3;  // Hide one sprite every 3 frames
 
         // Hide this sprite if it's been faded out (fade from back to front)
-        // i=0 is newest (closest to player), i=4 is oldest (farthest)
+        // i=0 is newest (closest to player), i=n-1 is oldest (farthest)
         // We want to hide oldest first, so hide when i >= (TRAIL_LENGTH - fadeSteps)
         if (player->dashing == 0 && i >= (TRAIL_LENGTH - fadeSteps)) {
             *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
@@ -461,11 +461,12 @@ int main() {
     }
 
     // Palette 1: Light blue/cyan silhouette for dash trail
+    // Make all colors the same blue except index 0 (transparent)
     for (int i = 0; i < 16; i++) {
-        if (skellyPal[i] == 0) {
-            spritePalette[16 + i] = 0;  // Keep transparency
+        if (i == 0) {
+            spritePalette[16 + i] = 0;  // Index 0 is transparent
         } else {
-            spritePalette[16 + i] = COLOR(10, 20, 31);  // Light cyan/blue
+            spritePalette[16 + i] = COLOR(10, 20, 31);  // All other indices: light cyan/blue
         }
     }
 
