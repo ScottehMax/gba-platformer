@@ -17,7 +17,7 @@
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge
 
 #define PLAYER_RADIUS 8
-#define TRAIL_LENGTH 3
+#define TRAIL_LENGTH 10
 
 typedef struct {
     int x;  // Fixed-point
@@ -152,8 +152,8 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
-    // Update trail fade after dash ends (5 sprites * 3 frames each = 15 frames)
-    if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 3) {
+    // Update trail fade after dash ends (10 sprites * 2 frames each = 20 frames)
+    if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 2) {
         player->trailFadeTimer++;
     }
 
@@ -332,10 +332,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime--;  // Count down when airborne
     }
 
-    // Update dash trail (record every 3 frames for spacing, continue while fading)
-    if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 3) {
+    // Update dash trail (record every 2 frames for spacing, ONLY while dashing)
+    // Stop recording when dash ends so faded sprites stay in place
+    if (player->dashing > 0) {
         player->trailTimer++;
-        if (player->trailTimer >= 3) {
+        if (player->trailTimer >= 2) {
             player->trailTimer = 0;
             player->trailIndex = (player->trailIndex + 1) % TRAIL_LENGTH;
             player->trailX[player->trailIndex] = player->x;
@@ -349,13 +350,13 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 }
 
 void drawGame(Player* player, Camera* camera) {
-    // Draw dash trail (sprites 1-n)
+    // Draw dash trail (sprites 1-10)
     for (int i = 0; i < TRAIL_LENGTH; i++) {
         // Calculate how many frames since dash ended (for gradual fade)
-        int fadeSteps = player->trailFadeTimer / 3;  // Hide one sprite every 3 frames
+        int fadeSteps = player->trailFadeTimer / 2;  // Hide one sprite every 2 frames
 
         // Hide this sprite if it's been faded out (fade from back to front)
-        // i=0 is newest (closest to player), i=n-1 is oldest (farthest)
+        // i=0 is newest (closest to player), i=9 is oldest (farthest)
         // We want to hide oldest first, so hide when i >= (TRAIL_LENGTH - fadeSteps)
         if (player->dashing == 0 && i >= (TRAIL_LENGTH - fadeSteps)) {
             *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
@@ -363,7 +364,7 @@ void drawGame(Player* player, Camera* camera) {
         }
 
         // Only show trail if actively dashing or still fading
-        if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 3) {
+        if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 2) {
             // Show every position to maximize visible trail
             int trailIdx = (player->trailIndex - i + TRAIL_LENGTH) % TRAIL_LENGTH;
             int trailScreenX = (player->trailX[trailIdx] >> FIXED_SHIFT) - camera->x - 8;
@@ -373,10 +374,18 @@ void drawGame(Player* player, Camera* camera) {
             if (trailScreenX < -1000 || trailScreenX > 239 || trailScreenY < -1000 || trailScreenY > 159) {
                 *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
             } else {
-                // Use palette 1 for light blue silhouette, enable semi-transparent mode (bits 10-11 = 01)
+                // Calculate sprite "age" for palette selection (older = lighter/more transparent)
+                // i=0 is newest, i=9 is oldest
+                // fadeSteps adds extra age during fadeout for smooth transition
+                int spriteAge = i + fadeSteps; // Combine position and fade
+                int paletteNum = spriteAge; // 0-9 range for 10 palettes
+                if (paletteNum > 9) paletteNum = 9; // Clamp to available palettes (1-10)
+                if (paletteNum < 0) paletteNum = 0;
+
+                // Use progressively lighter palettes (1-10) for very gradual fading effect
                 *((volatile u16*)(0x07000000 + (i + 1) * 8)) = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
                 *((volatile u16*)(0x07000000 + (i + 1) * 8 + 2)) = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
-                *((volatile u16*)(0x07000000 + (i + 1) * 8 + 4)) = (1 << 12);  // tile 0, palette 1
+                *((volatile u16*)(0x07000000 + (i + 1) * 8 + 4)) = ((paletteNum + 1) << 12);  // tile 0, palette 1-10 based on age
             }
         } else {
             *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
@@ -460,13 +469,24 @@ int main() {
         spritePalette[i] = skellyPal[i];
     }
 
-    // Palette 1: Light blue/cyan silhouette for dash trail
-    // Make all colors the same blue except index 0 (transparent)
-    for (int i = 0; i < 16; i++) {
-        if (i == 0) {
-            spritePalette[16 + i] = 0;  // Index 0 is transparent
-        } else {
-            spritePalette[16 + i] = COLOR(10, 20, 31);  // All other indices: light cyan/blue
+    // Palettes 1-10: Light blue/cyan silhouettes with varying opacity for dash trail fade
+    // Create 10 palettes with very gradual color transitions for smooth fade effect
+    for (int pal = 0; pal < 10; pal++) {
+        for (int i = 0; i < 16; i++) {
+            if (i == 0) {
+                spritePalette[(pal + 1) * 16 + i] = 0;  // Index 0 is transparent
+            } else {
+                // Very gradual fade from bright to light blue
+                // Palette 1: Most opaque (10, 20, 31)
+                // Palette 10: Lightest (2, 6, 16)
+                int r = 10 - (pal * 8) / 10;  // 10 -> 2
+                int g = 20 - (pal * 14) / 10; // 20 -> 6
+                int b = 31 - (pal * 15) / 10; // 31 -> 16
+                if (r < 2) r = 2;
+                if (g < 6) g = 6;
+                if (b < 16) b = 16;
+                spritePalette[(pal + 1) * 16 + i] = COLOR(r, g, b);
+            }
         }
     }
 
@@ -500,7 +520,7 @@ int main() {
     player.prevKeys = 0;
     player.trailIndex = 0;
     player.trailTimer = 0;
-    player.trailFadeTimer = TRAIL_LENGTH * 3;  // Start fully faded
+    player.trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
 
     // Initialize trail positions off-screen
     for (int i = 0; i < TRAIL_LENGTH; i++) {
