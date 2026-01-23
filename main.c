@@ -7,9 +7,9 @@
 #define GRAVITY (FIXED_ONE / 2)
 #define JUMP_STRENGTH (FIXED_ONE * 5)
 #define MAX_SPEED (FIXED_ONE * 2)
-#define ACCELERATION (FIXED_ONE / 4)
-#define FRICTION (FIXED_ONE / 8)
-#define AIR_FRICTION (FIXED_ONE / 16)
+#define ACCELERATION (FIXED_ONE)
+#define FRICTION (FIXED_ONE / 4)
+#define AIR_FRICTION (FIXED_ONE / 8)
 
 #define PLAYER_RADIUS 8
 #define GROUND_HEIGHT 130
@@ -28,9 +28,10 @@ void vsync() {
 }
 
 void clearScreen(u8 colorIndex) {
-    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-        backBuffer[i] = colorIndex;
-    }
+    // Create a 32-bit fill value (4 pixels at once)
+    u32 fillValue = (colorIndex << 24) | (colorIndex << 16) | (colorIndex << 8) | colorIndex;
+    // Mode 4 screen is 240x160 = 38400 bytes = 9600 words (32-bit)
+    dmaFill((void*)backBuffer, fillValue, 9600);
 }
 
 void updatePlayer(Player* player, u16 keys) {
@@ -93,11 +94,14 @@ void updatePlayer(Player* player, u16 keys) {
 }
 
 void drawGame(Player* player) {
-    // Clear screen (sky color)
-    clearScreen(COLOR_SKY);
+    // Clear sky area only (optimization - don't redraw ground every frame)
+    u32 skyFill = (COLOR_SKY << 24) | (COLOR_SKY << 16) | (COLOR_SKY << 8) | COLOR_SKY;
+    dmaFill((void*)backBuffer, skyFill, (SCREEN_WIDTH * GROUND_HEIGHT) / 4);
 
-    // Draw ground
-    drawRect(0, GROUND_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_HEIGHT, COLOR_GREEN);
+    // Draw ground as solid fill
+    u32 groundFill = (COLOR_GREEN << 24) | (COLOR_GREEN << 16) | (COLOR_GREEN << 8) | COLOR_GREEN;
+    dmaFill((void*)(backBuffer + SCREEN_WIDTH * GROUND_HEIGHT), groundFill,
+            (SCREEN_WIDTH * (SCREEN_HEIGHT - GROUND_HEIGHT)) / 4);
 
     // Draw player (red circle) - convert from fixed-point to screen coordinates
     int screenX = player->x >> FIXED_SHIFT;

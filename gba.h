@@ -26,6 +26,17 @@ typedef unsigned int u32;
 #define COLOR_GREEN 2
 #define COLOR_SKY   3
 
+// DMA registers
+#define REG_DMA3SAD  (*(volatile u32*)0x040000D4)
+#define REG_DMA3DAD  (*(volatile u32*)0x040000D8)
+#define REG_DMA3CNT  (*(volatile u32*)0x040000DC)
+
+#define DMA_ENABLE    0x80000000
+#define DMA_SRC_FIXED 0x01000000
+#define DMA_DST_INC   0x00000000
+#define DMA_16        0x00000000
+#define DMA_32        0x04000000
+
 // Input registers
 #define REG_KEYINPUT (*(volatile u16*)0x04000130)
 
@@ -42,6 +53,15 @@ typedef unsigned int u32;
 
 inline u16 getKeys(void) {
     return ~REG_KEYINPUT & 0x03FF;
+}
+
+// Fast DMA fill function
+static inline void dmaFill(void* dest, u32 value, u32 count) {
+    static volatile u32 dmaFillValue;
+    dmaFillValue = value;
+    REG_DMA3SAD = (u32)&dmaFillValue;
+    REG_DMA3DAD = (u32)dest;
+    REG_DMA3CNT = count | DMA_SRC_FIXED | DMA_DST_INC | DMA_32 | DMA_ENABLE;
 }
 
 // Drawing functions for Mode 4 (8-bit palettized)
