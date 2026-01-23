@@ -1,5 +1,25 @@
 #include "gba.h"
 
+// 16x16 red circle sprite in tile format (4 tiles of 8x8)
+const unsigned char playerSprite[256] = {
+    0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
+    1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+};
+
 // Use fixed-point math (8 bits fractional) for smooth sub-pixel movement
 #define FIXED_SHIFT 8
 #define FIXED_ONE (1 << FIXED_SHIFT)
@@ -22,68 +42,9 @@ typedef struct {
     int onGround;
 } Player;
 
-// Simple 3x5 font for digits
-const u8 digitFont[10][5] = {
-    {0x7, 0x5, 0x5, 0x5, 0x7}, // 0
-    {0x2, 0x6, 0x2, 0x2, 0x7}, // 1
-    {0x7, 0x1, 0x7, 0x4, 0x7}, // 2
-    {0x7, 0x1, 0x7, 0x1, 0x7}, // 3
-    {0x5, 0x5, 0x7, 0x1, 0x1}, // 4
-    {0x7, 0x4, 0x7, 0x1, 0x7}, // 5
-    {0x7, 0x4, 0x7, 0x5, 0x7}, // 6
-    {0x7, 0x1, 0x1, 0x1, 0x1}, // 7
-    {0x7, 0x5, 0x7, 0x5, 0x7}, // 8
-    {0x7, 0x5, 0x7, 0x1, 0x7}  // 9
-};
-
-void drawDigit(int x, int y, int digit, u8 color) {
-    if (digit < 0 || digit > 9) return;
-    // Scale up 2x for better visibility
-    for (int row = 0; row < 5; row++) {
-        u8 bits = digitFont[digit][row];
-        for (int col = 0; col < 3; col++) {
-            if (bits & (1 << (2 - col))) {
-                // Draw 2x2 pixels for each bit
-                setPixel(x + col * 2, y + row * 2, color);
-                setPixel(x + col * 2 + 1, y + row * 2, color);
-                setPixel(x + col * 2, y + row * 2 + 1, color);
-                setPixel(x + col * 2 + 1, y + row * 2 + 1, color);
-            }
-        }
-    }
-}
-
-void drawNumber(int x, int y, int number, u8 color) {
-    if (number == 0) {
-        drawDigit(x, y, 0, color);
-        return;
-    }
-
-    int digits[4];
-    int count = 0;
-    int temp = number;
-
-    while (temp > 0 && count < 4) {
-        digits[count++] = temp % 10;
-        temp /= 10;
-    }
-
-    // Each digit is now 6 pixels wide (3 * 2) plus 2 pixel spacing
-    for (int i = count - 1; i >= 0; i--) {
-        drawDigit(x + (count - 1 - i) * 8, y, digits[i], color);
-    }
-}
-
 void vsync() {
     while ((*(volatile u16*)0x04000006) >= 160);
     while ((*(volatile u16*)0x04000006) < 160);
-}
-
-void clearScreen(u8 colorIndex) {
-    // Create a 32-bit fill value (4 pixels at once)
-    u32 fillValue = (colorIndex << 24) | (colorIndex << 16) | (colorIndex << 8) | colorIndex;
-    // Mode 4 screen is 240x160 = 38400 bytes = 9600 words (32-bit)
-    dmaFill((void*)backBuffer, fillValue, 9600);
 }
 
 void updatePlayer(Player* player, u16 keys) {
@@ -145,36 +106,81 @@ void updatePlayer(Player* player, u16 keys) {
     }
 }
 
-void drawGame(Player* player, int scanlines) {
-    // Clear sky area only (optimization - don't redraw ground every frame)
-    u32 skyFill = (COLOR_SKY << 24) | (COLOR_SKY << 16) | (COLOR_SKY << 8) | COLOR_SKY;
-    dmaFill((void*)backBuffer, skyFill, (SCREEN_WIDTH * GROUND_HEIGHT) / 4);
+void drawGame(Player* player) {
+    // Update player sprite position - convert from fixed-point to screen coordinates
+    int screenX = (player->x >> FIXED_SHIFT) - 8;  // Center the 16x16 sprite
+    int screenY = (player->y >> FIXED_SHIFT) - 8;  // Center the 16x16 sprite
 
-    // Draw ground as solid fill
-    u32 groundFill = (COLOR_GREEN << 24) | (COLOR_GREEN << 16) | (COLOR_GREEN << 8) | COLOR_GREEN;
-    dmaFill((void*)(backBuffer + SCREEN_WIDTH * GROUND_HEIGHT), groundFill,
-            (SCREEN_WIDTH * (SCREEN_HEIGHT - GROUND_HEIGHT)) / 4);
+    // Clamp to visible area
+    if (screenX < 0) screenX = 0;
+    if (screenY < 0) screenY = 0;
+    if (screenX > 239) screenX = 239;
+    if (screenY > 159) screenY = 159;
 
-    // Draw player (red circle) - convert from fixed-point to screen coordinates
-    int screenX = player->x >> FIXED_SHIFT;
-    int screenY = player->y >> FIXED_SHIFT;
-    drawCircle(screenX, screenY, PLAYER_RADIUS, COLOR_RED);
-
-    // Draw scanline counter in top right (shows frame rendering cost)
-    // 160 scanlines = full frame time, >160 means frame drop
-    drawNumber(SCREEN_WIDTH - 24, 2, scanlines, COLOR_WHITE);
+    // Update sprite position (16x16, 256-color)
+    *((volatile u16*)0x07000000) = screenY | (1 << 13);   // attr0: Y + 256-color mode
+    *((volatile u16*)0x07000002) = screenX | (1 << 14);   // attr1: X + size 16x16
+    *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0
 }
 
 int main() {
-    // Set up video mode (Mode 4 with page flipping)
-    REG_DISPCNT = VIDEOMODE_4 | BGMODE_2;
+    // Mode 0 with BG0 and sprites enabled
+    REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
 
-    // Initialize palette
-    setPalette(COLOR_BLACK, COLOR(0, 0, 0));
-    setPalette(COLOR_RED, COLOR(31, 0, 0));
-    setPalette(COLOR_GREEN, COLOR(0, 31, 0));
-    setPalette(COLOR_SKY, COLOR(15, 20, 31));
-    setPalette(COLOR_WHITE, COLOR(31, 31, 31));
+    // Set up background palette
+    setPalette(0, COLOR(15, 20, 31));  // Sky color (light blue)
+    setPalette(1, COLOR(0, 31, 0));     // Green ground
+
+    // Create background tiles (tile 0 = sky, tile 1 = ground)
+    // Each tile is 8x8 pixels in 8bpp mode = 64 bytes = 32 halfwords
+    volatile u16* bgTiles = (volatile u16*)0x06000000;
+
+    // Tile 0: Sky (all pixels palette index 0) - 32 halfwords of 0x0000
+    for (int i = 0; i < 32; i++) {
+        bgTiles[i] = 0x0000;
+    }
+
+    // Tile 1: Ground (all pixels palette index 1) - 32 halfwords of 0x0101
+    for (int i = 0; i < 32; i++) {
+        bgTiles[32 + i] = 0x0101;
+    }
+
+    // Set up tile map at screen base block 16
+    volatile u16* bgMap = (volatile u16*)0x06008000;
+    for (int y = 0; y < 32; y++) {
+        for (int x = 0; x < 32; x++) {
+            if (y >= GROUND_HEIGHT / 8) {
+                bgMap[y * 32 + x] = 1;  // Ground tile
+            } else {
+                bgMap[y * 32 + x] = 0;  // Sky tile
+            }
+        }
+    }
+
+    // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
+    *((volatile u16*)0x04000008) = 0x0080 | (16 << 8);
+
+    // Set sprite palette
+    *((volatile u16*)0x05000200) = 0x0000;        // Index 0: transparent
+    *((volatile u16*)0x05000202) = COLOR(31, 0, 0);  // Index 1: red
+
+    // Copy player sprite to VRAM (char block 4 at 0x06010000)
+    // 16x16 sprite = 4 tiles (8x8 each), 256 bytes total
+    volatile u16* spriteTiles = (volatile u16*)0x06010000;
+    const u16* spriteData = (const u16*)playerSprite;
+    for (int i = 0; i < 128; i++) {  // 256 bytes = 128 halfwords
+        spriteTiles[i] = spriteData[i];
+    }
+
+    // Set up sprite 0 as 16x16
+    *((volatile u16*)0x07000000) = (1 << 13);   // attr0: Y=0, 256-color, square
+    *((volatile u16*)0x07000002) = (1 << 14);   // attr1: X=0, size=16x16
+    *((volatile u16*)0x07000004) = 0;           // attr2: tile 0
+
+    // Hide other sprites
+    for (int i = 1; i < 128; i++) {
+        *((volatile u16*)(0x07000000 + i * 8)) = 160;
+    }
 
     // Initialize player (in fixed-point coordinates)
     Player player;
@@ -184,37 +190,13 @@ int main() {
     player.vy = 0;
     player.onGround = 1;
 
-    // Performance tracking
-    int scanlineCount = 0;
-    int maxScanlines = 0;
-
     // Game loop
     while (1) {
         vsync();
 
-        // Record starting scanline
-        u16 startVCount = REG_VCOUNT;
-
         u16 keys = getKeys();
         updatePlayer(&player, keys);
-        drawGame(&player, maxScanlines);
-
-        // Flip to the buffer we just drew
-        flipPage();
-
-        // Calculate scanlines used for this frame
-        u16 endVCount = REG_VCOUNT;
-        if (endVCount >= startVCount) {
-            scanlineCount = endVCount - startVCount;
-        } else {
-            // Wrapped around (went past scanline 227 back to 0)
-            scanlineCount = (228 - startVCount) + endVCount;
-        }
-
-        // Track maximum to see worst case
-        if (scanlineCount > maxScanlines) {
-            maxScanlines = scanlineCount;
-        }
+        drawGame(&player);
     }
 
     return 0;
