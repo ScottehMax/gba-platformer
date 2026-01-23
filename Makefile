@@ -29,9 +29,9 @@ all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 $(GENDIR):
 	mkdir -p $(GENDIR)
 
-# Grit rules for sprite PNGs (with transparency)
+# Grit rules for sprite PNGs (with transparency, 16-color mode for palettes)
 $(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
-	$(GRIT) $< -gB8 -gt -gTFF00FF -ftc -o$(GENDIR)/skelly
+	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/skelly
 
 # Grit rules for tileset PNGs (no map)
 $(GENDIR)/%.h: assets/%.png | $(GENDIR)

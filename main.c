@@ -17,6 +17,7 @@
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge
 
 #define PLAYER_RADIUS 8
+#define TRAIL_LENGTH 5
 
 typedef struct {
     int x;  // Fixed-point
@@ -29,6 +30,14 @@ typedef struct {
     int dashCooldown;
     int facingRight;  // 1 = right, 0 = left
     u16 prevKeys;     // Previous frame keys for detecting button presses
+
+    // Dash trail
+    int trailX[TRAIL_LENGTH];  // Fixed-point positions
+    int trailY[TRAIL_LENGTH];
+    int trailFacing[TRAIL_LENGTH];
+    int trailIndex;  // Current trail buffer index
+    int trailTimer;  // Frames since last trail update
+    int trailFadeTimer;  // Frames since dash ended (for gradual fade)
 } Player;
 
 typedef struct {
@@ -102,6 +111,13 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     if ((pressed & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
         player->dashing = 8; // Dash lasts 8 frames
         player->dashCooldown = 30; // 30 frames cooldown
+        player->trailFadeTimer = 0; // Reset fade timer for new dash
+
+        // Clear old trail positions
+        for (int i = 0; i < TRAIL_LENGTH; i++) {
+            player->trailX[i] = -1000 << FIXED_SHIFT;
+            player->trailY[i] = -1000 << FIXED_SHIFT;
+        }
 
         // Check which directions are held
         int dashX = 0, dashY = 0;
@@ -129,6 +145,16 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Countdown dash timer
     if (player->dashing > 0) {
         player->dashing--;
+        // Start fade timer when dash ends
+        if (player->dashing == 0) {
+            player->trailTimer = 0;
+            player->trailFadeTimer = 0;
+        }
+    }
+
+    // Update trail fade after dash ends (5 sprites * 3 frames each = 15 frames)
+    if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 3) {
+        player->trailFadeTimer++;
     }
 
     // Horizontal movement (disabled during dash)
@@ -306,11 +332,57 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime--;  // Count down when airborne
     }
 
+    // Update dash trail (record every 2 frames for spacing, continue while fading)
+    if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 3) {
+        player->trailTimer++;
+        if (player->trailTimer >= 2) {
+            player->trailTimer = 0;
+            player->trailIndex = (player->trailIndex + 1) % TRAIL_LENGTH;
+            player->trailX[player->trailIndex] = player->x;
+            player->trailY[player->trailIndex] = player->y;
+            player->trailFacing[player->trailIndex] = player->facingRight;
+        }
+    }
+
     // Update previous keys for next frame
     player->prevKeys = keys;
 }
 
 void drawGame(Player* player, Camera* camera) {
+    // Draw dash trail (sprites 1-5)
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+        // Calculate how many frames since dash ended (for gradual fade)
+        int fadeSteps = player->trailFadeTimer / 3;  // Hide one sprite every 3 frames
+
+        // Hide this sprite if it's been faded out (fade from back to front)
+        // i=0 is newest (closest to player), i=4 is oldest (farthest)
+        // We want to hide oldest first, so hide when i >= (TRAIL_LENGTH - fadeSteps)
+        if (player->dashing == 0 && i >= (TRAIL_LENGTH - fadeSteps)) {
+            *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
+            continue;
+        }
+
+        // Only show trail if actively dashing or still fading
+        if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 3) {
+            // Show every position to maximize visible trail
+            int trailIdx = (player->trailIndex - i + TRAIL_LENGTH) % TRAIL_LENGTH;
+            int trailScreenX = (player->trailX[trailIdx] >> FIXED_SHIFT) - camera->x - 8;
+            int trailScreenY = (player->trailY[trailIdx] >> FIXED_SHIFT) - camera->y - 8;
+
+            // Hide if off screen
+            if (trailScreenX < -1000 || trailScreenX > 239 || trailScreenY < -1000 || trailScreenY > 159) {
+                *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
+            } else {
+                // Use palette 1 for light blue silhouette (bits 12-15 of attr2)
+                *((volatile u16*)(0x07000000 + (i + 1) * 8)) = trailScreenY;
+                *((volatile u16*)(0x07000000 + (i + 1) * 8 + 2)) = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
+                *((volatile u16*)(0x07000000 + (i + 1) * 8 + 4)) = (1 << 12);  // tile 0, palette 1
+            }
+        } else {
+            *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
+        }
+    }
+
     // Update player sprite position - convert from world to screen coordinates
     int screenX = (player->x >> FIXED_SHIFT) - camera->x - 8;  // Center the 16x16 sprite
     int screenY = (player->y >> FIXED_SHIFT) - camera->y - 8;  // Center the 16x16 sprite
@@ -321,10 +393,10 @@ void drawGame(Player* player, Camera* camera) {
     if (screenX > 239) screenX = 239;
     if (screenY > 159) screenY = 159;
 
-    // Update sprite position (16x16, 256-color)
-    *((volatile u16*)0x07000000) = screenY | (1 << 13);   // attr0: Y + 256-color mode
+    // Update sprite position (16x16, 16-color mode, palette 0)
+    *((volatile u16*)0x07000000) = screenY;   // attr0: Y position
     *((volatile u16*)0x07000002) = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
-    *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0
+    *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0, palette 0
 }
 
 void loadLevelToVRAM(const Level* level) {
@@ -374,18 +446,29 @@ int main() {
 
     // Copy sprite palette to VRAM
     volatile u16* spritePalette = (volatile u16*)0x05000200;
-    for (int i = 0; i < 256; i++) {
+
+    // Palette 0: Normal sprite colors
+    for (int i = 0; i < 16; i++) {
         spritePalette[i] = skellyPal[i];
+    }
+
+    // Palette 1: Light blue/cyan silhouette for dash trail
+    for (int i = 0; i < 16; i++) {
+        if (skellyPal[i] == 0) {
+            spritePalette[16 + i] = 0;  // Keep transparency
+        } else {
+            spritePalette[16 + i] = COLOR(10, 20, 31);  // Light cyan/blue
+        }
     }
 
     // Copy player sprite to VRAM (char block 4 at 0x06010000)
     volatile u32* spriteTiles = (volatile u32*)0x06010000;
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 32; i++) {  // 16-color mode: 4 tiles, 8 u32s per tile
         spriteTiles[i] = skellyTiles[i];
     }
 
-    // Set up sprite 0 as 16x16
-    *((volatile u16*)0x07000000) = (1 << 13);
+    // Set up sprite 0 as 16x16, 16-color mode
+    *((volatile u16*)0x07000000) = 0;
     *((volatile u16*)0x07000002) = (1 << 14);
     *((volatile u16*)0x07000004) = 0;
 
@@ -406,6 +489,16 @@ int main() {
     player.dashCooldown = 0;
     player.facingRight = 1;
     player.prevKeys = 0;
+    player.trailIndex = 0;
+    player.trailTimer = 0;
+    player.trailFadeTimer = TRAIL_LENGTH * 3;  // Start fully faded
+
+    // Initialize trail positions off-screen
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+        player.trailX[i] = -1000 << FIXED_SHIFT;
+        player.trailY[i] = -1000 << FIXED_SHIFT;
+        player.trailFacing[i] = player.facingRight;
+    }
     
     // Initialize camera
     Camera camera;
