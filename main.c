@@ -373,8 +373,8 @@ void drawGame(Player* player, Camera* camera) {
             if (trailScreenX < -1000 || trailScreenX > 239 || trailScreenY < -1000 || trailScreenY > 159) {
                 *((volatile u16*)(0x07000000 + (i + 1) * 8)) = 160 << 0;  // Hide sprite
             } else {
-                // Use palette 1 for light blue silhouette (bits 12-15 of attr2)
-                *((volatile u16*)(0x07000000 + (i + 1) * 8)) = trailScreenY;
+                // Use palette 1 for light blue silhouette, enable semi-transparent mode (bits 10-11 = 01)
+                *((volatile u16*)(0x07000000 + (i + 1) * 8)) = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
                 *((volatile u16*)(0x07000000 + (i + 1) * 8 + 2)) = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
                 *((volatile u16*)(0x07000000 + (i + 1) * 8 + 4)) = (1 << 12);  // tile 0, palette 1
             }
@@ -393,8 +393,9 @@ void drawGame(Player* player, Camera* camera) {
     if (screenX > 239) screenX = 239;
     if (screenY > 159) screenY = 159;
 
-    // Update sprite position (16x16, 16-color mode, palette 0)
-    *((volatile u16*)0x07000000) = screenY;   // attr0: Y position
+    // Update sprite position (16x16, 16-color mode, palette 0, normal/opaque mode)
+    // Clear bits 10-11 to ensure normal mode (not semi-transparent)
+    *((volatile u16*)0x07000000) = (screenY & 0xFF) | (0 << 10);   // attr0: Y position (8 bits), bits 10-11 = 00 (normal mode)
     *((volatile u16*)0x07000002) = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
     *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0, palette 0
 }
@@ -414,6 +415,13 @@ int main() {
     
     // Mode 0 with BG0 and sprites enabled
     REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
+
+    // Enable alpha blending for sprites
+    // BLDCNT: Effect=Alpha blend (bit 6), NO global OBJ target (sprites set semi-transparent individually)
+    // 2nd target=BG0+BG1+BD (bits 8,9,13) - what semi-transparent sprites blend with
+    *((volatile u16*)0x04000050) = (1 << 6) | (1 << 8) | (1 << 9) | (1 << 13);
+    // BLDALPHA: Set blend coefficients EVA (sprite) and EVB (background) - must sum to 16 or less
+    *((volatile u16*)0x04000052) = (7 << 0) | (9 << 8);  // ~44% trail, ~56% background (more transparent)
 
     // Set up background palette
     volatile u16* bgPalette = (volatile u16*)0x05000000;
