@@ -1,24 +1,7 @@
 #include "gba.h"
-
-// 16x16 red circle sprite in tile format (4 tiles of 8x8)
-const unsigned char playerSprite[256] = {
-    0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-    1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
-    1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
-};
+#include "skelly.h"
+#include "ground.h"
+#include "ground2.h"
 
 // Use fixed-point math (8 bits fractional) for smooth sub-pixel movement
 #define FIXED_SHIFT 8
@@ -186,7 +169,7 @@ void drawGame(Player* player) {
 
     // Update sprite position (16x16, 256-color)
     *((volatile u16*)0x07000000) = screenY | (1 << 13);   // attr0: Y + 256-color mode
-    *((volatile u16*)0x07000002) = screenX | (1 << 14);   // attr1: X + size 16x16
+    *((volatile u16*)0x07000002) = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
     *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0
 }
 
@@ -195,29 +178,72 @@ int main() {
     REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
 
     // Set up background palette
-    setPalette(0, COLOR(15, 20, 31));  // Sky color (light blue)
-    setPalette(1, COLOR(0, 31, 0));     // Green ground
+    // ground.png: uses indices 0-3 with colors at groundPal[0-3]
+    // ground2.png: uses indices 0-1 with colors at ground2Pal[0-1]
+    // Merge them: ground at 1-4, ground2 at 5-6
+    volatile u16* bgPalette = (volatile u16*)0x05000000;
+    setPalette(0, COLOR(15, 20, 31));  // Sky color (light blue) at index 0
+    
+    // Copy ground palette to indices 1-4
+    bgPalette[1] = groundPal[0];
+    bgPalette[2] = groundPal[1];
+    bgPalette[3] = groundPal[2];
+    bgPalette[4] = groundPal[3];
+    
+    // Copy ground2 palette to indices 5-6
+    bgPalette[5] = ground2Pal[0];
+    bgPalette[6] = ground2Pal[1];
 
-    // Create background tiles (tile 0 = sky, tile 1 = ground)
-    // Each tile is 8x8 pixels in 8bpp mode = 64 bytes = 32 halfwords
-    volatile u16* bgTiles = (volatile u16*)0x06000000;
+    // Create background tiles
+    volatile u32* bgTiles = (volatile u32*)0x06000000;
 
-    // Tile 0: Sky (all pixels palette index 0) - 32 halfwords of 0x0000
-    for (int i = 0; i < 32; i++) {
-        bgTiles[i] = 0x0000;
+    // Tile 0: Sky (all pixels palette index 0)
+    for (int i = 0; i < 16; i++) {
+        bgTiles[i] = 0x00000000;
     }
 
-    // Tile 1: Ground (all pixels palette index 1) - 32 halfwords of 0x0101
-    for (int i = 0; i < 32; i++) {
-        bgTiles[32 + i] = 0x0101;
+    // Tiles 1-4: ground.png - remap palette indices: 0->1, 1->2, 2->3, 3->4
+    for (int i = 0; i < 64; i++) {
+        u32 tile = groundTiles[i];
+        u32 b0 = (tile & 0xFF) + 1;
+        u32 b1 = ((tile >> 8) & 0xFF) + 1;
+        u32 b2 = ((tile >> 16) & 0xFF) + 1;
+        u32 b3 = ((tile >> 24) & 0xFF) + 1;
+        bgTiles[16 + i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+    }
+
+    // Tiles 5-8: ground2.png - remap palette indices: 0->5, 1->6
+    for (int i = 0; i < 64; i++) {
+        u32 tile = ground2Tiles[i];
+        u32 b0 = (tile & 0xFF) == 0 ? 5 : 6;
+        u32 b1 = ((tile >> 8) & 0xFF) == 0 ? 5 : 6;
+        u32 b2 = ((tile >> 16) & 0xFF) == 0 ? 5 : 6;
+        u32 b3 = ((tile >> 24) & 0xFF) == 0 ? 5 : 6;
+        bgTiles[80 + i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
     }
 
     // Set up tile map at screen base block 16
+    // 16x16 tiles are stored as 4 consecutive 8x8 tiles: TL, TR, BL, BR
+    // GROUND_HEIGHT is 130, so we want ground to start at pixel row 130
+    // That's tile row 130/8 = 16.25, so ground starts at tile row 16 (pixel 128)
     volatile u16* bgMap = (volatile u16*)0x06008000;
+    int groundTileRow = GROUND_HEIGHT / 8;  // = 16 (tile row where ground starts)
+    
     for (int y = 0; y < 32; y++) {
         for (int x = 0; x < 32; x++) {
-            if (y >= GROUND_HEIGHT / 8) {
-                bgMap[y * 32 + x] = 1;  // Ground tile
+            if (y >= groundTileRow) {
+                // Determine which 16x16 tile row we're in (0 = first, 1 = second, etc.)
+                int groundRow = (y - groundTileRow) / 2;
+                int subTileY = (y - groundTileRow) % 2;  // 0 or 1 (top or bottom half of 16x16)
+                int subTileX = (x % 2);  // 0 or 1 (left or right half)
+                
+                if (groundRow == 0) {
+                    // First 16x16 row: use ground.png (tiles 1-4)
+                    bgMap[y * 32 + x] = 1 + subTileY * 2 + subTileX;
+                } else {
+                    // Lower rows: use ground2.png (tiles 5-8)
+                    bgMap[y * 32 + x] = 5 + subTileY * 2 + subTileX;
+                }
             } else {
                 bgMap[y * 32 + x] = 0;  // Sky tile
             }
@@ -227,16 +253,17 @@ int main() {
     // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
     *((volatile u16*)0x04000008) = 0x0080 | (16 << 8);
 
-    // Set sprite palette
-    *((volatile u16*)0x05000200) = 0x0000;        // Index 0: transparent
-    *((volatile u16*)0x05000202) = COLOR(31, 0, 0);  // Index 1: red
+    // Copy sprite palette to VRAM
+    volatile u16* spritePalette = (volatile u16*)0x05000200;
+    for (int i = 0; i < 256; i++) {
+        spritePalette[i] = skellyPal[i];
+    }
 
     // Copy player sprite to VRAM (char block 4 at 0x06010000)
     // 16x16 sprite = 4 tiles (8x8 each), 256 bytes total
-    volatile u16* spriteTiles = (volatile u16*)0x06010000;
-    const u16* spriteData = (const u16*)playerSprite;
-    for (int i = 0; i < 128; i++) {  // 256 bytes = 128 halfwords
-        spriteTiles[i] = spriteData[i];
+    volatile u32* spriteTiles = (volatile u32*)0x06010000;
+    for (int i = 0; i < 64; i++) {  // 256 bytes = 64 words
+        spriteTiles[i] = skellyTiles[i];
     }
 
     // Set up sprite 0 as 16x16
