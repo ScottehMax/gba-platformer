@@ -1,0 +1,38 @@
+# Build artifacts
+*.o
+*.elf
+*.gba
+
+# Generated asset files
+skelly.h
+skelly.c
+ground.h
+ground.c
+ground2.h
+ground2.c
+
+# Generated level files
+level*.h
+
+# GBA save files
+*.sav
+*.ss*
+
+# Editor temp files
+editor/.DS_Store
+editor/Thumbs.db
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

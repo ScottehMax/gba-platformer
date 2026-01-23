@@ -2,6 +2,7 @@
 #include "skelly.h"
 #include "ground.h"
 #include "ground2.h"
+#include "level2.h"
 
 // Use fixed-point math (8 bits fractional) for smooth sub-pixel movement
 #define FIXED_SHIFT 8
@@ -16,7 +17,6 @@
 #define DASH_SPEED (FIXED_ONE * 5)
 
 #define PLAYER_RADIUS 8
-#define GROUND_HEIGHT 130
 
 typedef struct {
     int x;  // Fixed-point
@@ -30,12 +30,65 @@ typedef struct {
     u16 prevKeys;     // Previous frame keys for detecting button presses
 } Player;
 
+typedef struct {
+    int x;  // Camera X in pixels
+    int y;  // Camera Y in pixels
+} Camera;
+
 void vsync() {
     while ((*(volatile u16*)0x04000006) >= 160);
     while ((*(volatile u16*)0x04000006) < 160);
 }
 
-void updatePlayer(Player* player, u16 keys) {
+u8 getTileAt(const Level* level, int tileX, int tileY) {
+    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
+        return 0; // Out of bounds
+    }
+    return level->tiles[tileY * level->width + tileX];
+}
+
+int isTileSolid(u8 tileId) {
+    // Tiles 1-8 are solid (ground tiles)
+    // Tile 0 is empty/air
+    return tileId >= 1 && tileId <= 8;
+}
+
+void updateCamera(Camera* camera, Player* player, const Level* level) {
+    // Camera follows player with dead zone
+    int playerScreenX = (player->x >> FIXED_SHIFT) - camera->x;
+    int playerScreenY = (player->y >> FIXED_SHIFT) - camera->y;
+    
+    // Horizontal camera
+    int deadZoneLeft = SCREEN_WIDTH / 3;
+    int deadZoneRight = 2 * SCREEN_WIDTH / 3;
+    
+    if (playerScreenX < deadZoneLeft) {
+        camera->x += playerScreenX - deadZoneLeft;
+    } else if (playerScreenX > deadZoneRight) {
+        camera->x += playerScreenX - deadZoneRight;
+    }
+    
+    // Vertical camera  
+    int deadZoneTop = SCREEN_HEIGHT / 3;
+    int deadZoneBottom = 2 * SCREEN_HEIGHT / 3;
+    
+    if (playerScreenY < deadZoneTop) {
+        camera->y += playerScreenY - deadZoneTop;
+    } else if (playerScreenY > deadZoneBottom) {
+        camera->y += playerScreenY - deadZoneBottom;
+    }
+    
+    // Clamp camera to level bounds
+    int maxCameraX = level->width * 8 - SCREEN_WIDTH;
+    int maxCameraY = level->height * 8 - SCREEN_HEIGHT;
+    
+    if (camera->x < 0) camera->x = 0;
+    if (camera->x > maxCameraX) camera->x = maxCameraX;
+    if (camera->y < 0) camera->y = 0;
+    if (camera->y > maxCameraY) camera->y = maxCameraY;
+}
+
+void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Detect button presses (pressed this frame but not last frame)
     u16 pressed = keys & ~player->prevKeys;
 
@@ -115,55 +168,127 @@ void updatePlayer(Player* player, u16 keys) {
         player->vy += GRAVITY;
     }
 
-    // Update position
+    // Update position with collision detection
     player->x += player->vx;
     player->y += player->vy;
 
-    // Keep player on screen horizontally
+    // Get player position in pixels
     int screenX = player->x >> FIXED_SHIFT;
+    int screenY = player->y >> FIXED_SHIFT;
+    
+    // Level bounds (keep player in level)
+    int levelWidthPx = level->width * 8;
+    
     if (screenX < PLAYER_RADIUS) {
         player->x = PLAYER_RADIUS << FIXED_SHIFT;
         player->vx = 0;
     }
-    if (screenX > SCREEN_WIDTH - PLAYER_RADIUS) {
-        player->x = (SCREEN_WIDTH - PLAYER_RADIUS) << FIXED_SHIFT;
+    if (screenX > levelWidthPx - PLAYER_RADIUS) {
+        player->x = (levelWidthPx - PLAYER_RADIUS) << FIXED_SHIFT;
         player->vx = 0;
     }
 
     // Ceiling collision
-    int screenY = player->y >> FIXED_SHIFT;
     if (screenY - PLAYER_RADIUS < 0) {
         player->y = PLAYER_RADIUS << FIXED_SHIFT;
         player->vy = 0;
     }
+    
+    // Update position after bounds check
+    screenX = player->x >> FIXED_SHIFT;
+    screenY = player->y >> FIXED_SHIFT;
 
-    // Ground collision
-    if (screenY + PLAYER_RADIUS >= GROUND_HEIGHT) {
-        player->y = (GROUND_HEIGHT - PLAYER_RADIUS) << FIXED_SHIFT;
-        player->vy = 0;
-        player->onGround = 1;
-
-        // End dash when landing
-        if (player->dashing > 0) {
-            player->dashing = 0;
+    // Tile-based collision detection
+    // Check tiles around player (in a radius)
+    int tileMinX = (screenX - PLAYER_RADIUS) / 8;
+    int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
+    int tileMinY = (screenY - PLAYER_RADIUS) / 8;
+    int tileMaxY = (screenY + PLAYER_RADIUS) / 8;
+    
+    player->onGround = 0;
+    
+    for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+            u8 tile = getTileAt(level, tx, ty);
+            if (!isTileSolid(tile)) continue;
+            
+            // Tile bounds
+            int tileLeft = tx * 8;
+            int tileRight = (tx + 1) * 8;
+            int tileTop = ty * 8;
+            int tileBottom = (ty + 1) * 8;
+            
+            // Player bounds
+            int playerLeft = screenX - PLAYER_RADIUS;
+            int playerRight = screenX + PLAYER_RADIUS;
+            int playerTop = screenY - PLAYER_RADIUS;
+            int playerBottom = screenY + PLAYER_RADIUS;
+            
+            // Check collision
+            if (playerRight > tileLeft && playerLeft < tileRight &&
+                playerBottom > tileTop && playerTop < tileBottom) {
+                
+                // Calculate overlap on each axis
+                int overlapLeft = playerRight - tileLeft;
+                int overlapRight = tileRight - playerLeft;
+                int overlapTop = playerBottom - tileTop;
+                int overlapBottom = tileBottom - playerTop;
+                
+                // Find minimum overlap
+                int minOverlap = overlapLeft;
+                int axis = 0; // 0=left, 1=right, 2=top, 3=bottom
+                
+                if (overlapRight < minOverlap) {
+                    minOverlap = overlapRight;
+                    axis = 1;
+                }
+                if (overlapTop < minOverlap) {
+                    minOverlap = overlapTop;
+                    axis = 2;
+                }
+                if (overlapBottom < minOverlap) {
+                    minOverlap = overlapBottom;
+                    axis = 3;
+                }
+                
+                // Resolve collision on minimum overlap axis
+                if (axis == 0) { // Push left
+                    player->x = (tileLeft - PLAYER_RADIUS) << FIXED_SHIFT;
+                    player->vx = 0;
+                } else if (axis == 1) { // Push right
+                    player->x = (tileRight + PLAYER_RADIUS) << FIXED_SHIFT;
+                    player->vx = 0;
+                } else if (axis == 2) { // Push up (landed on ground)
+                    player->y = (tileTop - PLAYER_RADIUS) << FIXED_SHIFT;
+                    player->vy = 0;
+                    player->onGround = 1;
+                    if (player->dashing > 0) {
+                        player->dashing = 0;
+                    }
+                } else if (axis == 3) { // Push down (hit ceiling)
+                    player->y = (tileBottom + PLAYER_RADIUS) << FIXED_SHIFT;
+                    player->vy = 0;
+                }
+                
+                // Update screen position after collision
+                screenX = player->x >> FIXED_SHIFT;
+                screenY = player->y >> FIXED_SHIFT;
+            }
         }
-        // Horizontal velocity is preserved automatically
-    } else {
-        player->onGround = 0;
     }
 
     // Update previous keys for next frame
     player->prevKeys = keys;
 }
 
-void drawGame(Player* player) {
-    // Update player sprite position - convert from fixed-point to screen coordinates
-    int screenX = (player->x >> FIXED_SHIFT) - 8;  // Center the 16x16 sprite
-    int screenY = (player->y >> FIXED_SHIFT) - 8;  // Center the 16x16 sprite
+void drawGame(Player* player, Camera* camera) {
+    // Update player sprite position - convert from world to screen coordinates
+    int screenX = (player->x >> FIXED_SHIFT) - camera->x - 8;  // Center the 16x16 sprite
+    int screenY = (player->y >> FIXED_SHIFT) - camera->y - 8;  // Center the 16x16 sprite
 
     // Clamp to visible area
-    if (screenX < 0) screenX = 0;
-    if (screenY < 0) screenY = 0;
+    if (screenX < -16) screenX = -16;
+    if (screenY < -16) screenY = -16;
     if (screenX > 239) screenX = 239;
     if (screenY > 159) screenY = 159;
 
@@ -173,14 +298,23 @@ void drawGame(Player* player) {
     *((volatile u16*)0x07000004) = 0;                      // attr2: tile 0
 }
 
+void loadLevelToVRAM(const Level* level) {
+    // Set up background tiles from level data
+    // The level uses tile IDs 0-8, which map to our existing tiles
+    // This function could be extended to dynamically load tiles based on level needs
+    
+    // Tiles are already set up in main(), so nothing extra needed here
+    // In a more advanced implementation, we'd stream tiles as camera scrolls
+}
+
 int main() {
+    // Load level
+    const Level* currentLevel = &Tutorial_Level;
+    
     // Mode 0 with BG0 and sprites enabled
     REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
 
     // Set up background palette
-    // ground.png: uses indices 0-3 with colors at groundPal[0-3]
-    // ground2.png: uses indices 0-1 with colors at ground2Pal[0-1]
-    // Merge them: ground at 1-4, ground2 at 5-6
     volatile u16* bgPalette = (volatile u16*)0x05000000;
     setPalette(0, COLOR(15, 20, 31));  // Sky color (light blue) at index 0
     
@@ -194,7 +328,7 @@ int main() {
     bgPalette[5] = ground2Pal[0];
     bgPalette[6] = ground2Pal[1];
 
-    // Create background tiles
+    // Create background tiles in VRAM
     volatile u32* bgTiles = (volatile u32*)0x06000000;
 
     // Tile 0: Sky (all pixels palette index 0)
@@ -222,34 +356,6 @@ int main() {
         bgTiles[80 + i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
     }
 
-    // Set up tile map at screen base block 16
-    // 16x16 tiles are stored as 4 consecutive 8x8 tiles: TL, TR, BL, BR
-    // GROUND_HEIGHT is 130, so we want ground to start at pixel row 130
-    // That's tile row 130/8 = 16.25, so ground starts at tile row 16 (pixel 128)
-    volatile u16* bgMap = (volatile u16*)0x06008000;
-    int groundTileRow = GROUND_HEIGHT / 8;  // = 16 (tile row where ground starts)
-    
-    for (int y = 0; y < 32; y++) {
-        for (int x = 0; x < 32; x++) {
-            if (y >= groundTileRow) {
-                // Determine which 16x16 tile row we're in (0 = first, 1 = second, etc.)
-                int groundRow = (y - groundTileRow) / 2;
-                int subTileY = (y - groundTileRow) % 2;  // 0 or 1 (top or bottom half of 16x16)
-                int subTileX = (x % 2);  // 0 or 1 (left or right half)
-                
-                if (groundRow == 0) {
-                    // First 16x16 row: use ground.png (tiles 1-4)
-                    bgMap[y * 32 + x] = 1 + subTileY * 2 + subTileX;
-                } else {
-                    // Lower rows: use ground2.png (tiles 5-8)
-                    bgMap[y * 32 + x] = 5 + subTileY * 2 + subTileX;
-                }
-            } else {
-                bgMap[y * 32 + x] = 0;  // Sky tile
-            }
-        }
-    }
-
     // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
     *((volatile u16*)0x04000008) = 0x0080 | (16 << 8);
 
@@ -260,41 +366,70 @@ int main() {
     }
 
     // Copy player sprite to VRAM (char block 4 at 0x06010000)
-    // 16x16 sprite = 4 tiles (8x8 each), 256 bytes total
     volatile u32* spriteTiles = (volatile u32*)0x06010000;
-    for (int i = 0; i < 64; i++) {  // 256 bytes = 64 words
+    for (int i = 0; i < 64; i++) {
         spriteTiles[i] = skellyTiles[i];
     }
 
     // Set up sprite 0 as 16x16
-    *((volatile u16*)0x07000000) = (1 << 13);   // attr0: Y=0, 256-color, square
-    *((volatile u16*)0x07000002) = (1 << 14);   // attr1: X=0, size=16x16
-    *((volatile u16*)0x07000004) = 0;           // attr2: tile 0
+    *((volatile u16*)0x07000000) = (1 << 13);
+    *((volatile u16*)0x07000002) = (1 << 14);
+    *((volatile u16*)0x07000004) = 0;
 
     // Hide other sprites
     for (int i = 1; i < 128; i++) {
         *((volatile u16*)(0x07000000 + i * 8)) = 160;
     }
 
-    // Initialize player (in fixed-point coordinates)
+    // Initialize player from level spawn point
     Player player;
-    player.x = (SCREEN_WIDTH / 2) << FIXED_SHIFT;
-    player.y = (GROUND_HEIGHT - PLAYER_RADIUS) << FIXED_SHIFT;
+    player.x = currentLevel->playerSpawnX << FIXED_SHIFT;
+    player.y = currentLevel->playerSpawnY << FIXED_SHIFT;
     player.vx = 0;
     player.vy = 0;
-    player.onGround = 1;
+    player.onGround = 0;
     player.dashing = 0;
     player.dashCooldown = 0;
-    player.facingRight = 1;  // Start facing right
-    player.prevKeys = 0;      // No keys pressed initially
+    player.facingRight = 1;
+    player.prevKeys = 0;
+    
+    // Initialize camera
+    Camera camera;
+    camera.x = 0;
+    camera.y = 0;
+
+    // Background map pointer
+    volatile u16* bgMap = (volatile u16*)0x06008000;
 
     // Game loop
     while (1) {
         vsync();
 
         u16 keys = getKeys();
-        updatePlayer(&player, keys);
-        drawGame(&player);
+        updatePlayer(&player, keys, currentLevel);
+        updateCamera(&camera, &player, currentLevel);
+        
+        // Update background map based on camera position
+        // Calculate which tiles are visible
+        int startTileX = camera.x / 8;
+        int startTileY = camera.y / 8;
+        
+        // GBA background is 32x32 tiles, we render from level data
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 32; x++) {
+                int levelTileX = startTileX + x;
+                int levelTileY = startTileY + y;
+                
+                u8 tileId = getTileAt(currentLevel, levelTileX, levelTileY);
+                bgMap[y * 32 + x] = tileId;
+            }
+        }
+        
+        // Set background scroll registers
+        *((volatile u16*)0x04000010) = camera.x % 8;  // BG0HOFS
+        *((volatile u16*)0x04000012) = camera.y % 8;  // BG0VOFS
+        
+        drawGame(&player, &camera);
     }
 
     return 0;
