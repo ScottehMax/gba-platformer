@@ -25,11 +25,12 @@ const unsigned char playerSprite[256] = {
 #define FIXED_ONE (1 << FIXED_SHIFT)
 
 #define GRAVITY (FIXED_ONE / 2)
-#define JUMP_STRENGTH (FIXED_ONE * 8)
+#define JUMP_STRENGTH (FIXED_ONE * 5)
 #define MAX_SPEED (FIXED_ONE * 3)
-#define ACCELERATION (FIXED_ONE * 3)
-#define FRICTION (FIXED_ONE / 4)
+#define ACCELERATION (FIXED_ONE * 1)
+#define FRICTION (FIXED_ONE / 10)
 #define AIR_FRICTION (FIXED_ONE / 8)
+#define DASH_SPEED (FIXED_ONE * 5)
 
 #define PLAYER_RADIUS 8
 #define GROUND_HEIGHT 130
@@ -40,6 +41,9 @@ typedef struct {
     int vx; // Fixed-point
     int vy; // Fixed-point
     int onGround;
+    int dashing;
+    int dashCooldown;
+    int facingRight;  // 1 = right, 0 = left
 } Player;
 
 void vsync() {
@@ -48,37 +52,79 @@ void vsync() {
 }
 
 void updatePlayer(Player* player, u16 keys) {
-    // Horizontal movement with acceleration
-    if (keys & KEY_LEFT) {
-        player->vx -= ACCELERATION;
-        if (player->vx < -MAX_SPEED) {
-            player->vx = -MAX_SPEED;
+    // Dash cooldown
+    if (player->dashCooldown > 0) {
+        player->dashCooldown--;
+    }
+
+    // R button: Dash (8-directional or forward)
+    if ((keys & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
+        player->dashing = 8; // Dash lasts 8 frames
+        player->dashCooldown = 30; // 30 frames cooldown
+
+        // Check which directions are held
+        int dashX = 0, dashY = 0;
+        if (keys & KEY_LEFT) dashX = -1;
+        if (keys & KEY_RIGHT) dashX = 1;
+        if (keys & KEY_UP) dashY = -1;
+        if (keys & KEY_DOWN) dashY = 1;
+
+        // If no direction held, dash forward based on facing
+        if (dashX == 0 && dashY == 0) {
+            dashX = player->facingRight ? 1 : -1;
         }
-    } else if (keys & KEY_RIGHT) {
-        player->vx += ACCELERATION;
-        if (player->vx > MAX_SPEED) {
-            player->vx = MAX_SPEED;
-        }
-    } else {
-        // Apply friction when no input
-        int friction = player->onGround ? FRICTION : AIR_FRICTION;
-        if (player->vx > 0) {
-            player->vx -= friction;
-            if (player->vx < 0) player->vx = 0;
-        } else if (player->vx < 0) {
-            player->vx += friction;
-            if (player->vx > 0) player->vx = 0;
+
+        // Apply dash velocity (normalize diagonals to maintain speed)
+        if (dashX != 0 && dashY != 0) {
+            // Diagonal: multiply by ~0.707 (using 181/256 as approximation)
+            player->vx = (dashX * DASH_SPEED * 181) >> 8;
+            player->vy = (dashY * DASH_SPEED * 181) >> 8;
+        } else {
+            player->vx = dashX * DASH_SPEED;
+            player->vy = dashY * DASH_SPEED;
         }
     }
 
-    // Jump
-    if ((keys & KEY_UP) && player->onGround) {
+    // Countdown dash timer
+    if (player->dashing > 0) {
+        player->dashing--;
+    }
+
+    // Horizontal movement (disabled during dash)
+    if (player->dashing == 0) {
+        if (keys & KEY_LEFT) {
+            player->vx -= ACCELERATION;
+            if (player->vx < -MAX_SPEED) {
+                player->vx = -MAX_SPEED;
+            }
+            player->facingRight = 0;  // Face left
+        } else if (keys & KEY_RIGHT) {
+            player->vx += ACCELERATION;
+            if (player->vx > MAX_SPEED) {
+                player->vx = MAX_SPEED;
+            }
+            player->facingRight = 1;  // Face right
+        } else {
+            // Apply friction when no input
+            int friction = player->onGround ? FRICTION : AIR_FRICTION;
+            if (player->vx > 0) {
+                player->vx -= friction;
+                if (player->vx < 0) player->vx = 0;
+            } else if (player->vx < 0) {
+                player->vx += friction;
+                if (player->vx > 0) player->vx = 0;
+            }
+        }
+    }
+
+    // A button: Jump
+    if ((keys & KEY_A) && player->onGround) {
         player->vy = -JUMP_STRENGTH;
         player->onGround = 0;
     }
 
-    // Apply gravity
-    if (!player->onGround) {
+    // Apply gravity (but not during dash, to preserve dash trajectory)
+    if (!player->onGround && player->dashing == 0) {
         player->vy += GRAVITY;
     }
 
@@ -97,12 +143,26 @@ void updatePlayer(Player* player, u16 keys) {
         player->vx = 0;
     }
 
-    // Ground collision
+    // Ceiling collision
     int screenY = player->y >> FIXED_SHIFT;
+    if (screenY - PLAYER_RADIUS < 0) {
+        player->y = PLAYER_RADIUS << FIXED_SHIFT;
+        player->vy = 0;
+    }
+
+    // Ground collision
     if (screenY + PLAYER_RADIUS >= GROUND_HEIGHT) {
         player->y = (GROUND_HEIGHT - PLAYER_RADIUS) << FIXED_SHIFT;
         player->vy = 0;
         player->onGround = 1;
+
+        // End dash when landing
+        if (player->dashing > 0) {
+            player->dashing = 0;
+        }
+        // Horizontal velocity is preserved automatically
+    } else {
+        player->onGround = 0;
     }
 }
 
@@ -189,6 +249,9 @@ int main() {
     player.vx = 0;
     player.vy = 0;
     player.onGround = 1;
+    player.dashing = 0;
+    player.dashCooldown = 0;
+    player.facingRight = 1;  // Start facing right
 
     // Game loop
     while (1) {
