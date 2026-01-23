@@ -68,43 +68,92 @@ class LevelEditor {
     }
     
     loadTileImages() {
-        // Load tile assets - for now we'll create placeholder tiles
-        // In production, these would load from assets/ground.png, etc.
-        this.createPlaceholderTiles();
-        this.tilesLoaded = true;
-        this.renderTilePalette();
+        // Load tile assets from PNG files
+        this.tileImages = [];
+        let loadedCount = 0;
+        const totalImages = 2;
+
+        // Create tile 0 (sky/air) as placeholder
+        const skyTile = document.createElement('canvas');
+        skyTile.width = 8;
+        skyTile.height = 8;
+        const skyCtx = skyTile.getContext('2d');
+        skyCtx.fillStyle = '#87CEEB';
+        skyCtx.fillRect(0, 0, 8, 8);
+        this.tileImages[0] = skyTile;
+
+        // Load ground.png (tiles 1-4)
+        const groundImg = new Image();
+        groundImg.onload = () => {
+            this.extractTiles(groundImg, 1, 4);
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                this.tilesLoaded = true;
+                this.renderTilePalette();
+            }
+        };
+        groundImg.onerror = () => {
+            console.error('Failed to load ground.png');
+            this.createPlaceholderTiles(1, 4, '#8B4513');
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                this.tilesLoaded = true;
+                this.renderTilePalette();
+            }
+        };
+        groundImg.src = 'ground.png';
+
+        // Load ground2.png (tiles 5-8)
+        const ground2Img = new Image();
+        ground2Img.onload = () => {
+            this.extractTiles(ground2Img, 5, 4);
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                this.tilesLoaded = true;
+                this.renderTilePalette();
+            }
+        };
+        ground2Img.onerror = () => {
+            console.error('Failed to load ground2.png');
+            this.createPlaceholderTiles(5, 4, '#654321');
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                this.tilesLoaded = true;
+                this.renderTilePalette();
+            }
+        };
+        ground2Img.src = 'ground2.png';
     }
-    
-    createPlaceholderTiles() {
-        // Create 9 placeholder tiles (0-8)
-        for (let i = 0; i < 9; i++) {
+
+    extractTiles(image, startIndex, count) {
+        // Extract 8x8 tiles from the image
+        // Assumes tiles are arranged in a row or grid
+        const tilesPerRow = Math.floor(image.width / 8);
+
+        for (let i = 0; i < count; i++) {
+            const tileX = (i % tilesPerRow) * 8;
+            const tileY = Math.floor(i / tilesPerRow) * 8;
+
             const canvas = document.createElement('canvas');
             canvas.width = 8;
             canvas.height = 8;
             const ctx = canvas.getContext('2d');
-            
-            if (i === 0) {
-                // Sky tile - light blue
-                ctx.fillStyle = '#87CEEB';
-            } else if (i >= 1 && i <= 4) {
-                // Ground tiles - brown/green
-                ctx.fillStyle = i % 2 === 1 ? '#8B4513' : '#228B22';
-            } else {
-                // Underground tiles - darker
-                ctx.fillStyle = i % 2 === 1 ? '#654321' : '#4B6B22';
-            }
-            
+            ctx.drawImage(image, tileX, tileY, 8, 8, 0, 0, 8, 8);
+
+            this.tileImages[startIndex + i] = canvas;
+        }
+    }
+
+    createPlaceholderTiles(startIndex, count, baseColor) {
+        // Fallback if image loading fails
+        for (let i = 0; i < count; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 8;
+            canvas.height = 8;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = baseColor;
             ctx.fillRect(0, 0, 8, 8);
-            
-            // Add texture pattern
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            for (let y = 0; y < 8; y += 2) {
-                for (let x = (y / 2) % 2; x < 8; x += 2) {
-                    ctx.fillRect(x, y, 1, 1);
-                }
-            }
-            
-            this.tileImages.push(canvas);
+            this.tileImages[startIndex + i] = canvas;
         }
     }
     

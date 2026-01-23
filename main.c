@@ -15,6 +15,7 @@
 #define FRICTION (FIXED_ONE / 10)
 #define AIR_FRICTION (FIXED_ONE / 8)
 #define DASH_SPEED (FIXED_ONE * 5)
+#define COYOTE_TIME 6  // Frames of grace period after walking off edge
 
 #define PLAYER_RADIUS 8
 
@@ -24,6 +25,7 @@ typedef struct {
     int vx; // Fixed-point
     int vy; // Fixed-point
     int onGround;
+    int coyoteTime;   // Frames remaining for coyote time jump
     int dashing;
     int dashCooldown;
     int facingRight;  // 1 = right, 0 = left
@@ -158,9 +160,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     }
 
     // A button: Jump - only on press, not hold
-    if ((pressed & KEY_A) && player->onGround) {
+    // Allow jump if grounded OR within coyote time window
+    if ((pressed & KEY_A) && (player->onGround || player->coyoteTime > 0)) {
         player->vy = -JUMP_STRENGTH;
         player->onGround = 0;
+        player->coyoteTime = 0;  // Consume coyote time on jump
     }
 
     // Apply gravity (but not during dash, to preserve dash trajectory)
@@ -286,7 +290,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         screenY = player->y >> FIXED_SHIFT;
         int feetY = (screenY + PLAYER_RADIUS + 1) / 8;
         int checkX = screenX / 8;
-        
+
         u8 tile = getTileAt(level, checkX, feetY);
         if (isTileSolid(tile)) {
             int tileTop = feetY * 8;
@@ -295,7 +299,14 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
             }
         }
     }
-    
+
+    // Update coyote time
+    if (player->onGround) {
+        player->coyoteTime = COYOTE_TIME;  // Reset when grounded
+    } else if (player->coyoteTime > 0) {
+        player->coyoteTime--;  // Count down when airborne
+    }
+
     // Update previous keys for next frame
     player->prevKeys = keys;
 }
@@ -407,6 +418,7 @@ int main() {
     player.vx = 0;
     player.vy = 0;
     player.onGround = 0;
+    player.coyoteTime = 0;
     player.dashing = 0;
     player.dashCooldown = 0;
     player.facingRight = 1;
