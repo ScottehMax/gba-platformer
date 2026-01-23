@@ -210,8 +210,14 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
                 
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
-                    // Collision - revert X movement
-                    player->x = oldX;
+                    // Collision - snap to tile edge instead of reverting
+                    if (player->vx > 0) {
+                        // Moving right, snap to left edge of tile
+                        player->x = (tileLeft - PLAYER_RADIUS) << FIXED_SHIFT;
+                    } else {
+                        // Moving left, snap to right edge of tile
+                        player->x = (tileRight + PLAYER_RADIUS) << FIXED_SHIFT;
+                    }
                     player->vx = 0;
                     goto horizontal_done;
                 }
@@ -255,12 +261,17 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
                 
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
-                    // Collision - revert Y movement
-                    player->y = oldY;
-                    player->vy = 0;
-                    if (player->vy > 0 || oldY >> FIXED_SHIFT >= screenY) {
+                    // Collision - snap to tile edge
+                    if (player->vy > 0) {
+                        // Moving down, snap to top of tile
+                        player->y = (tileTop - PLAYER_RADIUS) << FIXED_SHIFT;
+                        player->vy = 0;
                         player->onGround = 1;
                         if (player->dashing > 0) player->dashing = 0;
+                    } else {
+                        // Moving up, snap to bottom of tile
+                        player->y = (tileBottom + PLAYER_RADIUS) << FIXED_SHIFT;
+                        player->vy = 0;
                     }
                     goto vertical_done;
                 }
