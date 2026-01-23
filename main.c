@@ -168,133 +168,123 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->vy += GRAVITY;
     }
 
-    // Horizontal movement and collision
-    player->x += player->vx;
+    // Swept collision - move along each axis and stop at first collision
+    int oldX = player->x;
+    int oldY = player->y;
     
+    // Horizontal sweep
+    player->x += player->vx;
     int screenX = player->x >> FIXED_SHIFT;
     int screenY = player->y >> FIXED_SHIFT;
     
-    // Level bounds X
+    // Level bounds
     int levelWidthPx = level->width * 8;
     if (screenX < PLAYER_RADIUS) {
         player->x = PLAYER_RADIUS << FIXED_SHIFT;
         player->vx = 0;
-        screenX = PLAYER_RADIUS;
-    }
-    if (screenX > levelWidthPx - PLAYER_RADIUS) {
+    } else if (screenX > levelWidthPx - PLAYER_RADIUS) {
         player->x = (levelWidthPx - PLAYER_RADIUS) << FIXED_SHIFT;
         player->vx = 0;
-        screenX = levelWidthPx - PLAYER_RADIUS;
-    }
-    
-    // Check horizontal tile collision
-    int tileMinX = (screenX - PLAYER_RADIUS) / 8;
-    int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
-    int tileMinY = (screenY - PLAYER_RADIUS) / 8;
-    int tileMaxY = (screenY + PLAYER_RADIUS) / 8;
-    
-    for (int ty = tileMinY; ty <= tileMaxY; ty++) {
-        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u8 tile = getTileAt(level, tx, ty);
-            if (!isTileSolid(tile)) continue;
-            
-            int tileLeft = tx * 8;
-            int tileRight = (tx + 1) * 8;
-            int tileTop = ty * 8;
-            int tileBottom = (ty + 1) * 8;
-            
-            int playerLeft = screenX - PLAYER_RADIUS;
-            int playerRight = screenX + PLAYER_RADIUS;
-            int playerTop = screenY - PLAYER_RADIUS;
-            int playerBottom = screenY + PLAYER_RADIUS;
-            
-            if (playerRight > tileLeft && playerLeft < tileRight &&
-                playerBottom > tileTop && playerTop < tileBottom) {
-                // Horizontal collision detected
-                if (player->vx > 0) {
-                    // Moving right, push left
-                    player->x = (tileLeft - PLAYER_RADIUS) << FIXED_SHIFT;
-                } else if (player->vx < 0) {
-                    // Moving left, push right
-                    player->x = (tileRight + PLAYER_RADIUS) << FIXED_SHIFT;
+    } else {
+        // Check for tile collision at new X position
+        screenX = player->x >> FIXED_SHIFT;
+        int tileMinX = (screenX - PLAYER_RADIUS) / 8;
+        int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
+        int tileMinY = (screenY - PLAYER_RADIUS) / 8;
+        int tileMaxY = (screenY + PLAYER_RADIUS) / 8;
+        
+        for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+            for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+                u8 tile = getTileAt(level, tx, ty);
+                if (!isTileSolid(tile)) continue;
+                
+                int tileLeft = tx * 8;
+                int tileRight = (tx + 1) * 8;
+                int tileTop = ty * 8;
+                int tileBottom = (ty + 1) * 8;
+                
+                int playerLeft = screenX - PLAYER_RADIUS;
+                int playerRight = screenX + PLAYER_RADIUS;
+                int playerTop = screenY - PLAYER_RADIUS;
+                int playerBottom = screenY + PLAYER_RADIUS;
+                
+                if (playerRight > tileLeft && playerLeft < tileRight &&
+                    playerBottom > tileTop && playerTop < tileBottom) {
+                    // Collision - revert X movement
+                    player->x = oldX;
+                    player->vx = 0;
+                    goto horizontal_done;
                 }
-                player->vx = 0;
-                screenX = player->x >> FIXED_SHIFT;
             }
         }
     }
+    horizontal_done:
     
-    // Vertical movement and collision
+    // Vertical sweep
     player->y += player->vy;
+    screenX = player->x >> FIXED_SHIFT;
     screenY = player->y >> FIXED_SHIFT;
+    
+    player->onGround = 0;
     
     // Ceiling bounds
     if (screenY - PLAYER_RADIUS < 0) {
         player->y = PLAYER_RADIUS << FIXED_SHIFT;
         player->vy = 0;
-        screenY = PLAYER_RADIUS;
-    }
-    
-    // Check vertical tile collision
-    tileMinX = (screenX - PLAYER_RADIUS) / 8;
-    tileMaxX = (screenX + PLAYER_RADIUS) / 8;
-    tileMinY = (screenY - PLAYER_RADIUS) / 8;
-    tileMaxY = (screenY + PLAYER_RADIUS) / 8;
-    
-    player->onGround = 0;
-    
-    for (int ty = tileMinY; ty <= tileMaxY; ty++) {
-        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u8 tile = getTileAt(level, tx, ty);
-            if (!isTileSolid(tile)) continue;
-            
-            int tileLeft = tx * 8;
-            int tileRight = (tx + 1) * 8;
-            int tileTop = ty * 8;
-            int tileBottom = (ty + 1) * 8;
-            
-            int playerLeft = screenX - PLAYER_RADIUS;
-            int playerRight = screenX + PLAYER_RADIUS;
-            int playerTop = screenY - PLAYER_RADIUS;
-            int playerBottom = screenY + PLAYER_RADIUS;
-            
-            if (playerRight > tileLeft && playerLeft < tileRight &&
-                playerBottom > tileTop && playerTop < tileBottom) {
-                // Vertical collision detected
-                if (player->vy > 0) {
-                    // Moving down, land on top
-                    player->y = (tileTop - PLAYER_RADIUS) << FIXED_SHIFT;
-                    player->vy = 0;
-                    player->onGround = 1;
-                    if (player->dashing > 0) player->dashing = 0;
-                } else if (player->vy < 0) {
-                    // Moving up, hit ceiling
-                    player->y = (tileBottom + PLAYER_RADIUS) << FIXED_SHIFT;
-                    player->vy = 0;
-                }
-                screenY = player->y >> FIXED_SHIFT;
-            }
-        }
-    }
-    
-    // Additional ground check - look for solid tiles just below feet
-    // This ensures onGround is set even when standing still (vy = 0)
-    if (!player->onGround) {
-        int feetY = screenY + PLAYER_RADIUS;
-        int checkTileY = (feetY + 1) / 8;
+    } else {
+        // Check for tile collision at new Y position
+        int tileMinX = (screenX - PLAYER_RADIUS) / 8;
+        int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
+        int tileMinY = (screenY - PLAYER_RADIUS) / 8;
+        int tileMaxY = (screenY + PLAYER_RADIUS) / 8;
         
-        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u8 tile = getTileAt(level, tx, checkTileY);
-            if (isTileSolid(tile)) {
-                int tileTop = checkTileY * 8;
-                if (feetY >= tileTop - 1 && feetY <= tileTop + 1) {
-                    player->onGround = 1;
-                    break;
+        for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+            for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+                u8 tile = getTileAt(level, tx, ty);
+                if (!isTileSolid(tile)) continue;
+                
+                int tileLeft = tx * 8;
+                int tileRight = (tx + 1) * 8;
+                int tileTop = ty * 8;
+                int tileBottom = (ty + 1) * 8;
+                
+                int playerLeft = screenX - PLAYER_RADIUS;
+                int playerRight = screenX + PLAYER_RADIUS;
+                int playerTop = screenY - PLAYER_RADIUS;
+                int playerBottom = screenY + PLAYER_RADIUS;
+                
+                if (playerRight > tileLeft && playerLeft < tileRight &&
+                    playerBottom > tileTop && playerTop < tileBottom) {
+                    // Collision - revert Y movement
+                    player->y = oldY;
+                    player->vy = 0;
+                    if (player->vy > 0 || oldY >> FIXED_SHIFT >= screenY) {
+                        player->onGround = 1;
+                        if (player->dashing > 0) player->dashing = 0;
+                    }
+                    goto vertical_done;
                 }
             }
         }
     }
-
+    vertical_done:
+    
+    // Ground check for standing still
+    if (!player->onGround) {
+        screenX = player->x >> FIXED_SHIFT;
+        screenY = player->y >> FIXED_SHIFT;
+        int feetY = (screenY + PLAYER_RADIUS + 1) / 8;
+        int checkX = screenX / 8;
+        
+        u8 tile = getTileAt(level, checkX, feetY);
+        if (isTileSolid(tile)) {
+            int tileTop = feetY * 8;
+            if (screenY + PLAYER_RADIUS >= tileTop - 1) {
+                player->onGround = 1;
+            }
+        }
+    }
+    
     // Update previous keys for next frame
     player->prevKeys = keys;
 }
