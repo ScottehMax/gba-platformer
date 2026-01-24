@@ -1,0 +1,50 @@
+name: build-gba
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache devkitPro
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/devkitpro
+            /var/cache/pacman/pkg
+          key: devkitpro-${{ runner.os }}-gba-dev-v1
+
+      - name: Install devkitPro pacman
+        run: |
+          if [ ! -x /opt/devkitpro/pacman/bin/dkp-pacman ]; then
+            wget https://apt.devkitpro.org/install-devkitpro-pacman
+            chmod +x ./install-devkitpro-pacman
+            sudo ./install-devkitpro-pacman
+          fi
+
+      - name: Install devkitARM + GBA toolchain
+        run: |
+          if [ ! -d /opt/devkitpro/devkitARM ]; then
+            sudo dkp-pacman -Syu --noconfirm
+            sudo dkp-pacman -S --noconfirm gba-dev
+          fi
+
+      - name: Build (test)
+        run: |
+          source /etc/profile.d/devkit-env.sh
+          make clean
+          make -j2
+          test -f game.gba
+
+      - name: Upload ROM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-gba
+          path: game.gba
