@@ -1,0 +1,22 @@
+#ifndef GAME_MATH_H
+#define GAME_MATH_H
+
+// Fixed-point math (8 bits fractional) for smooth sub-pixel movement
+#define FIXED_SHIFT 8
+#define FIXED_ONE (1 << FIXED_SHIFT)
+
+// Physics constants
+#define GRAVITY (FIXED_ONE / 2)
+#define JUMP_STRENGTH (FIXED_ONE * 5)
+#define MAX_SPEED (FIXED_ONE * 3)
+#define ACCELERATION (FIXED_ONE * 1)
+#define FRICTION (FIXED_ONE / 10)
+#define AIR_FRICTION (FIXED_ONE / 8)
+#define DASH_SPEED (FIXED_ONE * 5)
+#define COYOTE_TIME 6  // Frames of grace period after walking off edge
+
+// Player constants
+#define PLAYER_RADIUS 8
+#define TRAIL_LENGTH 10
+
+#endif

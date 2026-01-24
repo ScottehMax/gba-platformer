@@ -12,8 +12,23 @@ typedef signed short s16;
 #define MEM_PALETTE     0x05000000
 #define MEM_OAM         0x07000000
 
-#define REG_DISPCNT *((volatile u16*)(MEM_IO))
-#define REG_VCOUNT  *((volatile u16*)0x04000006)
+// I/O Register addresses
+#define REG_DISPCNT     *((volatile u16*)(MEM_IO))
+#define REG_VCOUNT      *((volatile u16*)(MEM_IO + 0x06))
+#define REG_BG0CNT      *((volatile u16*)(MEM_IO + 0x08))
+#define REG_BG0HOFS     *((volatile u16*)(MEM_IO + 0x10))
+#define REG_BG0VOFS     *((volatile u16*)(MEM_IO + 0x12))
+#define REG_BLDCNT      *((volatile u16*)(MEM_IO + 0x50))
+#define REG_BLDALPHA    *((volatile u16*)(MEM_IO + 0x52))
+
+// VRAM addresses
+#define MEM_BG_TILES    ((volatile u32*)(MEM_VRAM))
+#define MEM_BG0_MAP     ((volatile u16*)(MEM_VRAM + 0x8000))
+#define MEM_SPRITE_TILES ((volatile u32*)(MEM_VRAM + 0x10000))
+
+// Palette addresses
+#define MEM_BG_PALETTE  ((volatile u16*)(MEM_PALETTE))
+#define MEM_SPRITE_PALETTE ((volatile u16*)(MEM_PALETTE + 0x200))
 
 #define VIDEOMODE_0 0x0000
 #define BG0_ENABLE  0x0100

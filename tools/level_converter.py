@@ -116,7 +116,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("")
     
     # Tile data
-    lines.append(f"const u8 {level_name}_tiles[{len(flat_tiles)}] = {{")
+    lines.append(f"static const u8 {level_name}_tiles[{len(flat_tiles)}] = {{")
     
     # Format tiles in rows of 16 for readability
     for i in range(0, len(flat_tiles), 16):
@@ -142,7 +142,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     
     # Object data
     if objects:
-        lines.append(f"const LevelObject {level_name}_objects[{len(objects)}] = {{")
+        lines.append(f"static const LevelObject {level_name}_objects[{len(objects)}] = {{")
         for i, obj in enumerate(objects):
             obj_type = obj.get('type', 'unknown')
             obj_x = obj.get('x', 0)
@@ -152,7 +152,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
         lines.append("};")
     else:
         # Empty array for no objects
-        lines.append(f"const LevelObject {level_name}_objects[1] = {{{{\"none\", 0, 0}}}};")
+        lines.append(f"static const LevelObject {level_name}_objects[1] = {{{{\"none\", 0, 0}}}};")
     lines.append("")
     
     # Level structure definition
@@ -172,7 +172,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("")
     
     # Level instance
-    lines.append(f"const Level {level_name} = {{")
+    lines.append(f"static const Level {level_name} = {{")
     lines.append(f'    "{data["name"]}",')
     lines.append(f"    {width},")
     lines.append(f"    {height},")

@@ -6,7 +6,8 @@ GRIT = grit
 PYTHON = python
 
 GENDIR = generated
-CFLAGS = -mthumb-interwork -mthumb -O2 -Wall -I. -I$(GENDIR)
+SRCDIR = src
+CFLAGS = -mthumb-interwork -mthumb -O2 -Wall -I. -I$(GENDIR) -I$(SRCDIR)
 LDFLAGS = -specs=gba.specs
 
 TARGET = game
@@ -21,7 +22,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_JSONS = $(wildcard levels/*.json)
 LEVEL_HEADERS = $(patsubst levels/%.json,$(GENDIR)/%.h,$(LEVEL_JSONS))
 
-OBJS = main.o text.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -61,8 +62,36 @@ $(TARGET).elf: $(OBJS)
 text.o: text.c text.h gba.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Main object depends on all generated headers
-main.o: main.c gba.h $(GRIT_HEADERS) $(LEVEL_HEADERS)
+# Debug utilities module
+debug_utils.o: $(SRCDIR)/core/debug_utils.c $(SRCDIR)/core/debug_utils.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Level module
+level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Camera module
+camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h gba.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Collision module
+collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player module
+player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h gba.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player rendering module
+player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h gba.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Main object depends on all headers
+main.o: main.c gba.h text.h \
+	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
+	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
+	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h \
+	$(GRIT_HEADERS) $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
