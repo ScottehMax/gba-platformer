@@ -548,13 +548,19 @@ int main() {
 
     // Frame counter for demo
     int frameCount = 0;
-    char timeStr[16] = "Time: 00s";
+    char posXStr[32] = "X: 0";
+    char posYStr[32] = "Y: 0";
+    char velXStr[32] = "VX: 0";
+    char velYStr[32] = "VY: 0";
+    char groundStr[32] = "Ground: No";
     
     // Allocate text slots once
-    int titleSlot = draw_bg_text_auto("Font Test", 1, 1);
-    int timeSlot = draw_bg_text_auto(timeStr, 1, 2);
-    int alphabetSlot1 = draw_bg_text_auto("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1, 3);
-    int alphabetSlot2 = draw_bg_text_auto("abcdefghijklmnopqrstuvwxyz", 1, 4);
+    int titleSlot = draw_bg_text_auto("Debug Info", 1, 1);
+    int posXSlot = draw_bg_text_auto(posXStr, 1, 2);
+    int posYSlot = draw_bg_text_auto(posYStr, 1, 3);
+    int velXSlot = draw_bg_text_auto(velXStr, 1, 4);
+    int velYSlot = draw_bg_text_auto(velYStr, 1, 5);
+    int groundSlot = draw_bg_text_auto(groundStr, 1, 6);
 
     // Game loop
     while (1) {
@@ -586,21 +592,122 @@ int main() {
         
         drawGame(&player, &camera);
         
-        // TEXT DEMO: Text slots are automatically managed
-        // Update time string every 60 frames
-        if (frameCount % 60 == 0) {
-            int seconds = frameCount / 60;
-            timeStr[0] = 'T';
-            timeStr[1] = 'i';
-            timeStr[2] = 'm';
-            timeStr[3] = 'e';
-            timeStr[4] = ':';
-            timeStr[5] = ' ';
-            timeStr[6] = '0' + (seconds / 10) % 10;
-            timeStr[7] = '0' + seconds % 10;
-            timeStr[8] = 's';
-            timeStr[9] = '\0';
-            draw_bg_text_slot(timeStr, 1, 2, timeSlot);  // Update existing slot
+        // Update debug info every frame
+        // Position X (in pixels)
+        int posX = player.x >> FIXED_SHIFT;
+        int posY = player.y >> FIXED_SHIFT;
+        
+        // Simple int to string for X position
+        posXStr[0] = 'X';
+        posXStr[1] = ':';
+        posXStr[2] = ' ';
+        int idx = 3;
+        if (posX < 0) {
+            posXStr[idx++] = '-';
+            posX = -posX;
+        }
+        int digits[5];
+        int numDigits = 0;
+        if (posX == 0) {
+            digits[numDigits++] = 0;
+        } else {
+            int temp = posX;
+            while (temp > 0) {
+                digits[numDigits++] = temp % 10;
+                temp /= 10;
+            }
+        }
+        for (int i = numDigits - 1; i >= 0; i--) {
+            posXStr[idx++] = '0' + digits[i];
+        }
+        posXStr[idx] = '\0';
+        draw_bg_text_slot(posXStr, 1, 2, posXSlot);
+        
+        // Position Y
+        posY = player.y >> FIXED_SHIFT;
+        posYStr[0] = 'Y';
+        posYStr[1] = ':';
+        posYStr[2] = ' ';
+        idx = 3;
+        if (posY < 0) {
+            posYStr[idx++] = '-';
+            posY = -posY;
+        }
+        numDigits = 0;
+        if (posY == 0) {
+            digits[numDigits++] = 0;
+        } else {
+            int temp = posY;
+            while (temp > 0) {
+                digits[numDigits++] = temp % 10;
+                temp /= 10;
+            }
+        }
+        for (int i = numDigits - 1; i >= 0; i--) {
+            posYStr[idx++] = '0' + digits[i];
+        }
+        posYStr[idx] = '\0';
+        draw_bg_text_slot(posYStr, 1, 3, posYSlot);
+        
+        // Velocity X (fixed point to int)
+        int velX = player.vx >> FIXED_SHIFT;
+        velXStr[0] = 'V';
+        velXStr[1] = 'X';
+        velXStr[2] = ':';
+        velXStr[3] = ' ';
+        idx = 4;
+        if (velX < 0) {
+            velXStr[idx++] = '-';
+            velX = -velX;
+        }
+        numDigits = 0;
+        if (velX == 0) {
+            digits[numDigits++] = 0;
+        } else {
+            int temp = velX;
+            while (temp > 0) {
+                digits[numDigits++] = temp % 10;
+                temp /= 10;
+            }
+        }
+        for (int i = numDigits - 1; i >= 0; i--) {
+            velXStr[idx++] = '0' + digits[i];
+        }
+        velXStr[idx] = '\0';
+        draw_bg_text_slot(velXStr, 1, 4, velXSlot);
+        
+        // Velocity Y
+        int velY = player.vy >> FIXED_SHIFT;
+        velYStr[0] = 'V';
+        velYStr[1] = 'Y';
+        velYStr[2] = ':';
+        velYStr[3] = ' ';
+        idx = 4;
+        if (velY < 0) {
+            velYStr[idx++] = '-';
+            velY = -velY;
+        }
+        numDigits = 0;
+        if (velY == 0) {
+            digits[numDigits++] = 0;
+        } else {
+            int temp = velY;
+            while (temp > 0) {
+                digits[numDigits++] = temp % 10;
+                temp /= 10;
+            }
+        }
+        for (int i = numDigits - 1; i >= 0; i--) {
+            velYStr[idx++] = '0' + digits[i];
+        }
+        velYStr[idx] = '\0';
+        draw_bg_text_slot(velYStr, 1, 5, velYSlot);
+        
+        // On ground status
+        if (player.onGround) {
+            draw_bg_text_slot("Ground: Yes", 1, 6, groundSlot);
+        } else {
+            draw_bg_text_slot("Ground: No", 1, 6, groundSlot);
         }
         
         frameCount++;
