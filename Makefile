@@ -71,15 +71,15 @@ level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Camera module
-camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h gba.h
+camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Collision module
-collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h
+collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player module
-player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h gba.h
+player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player rendering module

@@ -4,7 +4,7 @@
 #include "gba.h"
 #include "src/core/game_types.h"
 #include "src/core/game_math.h"
-#include "level3.h"
+#include "src/level/level.h"
 
 /**
  * Update camera position to follow the player with deadzone

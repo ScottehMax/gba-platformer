@@ -5,7 +5,6 @@
 #include "src/core/game_types.h"
 #include "src/core/game_math.h"
 #include "src/collision/collision.h"
-#include "level3.h"
 
 /**
  * Initialize a player at the level spawn point
