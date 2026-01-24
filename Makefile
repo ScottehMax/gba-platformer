@@ -30,15 +30,15 @@ $(GENDIR):
 	mkdir -p $(GENDIR)
 
 # Grit rules for sprite PNGs (with transparency, 16-color mode for palettes)
-$(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
+$(GENDIR)/skelly.c $(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/skelly
 
 # Font spritesheet (8x8 tiles, transparent magenta)
-$(GENDIR)/tinypixie.h: assets/tinypixie.png | $(GENDIR)
+$(GENDIR)/tinypixie.c $(GENDIR)/tinypixie.h: assets/tinypixie.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/tinypixie
 
 # Grit rules for tileset PNGs (no map)
-$(GENDIR)/%.h: assets/%.png | $(GENDIR)
+$(GENDIR)/%.c $(GENDIR)/%.h: assets/%.png | $(GENDIR)
 	$(GRIT) $< -gB8 -gt -m! -ftc -o$(GENDIR)/$*
 
 # Level converter

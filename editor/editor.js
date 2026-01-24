@@ -83,7 +83,7 @@ class LevelEditor {
         skyCtx.fillRect(0, 0, 8, 8);
         this.tileImages[0] = skyTile;
 
-        // Load Grassy_stone.png (tiles 1+)
+        // Load grassy_stone.png (tiles 1+)
         const grassyStoneImg = new Image();
         grassyStoneImg.onload = () => {
             // Calculate number of tiles based on image dimensions (8x8 tiles)
@@ -98,14 +98,14 @@ class LevelEditor {
             this.renderTilePalette();
         };
         grassyStoneImg.onerror = () => {
-            console.error('Failed to load Grassy_stone.png');
+            console.error('Failed to load grassy_stone.png');
             this.tilesetColumns = 11;
             this.tilesetRows = 5;
             this.createPlaceholderTiles(1, 55, '#8B4513');
             this.tilesLoaded = true;
             this.renderTilePalette();
         };
-        grassyStoneImg.src = 'Grassy_stone.png';
+        grassyStoneImg.src = 'grassy_stone.png';
     }
 
     extractTiles(image, startIndex, count) {

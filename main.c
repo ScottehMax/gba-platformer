@@ -436,9 +436,9 @@ int main() {
     // Set up background palette
     volatile u16* bgPalette = (volatile u16*)0x05000000;
 
-    // Copy Grassy_stone palette to background palette
+    // Copy grassy_stone palette to background palette
     for (int i = 0; i < 256; i++) {
-        bgPalette[i] = Grassy_stonePal[i];
+        bgPalette[i] = grassy_stonePal[i];
     }
 
     // Override palette index 0 with dark blue for sky
@@ -457,11 +457,11 @@ int main() {
         bgTiles[i] = 0x00000000;
     }
 
-    // Copy all Grassy_stone tiles (starting at tile index 1)
-    // Grassy_stoneTilesLen is the byte length, divide by 4 to get u32 count
-    int tileCount = Grassy_stoneTilesLen / 4;
+    // Copy all grassy_stone tiles (starting at tile index 1)
+    // grassy_stoneTilesLen is the byte length, divide by 4 to get u32 count
+    int tileCount = grassy_stoneTilesLen / 4;
     for (int i = 0; i < tileCount; i++) {
-        bgTiles[16 + i] = Grassy_stoneTiles[i];
+        bgTiles[16 + i] = grassy_stoneTiles[i];
     }
 
     // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
