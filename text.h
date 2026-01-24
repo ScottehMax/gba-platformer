@@ -5,57 +5,16 @@
 #include "tinypixie.h"
 #include "assets/tinypixie_widths.h"
 
-/*
- * Text Drawing API for GBA
- * ========================
- * 
- * This API provides simple text rendering using the TinyPixie font.
- * Characters are rendered as 8x8 OAM sprites with variable width.
- * 
- * SETUP:
- * ------
- * 1. Load font tiles to sprite VRAM:
- *    volatile u32* spriteTiles = (volatile u32*)0x06010000;
- *    int fontTileStart = 512; // Starting tile index for font
- *    for (int i = 0; i < tinypixieTilesLen / 4; i++) {
- *        spriteTiles[fontTileStart * 8 + i] = tinypixieTiles[i];
- *    }
- * 
- * 2. Load font palette to sprite palette:
- *    volatile u16* spritePalette = (volatile u16*)0x05000200;
- *    for (int i = 0; i < 16; i++) {
- *        spritePalette[i] = tinypixiePal[i];
- *    }
- * 
- * 3. Enable sprites in display control:
- *    REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
- * 
- * USAGE:
- * ------
- * Draw text at (x, y) using OAM sprites starting at index 100:
- *    int sprites_used = draw_text("Hello World!", 10, 10, 100);
- * 
- * Get width of text before drawing:
- *    int width = text_width("Score: 1234");
- * 
- * NOTES:
- * ------
- * - Each character uses one OAM sprite (128 sprites max on GBA)
- * - Characters are automatically spaced with 1px gap
- * - Supports ASCII printable characters (32-126)
- * - Font uses variable width for better readability
- * - Remember to reserve OAM sprite indices for text!
- */
+// Background text functions (BG1-based) - for lots of text
+void init_bg_text();
+void clear_bg_text();
+void clear_bg_text_region(int tile_x, int tile_y, int width, int height);
+void draw_bg_text(const char* str, int tile_x, int tile_y);
+void draw_bg_text_px(const char* str, int px_x, int px_y);
 
-// Draw a single character at screen position (uses OAM sprites)
-// Returns the width of the character drawn
+// Sprite text functions (OAM-based) - for small dynamic text
 int draw_char(char c, int x, int y, int oam_index);
-
-// Draw a string at screen position (uses multiple OAM sprites)
-// Returns the number of OAM sprites used
 int draw_text(const char* str, int x, int y, int start_oam_index);
-
-// Get the pixel width of a string (useful for centering or alignment)
 int text_width(const char* str);
 
 #endif

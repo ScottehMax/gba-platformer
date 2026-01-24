@@ -423,8 +423,8 @@ int main() {
     // Load level
     const Level* currentLevel = &Tutorial_Level;
     
-    // Mode 0 with BG0 and sprites enabled
-    REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | OBJ_ENABLE | OBJ_1D_MAP;
+    // Mode 0 with BG0, BG1 and sprites enabled
+    REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | (1 << 9) | OBJ_ENABLE | OBJ_1D_MAP;  // BG1_ENABLE = bit 9
 
     // Enable alpha blending for sprites
     // BLDCNT: Effect=Alpha blend (bit 6), NO global OBJ target (sprites set semi-transparent individually)
@@ -443,6 +443,11 @@ int main() {
 
     // Override palette index 0 with dark blue for sky
     bgPalette[0] = COLOR(3, 6, 15);
+    
+    // Load font palette to palette slot 1 (colors 16-31) to avoid conflict with game tiles
+    for (int i = 0; i < 16; i++) {
+        bgPalette[16 + i] = tinypixiePal[i];
+    }
 
     // Create background tiles in VRAM
     volatile u32* bgTiles = (volatile u32*)0x06000000;
@@ -461,6 +466,9 @@ int main() {
 
     // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
     *((volatile u16*)0x04000008) = 0x0080 | (16 << 8);
+    
+    // Initialize background text system (BG1 - uses char block 1)
+    init_bg_text();
 
     // Copy sprite palette to VRAM
     volatile u16* spritePalette = (volatile u16*)0x05000200;
@@ -495,17 +503,6 @@ int main() {
     volatile u32* spriteTiles = (volatile u32*)0x06010000;
     for (int i = 0; i < 32; i++) {  // 16-color mode: 4 tiles, 8 u32s per tile
         spriteTiles[i] = skellyTiles[i];
-    }
-
-    // Load font tiles to sprite VRAM (starting at tile 512 to avoid player sprite)
-    int fontTileStart = 512;
-    for (int i = 0; i < tinypixieTilesLen / 4; i++) {
-        spriteTiles[fontTileStart * 8 + i] = tinypixieTiles[i];
-    }
-
-    // Load font palette to sprite palette slot 1 (slot 0 used by player)
-    for (int i = 0; i < 16; i++) {
-        spritePalette[16 + i] = tinypixiePal[i];
     }
 
     // Set up sprite 0 as 16x16, 16-color mode
@@ -583,8 +580,11 @@ int main() {
         
         drawGame(&player, &camera);
         
-        // TEXT DEMO: Display frame counter and controls (uses OAM sprites 100-127)
-        draw_text("TinyPixie Font Demo", 5, 5, 100);
+        // TEXT DEMO: Use background text (BG1) - supports unlimited text!
+        // Only clear and redraw when needed to avoid flicker
+        if (frameCount == 0) {
+            draw_bg_text("TinyPixie Font Demo", 1, 1);
+        }
         
         // Update time string every 60 frames
         if (frameCount % 60 == 0) {
@@ -599,9 +599,8 @@ int main() {
             timeStr[7] = '0' + seconds % 10;
             timeStr[8] = 's';
             timeStr[9] = '\0';
+            draw_bg_text(timeStr, 1, 2);
         }
-        // Draw time string every frame (start at sprite 120 to avoid overlap)
-        draw_text(timeStr, 5, 15, 120);
         
         frameCount++;
     }
