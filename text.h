@@ -9,8 +9,10 @@
 void init_bg_text();
 void clear_bg_text();
 void clear_bg_text_region(int tile_x, int tile_y, int width, int height);
-void draw_bg_text(const char* str, int tile_x, int tile_y, int dynamic_tile_slot);
+int draw_bg_text_auto(const char* str, int tile_x, int tile_y);  // Returns slot ID
+void draw_bg_text_slot(const char* str, int tile_x, int tile_y, int slot_id);  // Updates existing slot
 void draw_bg_text_px(const char* str, int px_x, int px_y);
+void free_bg_text_slot(int slot_id);  // Free a slot for reuse
 
 // Sprite text functions (OAM-based) - for small dynamic text
 int draw_char(char c, int x, int y, int oam_index);

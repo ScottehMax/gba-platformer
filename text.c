@@ -6,6 +6,11 @@
 
 // Background text tile start (in background char block 1)
 #define BG_TEXT_DYNAMIC_START 96  // Start at tile 96 in char block 1 for dynamic text tiles
+#define MAX_TEXT_SLOTS 8  // Maximum number of text strings (each can use up to 20 tiles)
+
+// Tile slot tracking
+static u8 tile_slot_used[MAX_TEXT_SLOTS] = {0};  // 0 = free, 1 = in use
+static int next_free_slot = 0;
 
 // Character widths array definition
 const unsigned char font_char_widths[] = {
@@ -61,6 +66,12 @@ void init_bg_text() {
     
     // Clear the text background
     clear_bg_text();
+    
+    // Reset slot tracking
+    for (int i = 0; i < MAX_TEXT_SLOTS; i++) {
+        tile_slot_used[i] = 0;
+    }
+    next_free_slot = 0;
 }
 
 void clear_bg_text() {
@@ -87,12 +98,13 @@ void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
     }
 }
 
-void draw_bg_text(const char* str, int tile_x, int tile_y, int dynamic_tile_slot) {
+// Internal function to draw text to a specific slot
+static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int dynamic_tile_slot) {
     volatile u16* bgMap = (volatile u16*)0x06008800;
     volatile u32* charBlock1 = (volatile u32*)0x06004000;
     
-    // Calculate starting tile in char block 1
-    int base_tile = BG_TEXT_DYNAMIC_START + dynamic_tile_slot;
+    // Calculate starting tile in char block 1 (each slot gets 20 tiles)
+    int base_tile = BG_TEXT_DYNAMIC_START + (dynamic_tile_slot * 20);
     
     // Calculate string width in pixels
     int total_width = 0;
@@ -168,9 +180,42 @@ void draw_bg_text(const char* str, int tile_x, int tile_y, int dynamic_tile_slot
     }
 }
 
+// Allocate and draw text automatically (returns slot ID)
+int draw_bg_text_auto(const char* str, int tile_x, int tile_y) {
+    // Find a free slot
+    int slot = -1;
+    for (int i = 0; i < MAX_TEXT_SLOTS; i++) {
+        if (tile_slot_used[i] == 0) {
+            slot = i;
+            tile_slot_used[i] = 1;
+            break;
+        }
+    }
+    
+    if (slot == -1) {
+        return -1;  // No free slots
+    }
+    
+    draw_bg_text_internal(str, tile_x, tile_y, slot);
+    return slot;
+}
+
+// Update text in an existing slot
+void draw_bg_text_slot(const char* str, int tile_x, int tile_y, int slot_id) {
+    if (slot_id < 0 || slot_id >= MAX_TEXT_SLOTS) return;
+    draw_bg_text_internal(str, tile_x, tile_y, slot_id);
+}
+
+// Free a slot for reuse
+void free_bg_text_slot(int slot_id) {
+    if (slot_id >= 0 && slot_id < MAX_TEXT_SLOTS) {
+        tile_slot_used[slot_id] = 0;
+    }
+}
+
 void draw_bg_text_px(const char* str, int px_x, int px_y) {
     // Convert pixel coordinates to tile coordinates
-    draw_bg_text(str, px_x / 8, px_y / 8, 0);
+    draw_bg_text_auto(str, px_x / 8, px_y / 8);
 }
 
 // ============================================================================

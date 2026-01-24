@@ -549,6 +549,12 @@ int main() {
     // Frame counter for demo
     int frameCount = 0;
     char timeStr[16] = "Time: 00s";
+    
+    // Allocate text slots once
+    int titleSlot = draw_bg_text_auto("Font Test", 1, 1);
+    int timeSlot = draw_bg_text_auto(timeStr, 1, 2);
+    int alphabetSlot1 = draw_bg_text_auto("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1, 3);
+    int alphabetSlot2 = draw_bg_text_auto("abcdefghijklmnopqrstuvwxyz", 1, 4);
 
     // Game loop
     while (1) {
@@ -580,12 +586,7 @@ int main() {
         
         drawGame(&player, &camera);
         
-        // TEXT DEMO: Use background text (BG1) - supports unlimited text!
-        // Use different dynamic tile slots (0 and 20) to avoid overwriting
-        if (frameCount == 0) {
-            draw_bg_text("TinyPixie Font Demo", 1, 1, 0);  // Uses dynamic tiles 96-115
-        }
-        
+        // TEXT DEMO: Text slots are automatically managed
         // Update time string every 60 frames
         if (frameCount % 60 == 0) {
             int seconds = frameCount / 60;
@@ -599,7 +600,7 @@ int main() {
             timeStr[7] = '0' + seconds % 10;
             timeStr[8] = 's';
             timeStr[9] = '\0';
-            draw_bg_text(timeStr, 1, 2, 20);  // Uses dynamic tiles 116-125
+            draw_bg_text_slot(timeStr, 1, 2, timeSlot);  // Update existing slot
         }
         
         frameCount++;
