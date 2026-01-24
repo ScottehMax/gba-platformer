@@ -2,6 +2,7 @@
 #include "skelly.h"
 #include "grassy_stone.h"
 #include "level3.h"
+#include "text.h"
 
 // Use fixed-point math (8 bits fractional) for smooth sub-pixel movement
 #define FIXED_SHIFT 8
@@ -496,6 +497,17 @@ int main() {
         spriteTiles[i] = skellyTiles[i];
     }
 
+    // Load font tiles to sprite VRAM (starting at tile 512 to avoid player sprite)
+    int fontTileStart = 512;
+    for (int i = 0; i < tinypixieTilesLen / 4; i++) {
+        spriteTiles[fontTileStart * 8 + i] = tinypixieTiles[i];
+    }
+
+    // Load font palette to sprite palette slot 1 (slot 0 used by player)
+    for (int i = 0; i < 16; i++) {
+        spritePalette[16 + i] = tinypixiePal[i];
+    }
+
     // Set up sprite 0 as 16x16, 16-color mode
     *((volatile u16*)0x07000000) = 0;
     *((volatile u16*)0x07000002) = (1 << 14);
@@ -537,6 +549,10 @@ int main() {
     // Background map pointer
     volatile u16* bgMap = (volatile u16*)0x06008000;
 
+    // Frame counter for demo
+    int frameCount = 0;
+    char timeStr[16] = "Time: 00s";
+
     // Game loop
     while (1) {
         vsync();
@@ -566,6 +582,28 @@ int main() {
         *((volatile u16*)0x04000012) = camera.y % 8;  // BG0VOFS
         
         drawGame(&player, &camera);
+        
+        // TEXT DEMO: Display frame counter and controls (uses OAM sprites 100-127)
+        draw_text("TinyPixie Font Demo", 5, 5, 100);
+        
+        // Update time string every 60 frames
+        if (frameCount % 60 == 0) {
+            int seconds = frameCount / 60;
+            timeStr[0] = 'T';
+            timeStr[1] = 'i';
+            timeStr[2] = 'm';
+            timeStr[3] = 'e';
+            timeStr[4] = ':';
+            timeStr[5] = ' ';
+            timeStr[6] = '0' + (seconds / 10) % 10;
+            timeStr[7] = '0' + seconds % 10;
+            timeStr[8] = 's';
+            timeStr[9] = '\0';
+        }
+        // Draw time string every frame (start at sprite 120 to avoid overlap)
+        draw_text(timeStr, 5, 15, 120);
+        
+        frameCount++;
     }
 
     return 0;

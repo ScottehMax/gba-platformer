@@ -21,7 +21,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_JSONS = $(wildcard levels/*.json)
 LEVEL_HEADERS = $(patsubst levels/%.json,$(GENDIR)/%.h,$(LEVEL_JSONS))
 
-OBJS = main.o $(GRIT_OBJS)
+OBJS = main.o text.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -32,6 +32,10 @@ $(GENDIR):
 # Grit rules for sprite PNGs (with transparency, 16-color mode for palettes)
 $(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/skelly
+
+# Font spritesheet (8x8 tiles, transparent magenta)
+$(GENDIR)/tinypixie.h: assets/tinypixie.png | $(GENDIR)
+	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/tinypixie
 
 # Grit rules for tileset PNGs (no map)
 $(GENDIR)/%.h: assets/%.png | $(GENDIR)
@@ -51,6 +55,10 @@ $(TARGET).elf: $(OBJS)
 
 # Object files from generated sources
 %.o: $(GENDIR)/%.c $(GENDIR)/%.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Text module
+text.o: text.c text.h gba.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Main object depends on all generated headers

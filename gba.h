@@ -4,6 +4,7 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+typedef signed short s16;
 
 // Video memory and control registers
 #define MEM_IO          0x04000000
@@ -23,6 +24,16 @@ typedef unsigned int u32;
 #define SCREEN_HEIGHT 160
 
 #define COLOR(r, g, b) ((r) | ((g) << 5) | ((b) << 10))
+
+// OAM (Object Attribute Memory) structures
+typedef struct {
+    u16 attr0;
+    u16 attr1;
+    u16 attr2;
+    s16 fill;
+} __attribute__((packed, aligned(4))) OBJ_ATTR;
+
+#define OAM ((volatile OBJ_ATTR*)MEM_OAM)
 
 // Input registers
 #define REG_KEYINPUT (*(volatile u16*)0x04000130)
