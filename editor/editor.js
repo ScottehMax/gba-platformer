@@ -5,21 +5,21 @@
 const AVAILABLE_TILESETS = [
     {
         name: 'grassy_stone',
-        file: 'grassy_stone.png',
+        file: '../assets/grassy_stone.png',
         firstId: 1,
         tileCount: 55,
         defaultSolid: true  // All tiles solid by default
     },
     {
         name: 'plants',
-        file: 'plants.png',
+        file: '../assets/plants.png',
         firstId: 56,
         tileCount: 160,
         defaultSolid: false  // Decorative, non-solid
     },
     {
         name: 'decals',
-        file: 'decals.png',
+        file: '../assets/decals.png',
         firstId: 216,
         tileCount: 1225,
         defaultSolid: false  // Decorative, non-solid
@@ -77,6 +77,20 @@ class LevelEditor {
         this.collisionSet = new Set();  // Set of solid tile IDs
         this.enabledTilesets = { grassy_stone: true, plants: true, decals: true };
         this.collapsedTilesets = { grassy_stone: false, plants: true, decals: true };
+
+        // Tile selection for stamp tool
+        this.tileSelection = {
+            tileset: null,
+            startX: 0,
+            startY: 0,
+            endX: 0,
+            endY: 0,
+            width: 1,
+            height: 1,
+            tiles: [[0]]
+        };  // { tileset, startX, startY, endX, endY, tiles: 2D array }
+        this.isSelectingTiles = false;
+        this.selectionStart = null;
         
         // Initialize default collision (grassy_stone tiles 1-55 are solid)
         for (let i = 1; i <= 55; i++) {
@@ -223,7 +237,7 @@ class LevelEditor {
         const palette = document.getElementById('tilePalette');
         palette.innerHTML = '';
 
-        const scale = 3; // Scale up for visibility
+        const scale = 5; // Scale up for visibility
 
         // Create tile 0 (sky) section
         const skySection = document.createElement('div');
@@ -245,6 +259,16 @@ class LevelEditor {
 
         skyCanvas.addEventListener('click', () => {
             this.selectedTile = 0;
+            this.tileSelection = {
+                tileset: null,
+                startX: 0,
+                startY: 0,
+                endX: 0,
+                endY: 0,
+                width: 1,
+                height: 1,
+                tiles: [[0]]
+            };
             this.renderTilePalette();
             if (this.currentTool === 'eraser') {
                 this.setTool('brush');
@@ -304,7 +328,6 @@ class LevelEditor {
                 canvas.height = tileset.rows * 8 * scale;
                 canvas.style.cursor = 'pointer';
                 canvas.style.imageRendering = 'pixelated';
-                canvas.style.maxWidth = '100%';
 
                 const ctx = canvas.getContext('2d');
                 ctx.imageSmoothingEnabled = false;
@@ -351,9 +374,27 @@ class LevelEditor {
                     }
                 }
 
-                // Highlight selected tile
-                if (this.selectedTile >= tileset.firstId && 
+                // Highlight selected tile(s)
+                if (this.tileSelection && this.tileSelection.tileset === tileset) {
+                    // Highlight multi-tile selection
+                    ctx.fillStyle = 'rgba(97, 218, 251, 0.3)';
+                    ctx.fillRect(
+                        this.tileSelection.startX * 8 * scale,
+                        this.tileSelection.startY * 8 * scale,
+                        this.tileSelection.width * 8 * scale,
+                        this.tileSelection.height * 8 * scale
+                    );
+                    ctx.strokeStyle = '#61dafb';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        this.tileSelection.startX * 8 * scale + 1,
+                        this.tileSelection.startY * 8 * scale + 1,
+                        this.tileSelection.width * 8 * scale - 2,
+                        this.tileSelection.height * 8 * scale - 2
+                    );
+                } else if (this.selectedTile >= tileset.firstId &&
                     this.selectedTile < tileset.firstId + tileset.tileCount) {
+                    // Highlight single tile selection (fallback)
                     const localIndex = this.selectedTile - tileset.firstId;
                     const tileX = localIndex % tileset.columns;
                     const tileY = Math.floor(localIndex / tileset.columns);
@@ -363,8 +404,14 @@ class LevelEditor {
                     ctx.strokeRect(tileX * 8 * scale + 1, tileY * 8 * scale + 1, 8 * scale - 2, 8 * scale - 2);
                 }
 
-                // Handle left click to select tile
-                canvas.addEventListener('click', (e) => {
+                // Handle tile selection with dragging
+                let isDragging = false;
+                let dragStartX = 0;
+                let dragStartY = 0;
+
+                canvas.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return; // Only left click
+
                     const rect = canvas.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
@@ -374,14 +421,170 @@ class LevelEditor {
 
                     const tileX = Math.floor((x * scaleX) / (8 * scale));
                     const tileY = Math.floor((y * scaleY) / (8 * scale));
-                    const localIndex = tileY * tileset.columns + tileX;
 
-                    if (localIndex >= 0 && localIndex < tileset.tileCount) {
-                        this.selectedTile = tileset.firstId + localIndex;
-                        this.renderTilePalette();
-                        if (this.currentTool === 'eraser') {
-                            this.setTool('brush');
+                    if (tileX >= 0 && tileX < tileset.columns && tileY >= 0 && tileY < tileset.rows) {
+                        isDragging = true;
+                        dragStartX = tileX;
+                        dragStartY = tileY;
+                        this.isSelectingTiles = true;
+                        this.selectionStart = { tileX, tileY, tileset };
+                    }
+                });
+
+                canvas.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+
+                    // Clamp tile coordinates to valid range
+                    let tileX = Math.floor((x * scaleX) / (8 * scale));
+                    let tileY = Math.floor((y * scaleY) / (8 * scale));
+                    tileX = Math.max(0, Math.min(tileset.columns - 1, tileX));
+                    tileY = Math.max(0, Math.min(tileset.rows - 1, tileY));
+
+                    // Draw selection rectangle
+                    const ctx = canvas.getContext('2d');
+
+                    // Clear canvas first
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Redraw tileset
+                    ctx.imageSmoothingEnabled = false;
+                    if (tileset.image) {
+                        ctx.drawImage(tileset.image, 0, 0, canvas.width, canvas.height);
+                    } else {
+                        for (let i = 0; i < tileset.tileCount; i++) {
+                            const tileId = tileset.firstId + i;
+                            const tx = (i % tileset.columns) * 8 * scale;
+                            const ty = Math.floor(i / tileset.columns) * 8 * scale;
+                            if (this.tileImages[tileId]) {
+                                ctx.drawImage(this.tileImages[tileId], tx, ty, 8 * scale, 8 * scale);
+                            }
                         }
+                    }
+
+                    // Redraw grid
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    for (let gx = 0; gx <= tileset.columns; gx++) {
+                        ctx.beginPath();
+                        ctx.moveTo(gx * 8 * scale, 0);
+                        ctx.lineTo(gx * 8 * scale, canvas.height);
+                        ctx.stroke();
+                    }
+                    for (let gy = 0; gy <= tileset.rows; gy++) {
+                        ctx.beginPath();
+                        ctx.moveTo(0, gy * 8 * scale);
+                        ctx.lineTo(canvas.width, gy * 8 * scale);
+                        ctx.stroke();
+                    }
+
+                    // Redraw collision markers
+                    for (let i = 0; i < tileset.tileCount; i++) {
+                        const tileId = tileset.firstId + i;
+                        if (this.collisionSet.has(tileId)) {
+                            const tx = (i % tileset.columns) * 8 * scale;
+                            const ty = Math.floor(i / tileset.columns) * 8 * scale;
+                            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                            ctx.fillRect(tx, ty, 4, 4);
+                        }
+                    }
+
+                    // Draw selection rectangle
+                    const minX = Math.min(dragStartX, tileX);
+                    const maxX = Math.max(dragStartX, tileX);
+                    const minY = Math.min(dragStartY, tileY);
+                    const maxY = Math.max(dragStartY, tileY);
+
+                    ctx.fillStyle = 'rgba(97, 218, 251, 0.3)';
+                    ctx.fillRect(
+                        minX * 8 * scale,
+                        minY * 8 * scale,
+                        (maxX - minX + 1) * 8 * scale,
+                        (maxY - minY + 1) * 8 * scale
+                    );
+                    ctx.strokeStyle = '#61dafb';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        minX * 8 * scale + 1,
+                        minY * 8 * scale + 1,
+                        (maxX - minX + 1) * 8 * scale - 2,
+                        (maxY - minY + 1) * 8 * scale - 2
+                    );
+                });
+
+                const finishSelection = (e) => {
+                    if (!isDragging) return;
+                    isDragging = false;
+
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+
+                    const tileX = Math.floor((x * scaleX) / (8 * scale));
+                    const tileY = Math.floor((y * scaleY) / (8 * scale));
+
+                    const minX = Math.min(dragStartX, tileX);
+                    const maxX = Math.max(dragStartX, tileX);
+                    const minY = Math.min(dragStartY, tileY);
+                    const maxY = Math.max(dragStartY, tileY);
+
+                    // Extract selected tiles
+                    const width = maxX - minX + 1;
+                    const height = maxY - minY + 1;
+                    const tiles = [];
+
+                    for (let dy = 0; dy < height; dy++) {
+                        const row = [];
+                        for (let dx = 0; dx < width; dx++) {
+                            const tx = minX + dx;
+                            const ty = minY + dy;
+                            const localIndex = ty * tileset.columns + tx;
+                            if (localIndex >= 0 && localIndex < tileset.tileCount) {
+                                row.push(tileset.firstId + localIndex);
+                            } else {
+                                row.push(0);
+                            }
+                        }
+                        tiles.push(row);
+                    }
+
+                    this.tileSelection = {
+                        tileset,
+                        startX: minX,
+                        startY: minY,
+                        endX: maxX,
+                        endY: maxY,
+                        width,
+                        height,
+                        tiles
+                    };
+
+                    // If single tile, also set selectedTile for compatibility
+                    if (width === 1 && height === 1) {
+                        this.selectedTile = tiles[0][0];
+                    }
+
+                    this.isSelectingTiles = false;
+                    this.renderTilePalette();
+
+                    if (this.currentTool === 'eraser') {
+                        this.setTool('brush');
+                    }
+                };
+
+                canvas.addEventListener('mouseup', finishSelection);
+                canvas.addEventListener('mouseleave', (e) => {
+                    if (isDragging) {
+                        finishSelection(e);
                     }
                 });
 
@@ -635,15 +838,59 @@ class LevelEditor {
     }
     
     placeTile(tileX, tileY, tileId) {
+        // Handle multi-tile stamp (only when not erasing)
+        if (tileId !== 0 && this.tileSelection && (this.tileSelection.width > 1 || this.tileSelection.height > 1)) {
+            this.placeStamp(tileX, tileY);
+            return;
+        }
+
+        // Single tile placement
         if (tileX < 0 || tileX >= this.level.width || tileY < 0 || tileY >= this.level.height) {
             return;
         }
-        
+
         if (this.level.tiles[tileY][tileX] !== tileId) {
             this.pushUndo();
             this.level.tiles[tileY][tileX] = tileId;
             this.render();
         }
+    }
+
+    placeStamp(startX, startY) {
+        if (!this.tileSelection) return;
+
+        // Check if any tile would actually change
+        let anyChanged = false;
+        for (let dy = 0; dy < this.tileSelection.height; dy++) {
+            for (let dx = 0; dx < this.tileSelection.width; dx++) {
+                const x = startX + dx;
+                const y = startY + dy;
+                if (x >= 0 && x < this.level.width && y >= 0 && y < this.level.height) {
+                    if (this.level.tiles[y][x] !== this.tileSelection.tiles[dy][dx]) {
+                        anyChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (anyChanged) break;
+        }
+
+        if (!anyChanged) return;
+
+        this.pushUndo();
+
+        // Place all tiles in the selection
+        for (let dy = 0; dy < this.tileSelection.height; dy++) {
+            for (let dx = 0; dx < this.tileSelection.width; dx++) {
+                const x = startX + dx;
+                const y = startY + dy;
+                if (x >= 0 && x < this.level.width && y >= 0 && y < this.level.height) {
+                    this.level.tiles[y][x] = this.tileSelection.tiles[dy][dx];
+                }
+            }
+        }
+
+        this.render();
     }
     
     floodFill(startX, startY, newTileId) {
@@ -953,8 +1200,6 @@ class LevelEditor {
                 this.renderObjectList();
                 this.renderTilePalette();
                 this.resetView();
-                
-                alert('Level loaded successfully!');
             } catch (err) {
                 alert('Error loading level: ' + err.message);
             }
@@ -965,7 +1210,7 @@ class LevelEditor {
         e.target.value = '';
     }
     
-    saveLevel() {
+    async saveLevel() {
         // Build tilesets array from enabled tilesets
         const tilesets = AVAILABLE_TILESETS.map(ts => ({
             name: ts.name,
@@ -991,18 +1236,52 @@ class LevelEditor {
             tilesets: tilesets,
             collisionTiles: collisionTiles
         };
-        
+
         // Create JSON file
         const json = JSON.stringify(levelData, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
+
+        // Try to use File System Access API for a proper Save As dialog
+        if ('showSaveFilePicker' in window) {
+            try {
+                const defaultFilename = this.level.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.json';
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: defaultFilename,
+                    types: [{
+                        description: 'JSON Level File',
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return;
+            } catch (err) {
+                // User cancelled or error occurred
+                if (err.name !== 'AbortError') {
+                    console.error('Save failed:', err);
+                }
+                return;
+            }
+        }
+
+        // Fallback for browsers without File System Access API
+        const defaultFilename = this.level.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.json';
+        const filename = prompt('Save level as:', defaultFilename);
+
+        if (!filename) {
+            return; // User cancelled
+        }
+
+        // Ensure .json extension
+        const finalFilename = filename.endsWith('.json') ? filename : filename + '.json';
+
         const url = URL.createObjectURL(blob);
-        
-        // Download
         const a = document.createElement('a');
         a.href = url;
-        a.download = this.level.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.json';
+        a.download = finalFilename;
         a.click();
-        
         URL.revokeObjectURL(url);
     }
     
