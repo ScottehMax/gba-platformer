@@ -332,9 +332,9 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime--;  // Count down when airborne
     }
 
-    // Update dash trail (record every 2 frames for spacing, ONLY while dashing)
-    // Stop recording when dash ends so faded sprites stay in place
-    if (player->dashing > 0) {
+    // Update dash trail (record every 2 frames for spacing)
+    // Continue recording for a bit after dash ends to fill the trail buffer
+    if (player->dashing > 0 || player->trailFadeTimer < 10) {
         player->trailTimer++;
         if (player->trailTimer >= 2) {
             player->trailTimer = 0;
