@@ -38,9 +38,17 @@ $(GENDIR)/skelly.c $(GENDIR)/skelly.h: assets/skelly.png | $(GENDIR)
 $(GENDIR)/tinypixie.c $(GENDIR)/tinypixie.h: assets/tinypixie.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -gTFF00FF -ftc -o$(GENDIR)/tinypixie
 
-# Grit rules for tileset PNGs (no map)
-$(GENDIR)/%.c $(GENDIR)/%.h: assets/%.png | $(GENDIR)
-	$(GRIT) $< -gB8 -gt -m! -ftc -o$(GENDIR)/$*
+# Tileset rules - use 4-bit mode with separate palettes for each
+# Terrain tileset - no transparency
+$(GENDIR)/grassy_stone.c $(GENDIR)/grassy_stone.h: assets/grassy_stone.png | $(GENDIR)
+	$(GRIT) $< -gB4 -gt -m! -ftc -o$(GENDIR)/grassy_stone
+
+# Decorative tilesets - with transparency (magenta = FF00FF)
+$(GENDIR)/plants.c $(GENDIR)/plants.h: assets/plants.png | $(GENDIR)
+	$(GRIT) $< -gB4 -gt -gTFF00FF -m! -ftc -o$(GENDIR)/plants
+
+$(GENDIR)/decals.c $(GENDIR)/decals.h: assets/decals.png | $(GENDIR)
+	$(GRIT) $< -gB4 -gt -gTFF00FF -m! -ftc -o$(GENDIR)/decals
 
 # Level converter
 $(GENDIR)/%.h: levels/%.json | $(GENDIR)

@@ -1,8 +1,11 @@
 #include "gba.h"
 #include "skelly.h"
 #include "grassy_stone.h"
+#include "plants.h"
+#include "decals.h"
 #include "level3.h"
 #include "text.h"
+#include <stdlib.h>
 #include "src/core/game_math.h"
 #include "src/core/game_types.h"
 #include "src/core/debug_utils.h"
@@ -11,6 +14,12 @@
 #include "src/collision/collision.h"
 #include "src/player/player.h"
 #include "src/player/player_render.h"
+
+// Tileset palette bank assignments
+#define PALETTE_GRASSY_STONE 0
+#define PALETTE_FONT         1
+#define PALETTE_PLANTS       2
+#define PALETTE_DECALS       3
 
 void vsync() {
     while (REG_VCOUNT >= 160);
@@ -21,8 +30,9 @@ int main() {
     // Load level
     const Level* currentLevel = &Tutorial_Level;
     
-    // Mode 0 with BG0, BG1 and sprites enabled
-    REG_DISPCNT = VIDEOMODE_0 | BG0_ENABLE | (1 << 9) | OBJ_ENABLE | OBJ_1D_MAP;  // BG1_ENABLE = bit 9
+    // Mode 0 with BG0, BG1, BG2 and sprites enabled
+    // BG2 = terrain, decorations, BG3 = text
+    REG_DISPCNT = VIDEOMODE_0 | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
 
     // Enable alpha blending for sprites
     // BLDCNT: Effect=Alpha blend (bit 6), NO global OBJ target (sprites set semi-transparent individually)
@@ -31,41 +41,39 @@ int main() {
     // BLDALPHA: Set blend coefficients EVA (sprite) and EVB (background) - must sum to 16 or less
     REG_BLDALPHA = (7 << 0) | (9 << 8);  // ~44% trail, ~56% background (more transparent)
 
-    // Set up background palette
+    // Set up background palette (16 banks of 16 colors for 4-bit mode)
     volatile u16* bgPalette = MEM_BG_PALETTE;
 
-    // Copy grassy_stone palette to background palette
-    for (int i = 0; i < 256; i++) {
-        bgPalette[i] = grassy_stonePal[i];
+    // Palette bank 0: grassy_stone (colors 0-15)
+    for (int i = 0; i < 16; i++) {
+        bgPalette[PALETTE_GRASSY_STONE * 16 + i] = grassy_stonePal[i];
     }
-
+    
     // Override palette index 0 with dark blue for sky
     bgPalette[0] = COLOR(3, 6, 15);
     
-    // Load font palette to palette slot 1 (colors 16-31) to avoid conflict with game tiles
+    // Palette bank 1: Font (colors 16-31)
     for (int i = 0; i < 16; i++) {
-        bgPalette[16 + i] = tinypixiePal[i];
+        bgPalette[PALETTE_FONT * 16 + i] = tinypixiePal[i];
     }
-
-    // Create background tiles in VRAM
-    volatile u32* bgTiles = MEM_BG_TILES;
-
-    // Tile 0: Sky (all pixels palette index 0)
-    for (int i = 0; i < 16; i++) {
-        bgTiles[i] = 0x00000000;
-    }
-
-    // Copy all grassy_stone tiles (starting at tile index 1)
-    // grassy_stoneTilesLen is the byte length, divide by 4 to get u32 count
-    int tileCount = grassy_stoneTilesLen / 4;
-    for (int i = 0; i < tileCount; i++) {
-        bgTiles[16 + i] = grassy_stoneTiles[i];
-    }
-
-    // Set BG0 control register (256 color mode = bit 7, screen base 16, char base 0)
-    REG_BG0CNT = 0x0080 | (16 << 8);
     
-    // Initialize background text system (BG1 - uses char block 1)
+    // Palette bank 2: plants (colors 32-47)
+    for (int i = 0; i < 16; i++) {
+        bgPalette[PALETTE_PLANTS * 16 + i] = plantsPal[i];
+    }
+    
+    // Palette bank 3: decals (colors 48-63)
+    for (int i = 0; i < 16; i++) {
+        bgPalette[PALETTE_DECALS * 16 + i] = decalsPal[i];
+    }
+
+    // Load only the tiles used in the current level to VRAM
+    loadLevelToVRAM(&Tutorial_Level);
+
+    // Set BG2 control register (4-bit color, screen base 16, char base 0, priority 0)
+    REG_BG2CNT = (16 << 8) | (0 << 2) | (0 << 0);
+    
+    // Initialize background text system (BG3 - uses char block 1)
     init_bg_text();
 
     // Copy sprite palette to VRAM
@@ -123,8 +131,17 @@ int main() {
     camera.x = 0;
     camera.y = 0;
 
-    // Background map pointer
-    volatile u16* bgMap = MEM_BG0_MAP;
+    // Background map pointer (32x32 tilemap on BG2)
+    volatile u16* bgMap = (volatile u16*)(0x06000000 + (16 << 11));
+    
+    // Initialize tilemap once at startup
+    for (int y = 0; y < 32; y++) {
+        for (int x = 0; x < 32; x++) {
+            u16 vramIndex = getTileAt(currentLevel, x, y);
+            u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
+            bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
+        }
+    }
 
     // Frame counter for demo
     int frameCount = 0;
@@ -145,39 +162,35 @@ int main() {
     // Game loop
     while (1) {
         vsync();
+        frameCount++;
 
         u16 keys = getKeys();
         updatePlayer(&player, keys, currentLevel);
         updateCamera(&camera, &player, currentLevel);
-
-        // Track previous camera tile position to avoid redundant background updates
-        static int prevCameraTileX = -1;
-        static int prevCameraTileY = -1;
-
-        // Calculate which tiles are visible
-        int startTileX = camera.x / 8;
-        int startTileY = camera.y / 8;
-
-        // Only update background map if camera moved to a different tile
-        if (startTileX != prevCameraTileX || startTileY != prevCameraTileY) {
-            // GBA background is 32x32 tiles, we render from level data
+        
+        // Same approach as before - simple and working
+        static int oldCameraTileX = -1;
+        static int oldCameraTileY = -1;
+        int cameraTileX = camera.x / 8;
+        int cameraTileY = camera.y / 8;
+        
+        if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
+            // Update the single tilemap - exactly like the original
             for (int y = 0; y < 32; y++) {
                 for (int x = 0; x < 32; x++) {
-                    int levelTileX = startTileX + x;
-                    int levelTileY = startTileY + y;
-
-                    u8 tileId = getTileAt(currentLevel, levelTileX, levelTileY);
-                    bgMap[y * 32 + x] = tileId;
+                    int tx = cameraTileX + x;
+                    int ty = cameraTileY + y;
+                    u16 tileId = getTileAt(currentLevel, tx, ty);
+                    // Palette bank is pre-computed and stored with tile
+                    bgMap[y * 32 + x] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
                 }
             }
-
-            prevCameraTileX = startTileX;
-            prevCameraTileY = startTileY;
+            oldCameraTileX = cameraTileX;
+            oldCameraTileY = cameraTileY;
         }
         
-        // Set background scroll registers
-        REG_BG0HOFS = camera.x % 8;
-        REG_BG0VOFS = camera.y % 8;
+        REG_BG2HOFS = camera.x % 8;
+        REG_BG2VOFS = camera.y % 8;
         
         drawPlayer(&player, &camera);
         

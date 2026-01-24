@@ -16,8 +16,14 @@ typedef signed short s16;
 #define REG_DISPCNT     *((volatile u16*)(MEM_IO))
 #define REG_VCOUNT      *((volatile u16*)(MEM_IO + 0x06))
 #define REG_BG0CNT      *((volatile u16*)(MEM_IO + 0x08))
+#define REG_BG1CNT      *((volatile u16*)(MEM_IO + 0x0A))
+#define REG_BG2CNT      *((volatile u16*)(MEM_IO + 0x0C))
 #define REG_BG0HOFS     *((volatile u16*)(MEM_IO + 0x10))
 #define REG_BG0VOFS     *((volatile u16*)(MEM_IO + 0x12))
+#define REG_BG1HOFS     *((volatile u16*)(MEM_IO + 0x14))
+#define REG_BG1VOFS     *((volatile u16*)(MEM_IO + 0x16))
+#define REG_BG2HOFS     *((volatile u16*)(MEM_IO + 0x18))
+#define REG_BG2VOFS     *((volatile u16*)(MEM_IO + 0x1A))
 #define REG_BLDCNT      *((volatile u16*)(MEM_IO + 0x50))
 #define REG_BLDALPHA    *((volatile u16*)(MEM_IO + 0x52))
 
@@ -32,6 +38,7 @@ typedef signed short s16;
 
 #define VIDEOMODE_0 0x0000
 #define BG0_ENABLE  0x0100
+#define BG1_ENABLE  0x0200
 #define OBJ_ENABLE  0x1000
 #define OBJ_1D_MAP  0x0040
 

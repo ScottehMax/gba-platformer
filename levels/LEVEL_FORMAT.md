@@ -18,7 +18,28 @@ Levels are stored as JSON files that define tile grids and object placements. Du
   "playerSpawn": {
     "x": 120,
     "y": 100
-  }
+  },
+  "tilesets": [
+    {
+      "name": "grassy_stone",
+      "file": "grassy_stone.png",
+      "firstId": 1,
+      "tileCount": 55
+    },
+    {
+      "name": "plants",
+      "file": "plants.png",
+      "firstId": 56,
+      "tileCount": 160
+    },
+    {
+      "name": "decals",
+      "file": "decals.png",
+      "firstId": 216,
+      "tileCount": 1225
+    }
+  ],
+  "collisionTiles": [1, 2, 3, ...]
 }
 ```
 
@@ -35,12 +56,29 @@ Levels are stored as JSON files that define tile grids and object placements. Du
 
 ### Tile Layer
 
-- **tiles** (2D array of integers): Row-major tile grid where each value is a tile ID
+- **tiles** (2D array of integers): Row-major tile grid where each value is a tile ID (u16)
   - Array dimensions: `height` rows × `width` columns
   - Tile ID 0 = empty/sky tile
-  - Tile IDs 1-4 = ground.png tiles (16x16, stored as 4 8x8 tiles)
-  - Tile IDs 5-8 = ground2.png tiles (16x16, stored as 4 8x8 tiles)
+  - Tile IDs 1-55 = grassy_stone tiles (solid terrain)
+  - Tile IDs 56-215 = plants tiles (decorative, non-solid)
+  - Tile IDs 216-1440 = decals tiles (decorative, non-solid)
   - Format: `[[row0_col0, row0_col1, ...], [row1_col0, row1_col1, ...], ...]`
+
+### Tilesets Array (Optional)
+
+- **tilesets** (array of objects): List of tilesets used in the level
+  - Each tileset has:
+    - **name** (string): Tileset identifier
+    - **file** (string): Source PNG filename
+    - **firstId** (number): First tile ID for this tileset
+    - **tileCount** (number): Number of tiles in the tileset
+  - If omitted, defaults to single grassy_stone tileset (IDs 1-55)
+
+### Collision Tiles Array (Optional)
+
+- **collisionTiles** (array of integers): List of tile IDs that are solid/collideable
+  - If omitted, defaults to tiles 1-55 (grassy_stone) being solid
+  - All other tiles are non-solid (decorative)
 
 ### Object Layer
 
@@ -59,25 +97,33 @@ Levels are stored as JSON files that define tile grids and object placements. Du
 
 ## Tile ID Reference
 
-### Current Tile Set
+### Available Tilesets
 
-| Tile ID | Description | Source |
-|---------|-------------|--------|
-| 0 | Sky/Empty | Built-in |
-| 1 | Ground (top-left) | ground.png |
-| 2 | Ground (top-right) | ground.png |
-| 3 | Ground (bottom-left) | ground.png |
-| 4 | Ground (bottom-right) | ground.png |
-| 5 | Underground (top-left) | ground2.png |
-| 6 | Underground (top-right) | ground2.png |
-| 7 | Underground (bottom-left) | ground2.png |
-| 8 | Underground (bottom-right) | ground2.png |
+| Tileset | Tile ID Range | Tile Count | Source | Default Collision |
+|---------|---------------|------------|--------|-------------------|
+| Sky | 0 | 1 | Built-in | Non-solid |
+| grassy_stone | 1-55 | 55 | grassy_stone.png (88×40px) | Solid |
+| plants | 56-215 | 160 | plants.png (160×64px) | Non-solid |
+| decals | 216-1440 | 1225 | decals.png (392×200px) | Non-solid |
 
-**Note**: 16x16 tiles are stored as four 8x8 tiles in this order:
-```
-[1, 2]  (top row)
-[3, 4]  (bottom row)
-```
+**Total available tiles:** 1441 (including sky)
+
+### Tileset Details
+
+#### grassy_stone (Terrain)
+- 88×40 pixels = 11×5 tiles = 55 tiles
+- Used for: Ground, walls, platforms
+- Default: All tiles are solid/collideable
+
+#### plants (Decorative)
+- 160×64 pixels = 20×8 tiles = 160 tiles
+- Used for: Vegetation, foliage decoration
+- Default: All tiles are non-solid (pass-through)
+
+#### decals (Decorative)
+- 392×200 pixels = 49×25 tiles = 1225 tiles
+- Used for: Background details, decorations
+- Default: All tiles are non-solid (pass-through)
 
 ## Object Types
 
@@ -94,7 +140,7 @@ Levels are stored as JSON files that define tile grids and object placements. Du
 
 ## Example Level
 
-See `level1.json` for a complete example.
+See `level3.json` for a complete example.
 
 ## Conversion to C
 
@@ -103,22 +149,42 @@ The Python converter (`tools/level_converter.py`) generates a C header file with
 ```c
 typedef struct {
     const char* name;
+    u16 firstId;
+    u16 tileCount;
+    const u32* tileData;
+    u32 tileDataLen;
+    const u16* paletteData;
+    u16 paletteLen;
+} TilesetInfo;
+
+typedef struct {
+    const char* name;
     u16 width;
     u16 height;
-    const u8* tiles;
+    const u16* tiles;           // Note: u16 to support >255 tile IDs
     u16 objectCount;
     const LevelObject* objects;
     u16 playerSpawnX;
     u16 playerSpawnY;
+    u8 tilesetCount;
+    const TilesetInfo* tilesets;
+    const u32* collisionBitmap; // Bit array for collision lookup
 } Level;
 ```
+
+### Collision Bitmap
+
+The collision bitmap is a 256-byte (64 u32) array where each bit represents whether a tile ID is solid:
+- Bit set (1) = tile is solid/collideable
+- Bit clear (0) = tile is non-solid/pass-through
 
 ## Constraints
 
 - Maximum level width: 256 tiles (2048 pixels)
 - Maximum level height: 256 tiles (2048 pixels)
-- Maximum tile ID: 255 (u8 limit)
+- Maximum tile ID: 65535 (u16 limit), but practical limit is ~1440
 - Maximum objects per level: 256
+- **VRAM limit**: Maximum ~1000 unique tiles per level (GBA hardware constraint)
 - Total level data must fit in GBA memory (consider ~100KB reasonable limit)
 
 ## Validation Rules
@@ -126,7 +192,14 @@ typedef struct {
 1. Width and height must be positive integers
 2. Tiles array must have exactly `height` rows
 3. Each row must have exactly `width` columns
-4. All tile IDs must be valid (0-255)
+4. All tile IDs must be valid (0-65535)
 5. Object positions must be within level bounds
 6. Player spawn position must be within level bounds
 7. Player spawn is required
+8. **Warning**: Levels using >1000 unique tiles may exceed VRAM
+
+## Backward Compatibility
+
+Levels without `tilesets` or `collisionTiles` fields are automatically migrated:
+- Default tileset: grassy_stone (IDs 1-55)
+- Default collision: tiles 1-55 are solid, all others non-solid

@@ -2,12 +2,27 @@
 """
 Level Converter - Converts JSON level files to C header files for GBA
 Usage: python level_converter.py input.json output.h
+
+Supports multi-tileset levels with collision bitmap.
 """
 
 import json
 import sys
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
+
+# Default tileset configuration for backward compatibility
+DEFAULT_TILESETS = [
+    {
+        "name": "grassy_stone",
+        "file": "grassy_stone.png",
+        "firstId": 1,
+        "tileCount": 55
+    }
+]
+
+# Default collision tiles (grassy_stone tiles 1-55 are solid)
+DEFAULT_COLLISION_TILES = list(range(1, 56))
 
 
 def validate_level(data: Dict[str, Any], filename: str) -> None:
@@ -41,7 +56,7 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
         if len(row) != width:
             errors.append(f"Row {i} has {len(row)} columns, expected {width}")
         for j, tile_id in enumerate(row):
-            if not isinstance(tile_id, int) or tile_id < 0 or tile_id > 255:
+            if not isinstance(tile_id, int) or tile_id < 0 or tile_id > 65535:
                 errors.append(f"Invalid tile ID at ({i},{j}): {tile_id}")
     
     # Validate player spawn
@@ -73,6 +88,16 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
                 if 'x' not in obj or 'y' not in obj:
                     errors.append(f"Object {i} missing position fields")
     
+    # Validate VRAM limit - count unique tiles used
+    unique_tiles: Set[int] = set()
+    for row in tiles:
+        for tile_id in row:
+            if tile_id > 0:  # Skip sky tile
+                unique_tiles.add(tile_id)
+    
+    if len(unique_tiles) > 1000:
+        print(f"WARNING: Level uses {len(unique_tiles)} unique tiles. GBA VRAM limit is ~1000 tiles per level.")
+    
     if errors:
         raise ValueError(f"Validation errors in {filename}:\n" + "\n".join(errors))
 
@@ -87,6 +112,27 @@ def sanitize_identifier(name: str) -> str:
     return result or 'unnamed'
 
 
+def generate_collision_bitmap(collision_tiles: List[int]) -> List[int]:
+    """Generate a collision bitmap as an array of u32 values.
+    
+    Each bit represents whether a tile ID is solid.
+    Supports up to 2048 tile IDs (256 bytes = 64 u32 values).
+    """
+    # Initialize 256 bytes (2048 bits) as 64 u32 values
+    bitmap = [0] * 64
+    
+    for tile_id in collision_tiles:
+        if tile_id < 0 or tile_id >= 2048:
+            continue
+        byte_index = tile_id // 8
+        bit_index = tile_id % 8
+        u32_index = byte_index // 4
+        byte_offset = byte_index % 4
+        bitmap[u32_index] |= (1 << bit_index) << (byte_offset * 8)
+    
+    return bitmap
+
+
 def generate_header(data: Dict[str, Any], output_name: str) -> str:
     """Generate C header file content from level data."""
     level_name = sanitize_identifier(data['name'])
@@ -98,8 +144,52 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     objects = data.get('objects', [])
     spawn = data['playerSpawn']
     
+    # Get tilesets (use default for backward compatibility)
+    tilesets = data.get('tilesets', DEFAULT_TILESETS)
+    
+    # Get collision tiles (use default for backward compatibility)
+    collision_tiles = data.get('collisionTiles', DEFAULT_COLLISION_TILES)
+    
     # Flatten tile array
     flat_tiles = [tile for row in tiles for tile in row]
+    
+    # Build compact tile mapping at build time
+    # Find all unique tiles used in the level
+    unique_tiles = sorted(set(flat_tiles))
+    
+    # Define tileset ranges and palette banks
+    def get_tile_palette_bank(tile_id):
+        if tile_id == 0:
+            return 0
+        elif 1 <= tile_id <= 55:
+            return 0  # PALETTE_GRASSY_STONE
+        elif 56 <= tile_id <= 215:
+            return 2  # PALETTE_PLANTS
+        elif 216 <= tile_id <= 1440:
+            return 3  # PALETTE_DECALS
+        return 0
+    
+    # Create pre-computed metadata for each unique tile
+    tile_palette_banks = [get_tile_palette_bank(tid) for tid in unique_tiles]
+    
+    # Create mapping: original tile ID -> VRAM index
+    tile_id_to_vram = {}
+    for vram_index, tile_id in enumerate(unique_tiles):
+        tile_id_to_vram[tile_id] = vram_index
+    
+    # Remap level tiles to use VRAM indices directly
+    remapped_tiles = [tile_id_to_vram[tile] for tile in flat_tiles]
+    
+    # Remap collision bitmap from original tile IDs to VRAM indices
+    # Build new collision set based on which VRAM indices are solid
+    remapped_collision_tiles = []
+    for original_tile_id in collision_tiles:
+        if original_tile_id in tile_id_to_vram:
+            vram_index = tile_id_to_vram[original_tile_id]
+            remapped_collision_tiles.append(vram_index)
+    
+    # Generate collision bitmap with remapped VRAM indices
+    collision_bitmap = generate_collision_bitmap(remapped_collision_tiles)
     
     lines = []
     lines.append(f"#ifndef {guard_name}")
@@ -113,19 +203,56 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     if 'author' in data:
         lines.append(f"// Author: {data['author']}")
     lines.append(f"// Dimensions: {width}x{height} tiles ({width * 8}x{height * 8} pixels)")
+    lines.append(f"// Tilesets: {len(tilesets)}")
+    lines.append(f"// Unique tiles: {len(unique_tiles)}")
     lines.append("")
     
-    # Tile data
-    lines.append(f"static const u8 {level_name}_tiles[{len(flat_tiles)}] = {{")
+    # Tile mapping data (original tile ID list for loading)
+    lines.append(f"// Unique tile IDs used in this level ({len(unique_tiles)} tiles)")
+    lines.append(f"static const u16 {level_name}_unique_tile_ids[{len(unique_tiles)}] = {{")
+    for i in range(0, len(unique_tiles), 16):
+        chunk = unique_tiles[i:i+16]
+        line = "    " + ", ".join(f"{tile:5d}" for tile in chunk)
+        if i + 16 < len(unique_tiles):
+            line += ","
+        lines.append(line)
+    lines.append("};")
+    lines.append("")
+    
+    # Pre-computed palette banks for each unique tile
+    lines.append(f"// Pre-computed palette banks for unique tiles")
+    lines.append(f"static const u8 {level_name}_tile_palette_banks[{len(tile_palette_banks)}] = {{")
+    for i in range(0, len(tile_palette_banks), 32):
+        chunk = tile_palette_banks[i:i+32]
+        line = "    " + ", ".join(f"{pb}" for pb in chunk)
+        if i + 32 < len(tile_palette_banks):
+            line += ","
+        lines.append(line)
+    lines.append("};")
+    lines.append("")
+    
+    # Tile data (u16 VRAM indices, not original tile IDs!)
+    lines.append(f"static const u16 {level_name}_tiles[{len(remapped_tiles)}] = {{")
     
     # Format tiles in rows of 16 for readability
-    for i in range(0, len(flat_tiles), 16):
-        chunk = flat_tiles[i:i+16]
-        line = "    " + ", ".join(f"{tile:3d}" for tile in chunk)
-        if i + 16 < len(flat_tiles):
+    for i in range(0, len(remapped_tiles), 16):
+        chunk = remapped_tiles[i:i+16]
+        line = "    " + ", ".join(f"{tile:5d}" for tile in chunk)
+        if i + 16 < len(remapped_tiles):
             line += ","
         lines.append(line)
     
+    lines.append("};")
+    lines.append("")
+    
+    # Collision bitmap
+    lines.append(f"static const u32 {level_name}_collision[64] = {{")
+    for i in range(0, 64, 8):
+        chunk = collision_bitmap[i:i+8]
+        line = "    " + ", ".join(f"0x{val:08X}" for val in chunk)
+        if i + 8 < 64:
+            line += ","
+        lines.append(line)
     lines.append("};")
     lines.append("")
     
@@ -155,6 +282,21 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
         lines.append(f"static const LevelObject {level_name}_objects[1] = {{{{\"none\", 0, 0}}}};")
     lines.append("")
     
+    # TilesetInfo structure definition
+    lines.append("#ifndef TILESET_INFO_DEFINED")
+    lines.append("#define TILESET_INFO_DEFINED")
+    lines.append("typedef struct {")
+    lines.append("    const char* name;")
+    lines.append("    u16 firstId;")
+    lines.append("    u16 tileCount;")
+    lines.append("    const u32* tileData;")
+    lines.append("    u32 tileDataLen;")
+    lines.append("    const u16* paletteData;")
+    lines.append("    u16 paletteLen;")
+    lines.append("} TilesetInfo;")
+    lines.append("#endif")
+    lines.append("")
+    
     # Level structure definition
     lines.append("#ifndef LEVEL_STRUCT_DEFINED")
     lines.append("#define LEVEL_STRUCT_DEFINED")
@@ -162,11 +304,17 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("    const char* name;")
     lines.append("    u16 width;")
     lines.append("    u16 height;")
-    lines.append("    const u8* tiles;")
+    lines.append("    const u16* tiles;")
     lines.append("    u16 objectCount;")
     lines.append("    const LevelObject* objects;")
     lines.append("    u16 playerSpawnX;")
     lines.append("    u16 playerSpawnY;")
+    lines.append("    u8 tilesetCount;")
+    lines.append("    const TilesetInfo* tilesets;")
+    lines.append("    const u32* collisionBitmap;")
+    lines.append("    u16 uniqueTileCount;")
+    lines.append("    const u16* uniqueTileIds;")
+    lines.append("    const u8* tilePaletteBanks;")
     lines.append("} Level;")
     lines.append("#endif")
     lines.append("")
@@ -180,7 +328,13 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append(f"    {len(objects)},")
     lines.append(f"    {level_name}_objects,")
     lines.append(f"    {spawn['x']},")
-    lines.append(f"    {spawn['y']}")
+    lines.append(f"    {spawn['y']},")
+    lines.append(f"    0,  // tilesetCount (set at runtime)")
+    lines.append(f"    0,  // tilesets (set at runtime)")
+    lines.append(f"    {level_name}_collision,")
+    lines.append(f"    {len(unique_tiles)},  // uniqueTileCount")
+    lines.append(f"    {level_name}_unique_tile_ids,  // uniqueTileIds")
+    lines.append(f"    {level_name}_tile_palette_banks  // tilePaletteBanks")
     lines.append("};")
     lines.append("")
     lines.append(f"#endif // {guard_name}")

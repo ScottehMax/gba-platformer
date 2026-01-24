@@ -24,8 +24,8 @@ void collideHorizontal(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u8 tile = getTileAt(level, tx, ty);
-                if (!isTileSolid(tile)) continue;
+                u16 tile = getTileAt(level, tx, ty);
+                if (!isTileSolid(level, tile)) continue;
 
                 int tileLeft = tx * 8;
                 int tileRight = (tx + 1) * 8;
@@ -76,8 +76,8 @@ void collideVertical(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u8 tile = getTileAt(level, tx, ty);
-                if (!isTileSolid(tile)) continue;
+                u16 tile = getTileAt(level, tx, ty);
+                if (!isTileSolid(level, tile)) continue;
 
                 int tileLeft = tx * 8;
                 int tileRight = (tx + 1) * 8;
@@ -116,8 +116,8 @@ void collideVertical(Player* player, const Level* level) {
         int feetY = (screenY + PLAYER_RADIUS + 1) / 8;
         int checkX = screenX / 8;
 
-        u8 tile = getTileAt(level, checkX, feetY);
-        if (isTileSolid(tile)) {
+        u16 tile = getTileAt(level, checkX, feetY);
+        if (isTileSolid(level, tile)) {
             int tileTop = feetY * 8;
             if (screenY + PLAYER_RADIUS >= tileTop - 1) {
                 player->onGround = 1;

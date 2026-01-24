@@ -1,6 +1,31 @@
 // GBA Level Editor - Main JavaScript
 // Handles level editing, tile placement, object management, and file I/O
 
+// Tileset definitions with collision info
+const AVAILABLE_TILESETS = [
+    {
+        name: 'grassy_stone',
+        file: 'grassy_stone.png',
+        firstId: 1,
+        tileCount: 55,
+        defaultSolid: true  // All tiles solid by default
+    },
+    {
+        name: 'plants',
+        file: 'plants.png',
+        firstId: 56,
+        tileCount: 160,
+        defaultSolid: false  // Decorative, non-solid
+    },
+    {
+        name: 'decals',
+        file: 'decals.png',
+        firstId: 216,
+        tileCount: 1225,
+        defaultSolid: false  // Decorative, non-solid
+    }
+];
+
 class LevelEditor {
     constructor() {
         this.canvas = document.getElementById('editorCanvas');
@@ -16,7 +41,9 @@ class LevelEditor {
             tileHeight: 8,
             tiles: [],
             objects: [],
-            playerSpawn: { x: 40, y: 96 }
+            playerSpawn: { x: 40, y: 96 },
+            tilesets: [],
+            collisionTiles: []
         };
         
         // Editor state
@@ -38,12 +65,23 @@ class LevelEditor {
         this.redoStack = [];
         this.maxUndoSteps = 50;
         
-        // Tile images
+        // Tile images and tileset data
         this.tileImages = [];
         this.tilesLoaded = false;
-        this.tilesetColumns = 4;  // Default columns for tile palette grid
+        this.tilesetColumns = 4;
         this.tilesetRows = 1;
-        this.tilesetImage = null;  // Full tileset image for palette display
+        this.tilesetImage = null;
+        
+        // Multi-tileset support
+        this.loadedTilesets = [];  // Array of { name, image, firstId, tileCount, columns, rows }
+        this.collisionSet = new Set();  // Set of solid tile IDs
+        this.enabledTilesets = { grassy_stone: true, plants: true, decals: true };
+        this.collapsedTilesets = { grassy_stone: false, plants: true, decals: true };
+        
+        // Initialize default collision (grassy_stone tiles 1-55 are solid)
+        for (let i = 1; i <= 55; i++) {
+            this.collisionSet.add(i);
+        }
         
         // Initialize
         this.initLevel();
@@ -73,6 +111,7 @@ class LevelEditor {
     loadTileImages() {
         // Load tile assets from PNG files
         this.tileImages = [];
+        this.loadedTilesets = [];
 
         // Create tile 0 (sky/air) as placeholder - dark blue
         const skyTile = document.createElement('canvas');
@@ -83,29 +122,67 @@ class LevelEditor {
         skyCtx.fillRect(0, 0, 8, 8);
         this.tileImages[0] = skyTile;
 
-        // Load grassy_stone.png (tiles 1+)
-        const grassyStoneImg = new Image();
-        grassyStoneImg.onload = () => {
-            // Calculate number of tiles based on image dimensions (8x8 tiles)
-            const tilesWide = Math.floor(grassyStoneImg.width / 8);
-            const tilesTall = Math.floor(grassyStoneImg.height / 8);
-            const numTiles = tilesWide * tilesTall;
-            this.tilesetColumns = tilesWide;
-            this.tilesetRows = tilesTall;
-            this.tilesetImage = grassyStoneImg;
-            this.extractTiles(grassyStoneImg, 1, numTiles);
-            this.tilesLoaded = true;
-            this.renderTilePalette();
-        };
-        grassyStoneImg.onerror = () => {
-            console.error('Failed to load grassy_stone.png');
-            this.tilesetColumns = 11;
-            this.tilesetRows = 5;
-            this.createPlaceholderTiles(1, 55, '#8B4513');
-            this.tilesLoaded = true;
-            this.renderTilePalette();
-        };
-        grassyStoneImg.src = 'grassy_stone.png';
+        // Load all tilesets
+        let loadedCount = 0;
+        const totalTilesets = AVAILABLE_TILESETS.length;
+
+        AVAILABLE_TILESETS.forEach((tilesetDef) => {
+            const img = new Image();
+            img.onload = () => {
+                const tilesWide = Math.floor(img.width / 8);
+                const tilesTall = Math.floor(img.height / 8);
+                const numTiles = Math.min(tilesWide * tilesTall, tilesetDef.tileCount);
+                
+                this.extractTiles(img, tilesetDef.firstId, numTiles);
+                
+                this.loadedTilesets.push({
+                    name: tilesetDef.name,
+                    image: img,
+                    firstId: tilesetDef.firstId,
+                    tileCount: numTiles,
+                    columns: tilesWide,
+                    rows: tilesTall,
+                    defaultSolid: tilesetDef.defaultSolid
+                });
+
+                // For backward compatibility with single tileset
+                if (tilesetDef.name === 'grassy_stone') {
+                    this.tilesetColumns = tilesWide;
+                    this.tilesetRows = tilesTall;
+                    this.tilesetImage = img;
+                }
+
+                loadedCount++;
+                if (loadedCount >= totalTilesets) {
+                    this.tilesLoaded = true;
+                    // Sort tilesets by firstId
+                    this.loadedTilesets.sort((a, b) => a.firstId - b.firstId);
+                    this.renderTilePalette();
+                }
+            };
+            img.onerror = () => {
+                console.error(`Failed to load ${tilesetDef.file}`);
+                this.createPlaceholderTiles(tilesetDef.firstId, tilesetDef.tileCount, '#8B4513');
+                
+                this.loadedTilesets.push({
+                    name: tilesetDef.name,
+                    image: null,
+                    firstId: tilesetDef.firstId,
+                    tileCount: tilesetDef.tileCount,
+                    columns: 10,
+                    rows: Math.ceil(tilesetDef.tileCount / 10),
+                    defaultSolid: tilesetDef.defaultSolid
+                });
+
+                loadedCount++;
+                if (loadedCount >= totalTilesets) {
+                    this.tilesLoaded = true;
+                    this.loadedTilesets.sort((a, b) => a.firstId - b.firstId);
+                    this.renderTilePalette();
+                }
+            };
+            img.src = tilesetDef.file;
+        });
     }
 
     extractTiles(image, startIndex, count) {
@@ -146,16 +223,18 @@ class LevelEditor {
         const palette = document.getElementById('tilePalette');
         palette.innerHTML = '';
 
-        const scale = 4; // Scale up for visibility
+        const scale = 3; // Scale up for visibility
 
-        // Create canvas for tile 0 (sky)
+        // Create tile 0 (sky) section
+        const skySection = document.createElement('div');
+        skySection.className = 'tileset-section';
+        
         const skyCanvas = document.createElement('canvas');
         skyCanvas.width = 8 * scale;
         skyCanvas.height = 8 * scale;
         skyCanvas.style.cursor = 'pointer';
         skyCanvas.style.imageRendering = 'pixelated';
-        skyCanvas.style.imageRendering = 'crisp-edges';
-        skyCanvas.style.marginBottom = '8px';
+        skyCanvas.style.marginBottom = '4px';
         skyCanvas.style.border = this.selectedTile === 0 ? '2px solid #61dafb' : '1px solid #404040';
 
         const skyCtx = skyCanvas.getContext('2d');
@@ -172,80 +251,186 @@ class LevelEditor {
             }
         });
 
-        // Create label for sky tile
         const skyLabel = document.createElement('div');
-        skyLabel.textContent = 'Tile 0 (Sky)';
-        skyLabel.style.fontSize = '12px';
-        skyLabel.style.marginBottom = '12px';
+        skyLabel.textContent = 'Tile 0 (Sky/Air)';
+        skyLabel.style.fontSize = '11px';
+        skyLabel.style.marginBottom = '8px';
         skyLabel.style.color = '#b0b0b0';
 
-        // Create canvas for tileset palette
-        const canvas = document.createElement('canvas');
-        canvas.width = this.tilesetColumns * 8 * scale;
-        canvas.height = this.tilesetRows * 8 * scale;
-        canvas.style.cursor = 'pointer';
-        canvas.style.imageRendering = 'pixelated';
-        canvas.style.imageRendering = 'crisp-edges';
+        skySection.appendChild(skyCanvas);
+        skySection.appendChild(skyLabel);
+        palette.appendChild(skySection);
 
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
+        // Render each loaded tileset as a collapsible section
+        this.loadedTilesets.forEach((tileset) => {
+            const section = document.createElement('div');
+            section.className = 'tileset-section';
 
-        // Draw the full tileset image
-        if (this.tilesetImage) {
-            ctx.drawImage(this.tilesetImage, 0, 0, canvas.width, canvas.height);
-        }
+            // Header with collapse toggle and enable checkbox
+            const header = document.createElement('div');
+            header.className = 'tileset-header';
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.marginBottom = '4px';
+            header.style.cursor = 'pointer';
+            header.style.userSelect = 'none';
 
-        // Draw grid
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x <= this.tilesetColumns; x++) {
-            ctx.beginPath();
-            ctx.moveTo(x * 8 * scale, 0);
-            ctx.lineTo(x * 8 * scale, canvas.height);
-            ctx.stroke();
-        }
-        for (let y = 0; y <= this.tilesetRows; y++) {
-            ctx.beginPath();
-            ctx.moveTo(0, y * 8 * scale);
-            ctx.lineTo(canvas.width, y * 8 * scale);
-            ctx.stroke();
-        }
+            const collapseBtn = document.createElement('span');
+            collapseBtn.textContent = this.collapsedTilesets[tileset.name] ? '▶' : '▼';
+            collapseBtn.style.marginRight = '6px';
+            collapseBtn.style.fontSize = '10px';
 
-        // Highlight selected tile (if not tile 0)
-        if (this.selectedTile > 0 && this.selectedTile < this.tileImages.length) {
-            // Adjust for tile 0 offset
-            const adjustedIndex = this.selectedTile - 1;
-            const tileX = adjustedIndex % this.tilesetColumns;
-            const tileY = Math.floor(adjustedIndex / this.tilesetColumns);
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = `${tileset.name} (${tileset.firstId}-${tileset.firstId + tileset.tileCount - 1})`;
+            titleSpan.style.fontSize = '12px';
+            titleSpan.style.fontWeight = 'bold';
+            titleSpan.style.color = tileset.defaultSolid ? '#ff9966' : '#99ff99';
+            titleSpan.style.flex = '1';
 
-            ctx.strokeStyle = '#61dafb';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(tileX * 8 * scale + 1, tileY * 8 * scale + 1, 8 * scale - 2, 8 * scale - 2);
-        }
+            header.appendChild(collapseBtn);
+            header.appendChild(titleSpan);
 
-        // Handle clicks
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            const tileX = Math.floor(x / (8 * scale));
-            const tileY = Math.floor(y / (8 * scale));
-            const adjustedIndex = tileY * this.tilesetColumns + tileX;
-            const tileIndex = adjustedIndex + 1; // Add 1 to account for tile 0
-
-            if (tileIndex > 0 && tileIndex < this.tileImages.length) {
-                this.selectedTile = tileIndex;
+            header.addEventListener('click', () => {
+                this.collapsedTilesets[tileset.name] = !this.collapsedTilesets[tileset.name];
                 this.renderTilePalette();
-                if (this.currentTool === 'eraser') {
-                    this.setTool('brush');
+            });
+
+            section.appendChild(header);
+
+            // Tileset content (canvas with tiles)
+            if (!this.collapsedTilesets[tileset.name]) {
+                const canvas = document.createElement('canvas');
+                canvas.width = tileset.columns * 8 * scale;
+                canvas.height = tileset.rows * 8 * scale;
+                canvas.style.cursor = 'pointer';
+                canvas.style.imageRendering = 'pixelated';
+                canvas.style.maxWidth = '100%';
+
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = false;
+
+                // Draw tileset image or individual tiles
+                if (tileset.image) {
+                    ctx.drawImage(tileset.image, 0, 0, canvas.width, canvas.height);
+                } else {
+                    // Draw placeholder tiles
+                    for (let i = 0; i < tileset.tileCount; i++) {
+                        const tileId = tileset.firstId + i;
+                        const tileX = (i % tileset.columns) * 8 * scale;
+                        const tileY = Math.floor(i / tileset.columns) * 8 * scale;
+                        if (this.tileImages[tileId]) {
+                            ctx.drawImage(this.tileImages[tileId], tileX, tileY, 8 * scale, 8 * scale);
+                        }
+                    }
                 }
+
+                // Draw grid
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                for (let x = 0; x <= tileset.columns; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x * 8 * scale, 0);
+                    ctx.lineTo(x * 8 * scale, canvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y <= tileset.rows; y++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y * 8 * scale);
+                    ctx.lineTo(canvas.width, y * 8 * scale);
+                    ctx.stroke();
+                }
+
+                // Mark solid tiles with red corners
+                for (let i = 0; i < tileset.tileCount; i++) {
+                    const tileId = tileset.firstId + i;
+                    if (this.collisionSet.has(tileId)) {
+                        const tileX = (i % tileset.columns) * 8 * scale;
+                        const tileY = Math.floor(i / tileset.columns) * 8 * scale;
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                        ctx.fillRect(tileX, tileY, 4, 4);
+                    }
+                }
+
+                // Highlight selected tile
+                if (this.selectedTile >= tileset.firstId && 
+                    this.selectedTile < tileset.firstId + tileset.tileCount) {
+                    const localIndex = this.selectedTile - tileset.firstId;
+                    const tileX = localIndex % tileset.columns;
+                    const tileY = Math.floor(localIndex / tileset.columns);
+
+                    ctx.strokeStyle = '#61dafb';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(tileX * 8 * scale + 1, tileY * 8 * scale + 1, 8 * scale - 2, 8 * scale - 2);
+                }
+
+                // Handle left click to select tile
+                canvas.addEventListener('click', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+
+                    const tileX = Math.floor((x * scaleX) / (8 * scale));
+                    const tileY = Math.floor((y * scaleY) / (8 * scale));
+                    const localIndex = tileY * tileset.columns + tileX;
+
+                    if (localIndex >= 0 && localIndex < tileset.tileCount) {
+                        this.selectedTile = tileset.firstId + localIndex;
+                        this.renderTilePalette();
+                        if (this.currentTool === 'eraser') {
+                            this.setTool('brush');
+                        }
+                    }
+                });
+
+                // Handle right click to toggle collision
+                canvas.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+
+                    const tileX = Math.floor((x * scaleX) / (8 * scale));
+                    const tileY = Math.floor((y * scaleY) / (8 * scale));
+                    const localIndex = tileY * tileset.columns + tileX;
+
+                    if (localIndex >= 0 && localIndex < tileset.tileCount) {
+                        const tileId = tileset.firstId + localIndex;
+                        if (this.collisionSet.has(tileId)) {
+                            this.collisionSet.delete(tileId);
+                        } else {
+                            this.collisionSet.add(tileId);
+                        }
+                        this.renderTilePalette();
+                    }
+                });
+
+                section.appendChild(canvas);
             }
+
+            // Info text
+            const info = document.createElement('div');
+            info.style.fontSize = '10px';
+            info.style.color = '#888';
+            info.style.marginTop = '2px';
+            info.textContent = tileset.defaultSolid ? '(Solid terrain)' : '(Decorative)';
+            section.appendChild(info);
+
+            palette.appendChild(section);
         });
 
-        palette.appendChild(skyCanvas);
-        palette.appendChild(skyLabel);
-        palette.appendChild(canvas);
+        // Add legend
+        const legend = document.createElement('div');
+        legend.style.marginTop = '12px';
+        legend.style.fontSize = '10px';
+        legend.style.color = '#888';
+        legend.innerHTML = '<b>Tips:</b><br>Left-click: Select tile<br>Right-click: Toggle collision<br>Red corner = solid';
+        palette.appendChild(legend);
     }
     
     setupEventListeners() {
@@ -707,8 +892,17 @@ class LevelEditor {
                 tileHeight: 8,
                 tiles: [],
                 objects: [],
-                playerSpawn: { x: 40, y: 96 }
+                playerSpawn: { x: 40, y: 96 },
+                tilesets: [],
+                collisionTiles: []
             };
+            
+            // Reset collision to defaults
+            this.collisionSet.clear();
+            for (let i = 1; i <= 55; i++) {
+                this.collisionSet.add(i);
+            }
+            
             this.initLevel();
             document.getElementById('levelName').value = this.level.name;
             document.getElementById('levelAuthor').value = this.level.author;
@@ -716,6 +910,7 @@ class LevelEditor {
             document.getElementById('levelHeight').value = this.level.height;
             this.updateSpawnInfo();
             this.renderObjectList();
+            this.renderTilePalette();
             this.resetView();
         }
     }
@@ -740,11 +935,23 @@ class LevelEditor {
                 document.getElementById('levelWidth').value = this.level.width;
                 document.getElementById('levelHeight').value = this.level.height;
                 
+                // Load collision data if present, otherwise use defaults
+                this.collisionSet.clear();
+                if (data.collisionTiles && Array.isArray(data.collisionTiles)) {
+                    data.collisionTiles.forEach(id => this.collisionSet.add(id));
+                } else {
+                    // Default: grassy_stone tiles 1-55 are solid
+                    for (let i = 1; i <= 55; i++) {
+                        this.collisionSet.add(i);
+                    }
+                }
+                
                 this.undoStack = [];
                 this.redoStack = [];
                 this.updateUndoRedoButtons();
                 this.updateSpawnInfo();
                 this.renderObjectList();
+                this.renderTilePalette();
                 this.resetView();
                 
                 alert('Level loaded successfully!');
@@ -759,7 +966,18 @@ class LevelEditor {
     }
     
     saveLevel() {
-        // Prepare level data
+        // Build tilesets array from enabled tilesets
+        const tilesets = AVAILABLE_TILESETS.map(ts => ({
+            name: ts.name,
+            file: ts.file,
+            firstId: ts.firstId,
+            tileCount: ts.tileCount
+        }));
+
+        // Build collision tiles array from collision set
+        const collisionTiles = Array.from(this.collisionSet).sort((a, b) => a - b);
+
+        // Prepare level data with new format
         const levelData = {
             name: this.level.name,
             author: this.level.author,
@@ -769,7 +987,9 @@ class LevelEditor {
             tileHeight: this.level.tileHeight,
             tiles: this.level.tiles,
             objects: this.level.objects,
-            playerSpawn: this.level.playerSpawn
+            playerSpawn: this.level.playerSpawn,
+            tilesets: tilesets,
+            collisionTiles: collisionTiles
         };
         
         // Create JSON file
