@@ -50,6 +50,10 @@ $(GENDIR)/plants.c $(GENDIR)/plants.h: assets/plants.png | $(GENDIR)
 $(GENDIR)/decals.c $(GENDIR)/decals.h: assets/decals.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -gTFF00FF -m! -ftc -o$(GENDIR)/decals
 
+# Background image for BG0 - generates tiles and tilemap, reduce to 16 colors
+$(GENDIR)/nightsky.c $(GENDIR)/nightsky.h: assets/nightsky.png | $(GENDIR)
+	$(GRIT) $< -gB4 -gt -mR8 -mLs -pn16 -ftc -o$(GENDIR)/nightsky
+
 # Level converter
 $(GENDIR)/%.h: levels/%.json | $(GENDIR)
 	$(PYTHON) tools/level_converter.py $< $@

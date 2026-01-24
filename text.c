@@ -59,10 +59,10 @@ void init_bg_text() {
         bgTiles[i] = tinypixieTiles[i];
     }
     
-    // Set up BG3 control register (16-color mode, screen base 20, char base 1)
-    // Screen base 20 = 0x0600A000
+    // Set up BG3 control register (16-color mode, screen base 28, char base 1)
+    // Screen base 28 = 0x0600E000 (moved to avoid char block 2 conflict)
     // Char base 1 = 0x06004000
-    *((volatile u16*)0x0400000E) = 0x0000 | (20 << 8) | (1 << 2);
+    *((volatile u16*)0x0400000E) = 0x0000 | (28 << 8) | (1 << 2);
     
     // Clear the text background
     clear_bg_text();
@@ -75,8 +75,8 @@ void init_bg_text() {
 }
 
 void clear_bg_text() {
-    // BG3 screen map at base block 20 (0x0600A000)
-    volatile u16* bgMap = (volatile u16*)0x0600A000;
+    // BG3 screen map at base block 28 (0x0600E000)
+    volatile u16* bgMap = (volatile u16*)0x0600E000;
     
     // Clear entire 32x32 tile map (fill with tile 0 = space/transparent)
     for (int i = 0; i < 32 * 32; i++) {
@@ -85,7 +85,7 @@ void clear_bg_text() {
 }
 
 void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
-    volatile u16* bgMap = (volatile u16*)0x0600A000;
+    volatile u16* bgMap = (volatile u16*)0x0600E000;
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -100,7 +100,7 @@ void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
 
 // Internal function to draw text to a specific slot
 static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int dynamic_tile_slot) {
-    volatile u16* bgMap = (volatile u16*)0x0600A000;
+    volatile u16* bgMap = (volatile u16*)0x0600E000;
     volatile u32* charBlock1 = (volatile u32*)0x06004000;
     
     // Calculate starting tile in char block 1 (each slot gets 20 tiles)

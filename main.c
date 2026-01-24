@@ -5,6 +5,7 @@
 #include "decals.h"
 #include "level3.h"
 #include "text.h"
+#include "nightsky.h"
 #include <stdlib.h>
 #include "src/core/game_math.h"
 #include "src/core/game_types.h"
@@ -30,27 +31,54 @@ int main() {
     // Load level
     const Level* currentLevel = &Tutorial_Level;
     
-    // Mode 0 with BG0, BG1, BG2 and sprites enabled
-    // BG2 = terrain, decorations, BG3 = text
-    REG_DISPCNT = VIDEOMODE_0 | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
+    // Mode 0 with BG0, BG2, BG3 and sprites enabled
+    // BG0 = nightsky, BG2 = terrain, decorations, BG3 = text
+    REG_DISPCNT = VIDEOMODE_0 | (1 << 8) | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG0_ENABLE = bit 8, BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
+
+    // Load nightsky tiles to VRAM (char block 2)
+    volatile u32* nightskyTilesDst = (volatile u32*)(0x06000000 + (2 << 14));
+    for (int i = 0; i < nightskyTilesLen / 4; i++) {
+        nightskyTilesDst[i] = ((const u32*)nightskyTiles)[i];
+    }
+
+    // Load nightsky tilemap to screen base 24 (BG0) - NOT 20, which is used by BG3 text!
+    // Adjust tilemap entries to use palette bank 4
+    volatile u16* nightskyMapDst = (volatile u16*)(0x06000000 + (24 << 11));
+    for (int i = 0; i < nightskyMapLen / 2; i++) {
+        u16 tileEntry = ((const u16*)nightskyMap)[i];
+        u16 tileIndex = tileEntry & 0x03FF;  // Extract tile index
+        u16 flags = tileEntry & 0xFC00;      // Extract flip/rotation flags
+        // Set palette bank 4
+        nightskyMapDst[i] = tileIndex | flags | (4 << 12);
+    }
+
+    // Load nightsky palette to palette bank 4 (colors 64-79)
+    volatile u16* bgPalette = MEM_BG_PALETTE;
+    for (int i = 0; i < nightskyPalLen / 2; i++) {
+        bgPalette[64 + i] = nightskyPal[i];
+    }
+
+    // Set BG0 control register (4-bit color, screen base 24, char base 2, priority 3 - behind everything)
+    REG_BG0CNT = (24 << 8) | (2 << 2) | (3 << 0);
+
+    // Set BG0 scroll to 0,0
+    REG_BG0HOFS = 0;
+    REG_BG0VOFS = 0;
 
     // Enable alpha blending for sprites
     // BLDCNT: Effect=Alpha blend (bit 6), NO global OBJ target (sprites set semi-transparent individually)
     // 2nd target=BG0+BG1+BD (bits 8,9,13) - what semi-transparent sprites blend with
     REG_BLDCNT = (1 << 6) | (1 << 8) | (1 << 9) | (1 << 13);
-    // BLDALPHA: Set blend coefficients EVA (sprite) and EVB (background) - must sum to 16 or less
+    // Set blend coefficients EVA (sprite) and EVB (background) - must sum to 16 or less
     REG_BLDALPHA = (7 << 0) | (9 << 8);  // ~44% trail, ~56% background (more transparent)
-
-    // Set up background palette (16 banks of 16 colors for 4-bit mode)
-    volatile u16* bgPalette = MEM_BG_PALETTE;
 
     // Palette bank 0: grassy_stone (colors 0-15)
     for (int i = 0; i < 16; i++) {
         bgPalette[PALETTE_GRASSY_STONE * 16 + i] = grassy_stonePal[i];
     }
-    
-    // Override palette index 0 with dark blue for sky
-    bgPalette[0] = COLOR(3, 6, 15);
+
+    // Make palette index 0 transparent for grassy_stone
+    bgPalette[0] = 0;
     
     // Palette bank 1: Font (colors 16-31)
     for (int i = 0; i < 16; i++) {
@@ -70,8 +98,8 @@ int main() {
     // Load only the tiles used in the current level to VRAM
     loadLevelToVRAM(&Tutorial_Level);
 
-    // Set BG2 control register (4-bit color, screen base 16, char base 0, priority 0)
-    REG_BG2CNT = (16 << 8) | (0 << 2) | (0 << 0);
+    // Set BG2 control register (4-bit color, screen base 26, char base 0, priority 0)
+    REG_BG2CNT = (26 << 8) | (0 << 2) | (0 << 0);
     
     // Initialize background text system (BG3 - uses char block 1)
     init_bg_text();
@@ -131,8 +159,8 @@ int main() {
     camera.x = 0;
     camera.y = 0;
 
-    // Background map pointer (32x32 tilemap on BG2)
-    volatile u16* bgMap = (volatile u16*)(0x06000000 + (16 << 11));
+    // Background map pointer (32x32 tilemap on BG2 at screen base 26)
+    volatile u16* bgMap = (volatile u16*)(0x06000000 + (26 << 11));
     
     // Initialize tilemap once at startup
     for (int y = 0; y < 32; y++) {
