@@ -9,7 +9,7 @@
 void init_bg_text();
 void clear_bg_text();
 void clear_bg_text_region(int tile_x, int tile_y, int width, int height);
-void draw_bg_text(const char* str, int tile_x, int tile_y);
+void draw_bg_text(const char* str, int tile_x, int tile_y, int dynamic_tile_slot);
 void draw_bg_text_px(const char* str, int px_x, int px_y);
 
 // Sprite text functions (OAM-based) - for small dynamic text

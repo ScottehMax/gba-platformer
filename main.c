@@ -581,9 +581,9 @@ int main() {
         drawGame(&player, &camera);
         
         // TEXT DEMO: Use background text (BG1) - supports unlimited text!
-        // Only clear and redraw when needed to avoid flicker
+        // Use different dynamic tile slots (0 and 20) to avoid overwriting
         if (frameCount == 0) {
-            draw_bg_text("TinyPixie Font Demo", 1, 1);
+            draw_bg_text("TinyPixie Font Demo", 1, 1, 0);  // Uses dynamic tiles 96-115
         }
         
         // Update time string every 60 frames
@@ -599,7 +599,7 @@ int main() {
             timeStr[7] = '0' + seconds % 10;
             timeStr[8] = 's';
             timeStr[9] = '\0';
-            draw_bg_text(timeStr, 1, 2);
+            draw_bg_text(timeStr, 1, 2, 20);  // Uses dynamic tiles 116-125
         }
         
         frameCount++;
