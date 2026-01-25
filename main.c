@@ -98,8 +98,8 @@ int main() {
     // Load only the tiles used in the current level to VRAM
     loadLevelToVRAM(&Tutorial_Level);
 
-    // Set BG2 control register (4-bit color, screen base 26, char base 0, priority 0)
-    REG_BG2CNT = (26 << 8) | (0 << 2) | (0 << 0);
+    // Set BG2 control register (4-bit color, screen base 26, char base 0, priority 1)
+    REG_BG2CNT = (26 << 8) | (0 << 2) | (1 << 0);
     
     // Initialize background text system (BG3 - uses char block 1)
     init_bg_text();
