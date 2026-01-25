@@ -139,11 +139,11 @@ int main() {
         spriteTiles[i] = skellyTiles[i];
     }
 
-    // Set up sprite 0 as 16x16, 16-color mode
+    // Set up sprite 0 as 16x16, 16-color mode, priority 1
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 0;
     oam[1] = (1 << 14);
-    oam[2] = 0;
+    oam[2] = (1 << 10);  // Priority 1
 
     // Hide other sprites
     for (int i = 1; i < 128; i++) {
