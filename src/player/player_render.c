@@ -1,5 +1,5 @@
 #include "player_render.h"
-#include "gba.h"
+#include "core/gba.h"
 
 void drawPlayer(Player* player, Camera* camera) {
     // Draw dash trail (sprites 1-10)

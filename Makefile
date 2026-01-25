@@ -71,7 +71,7 @@ $(TARGET).elf: $(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Text module
-text.o: text.c text.h gba.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
+text.o: $(SRCDIR)/core/text.c $(SRCDIR)/core/text.h $(SRCDIR)/core/gba.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Debug utilities module
@@ -79,27 +79,27 @@ debug_utils.o: $(SRCDIR)/core/debug_utils.c $(SRCDIR)/core/debug_utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Level module
-level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
+level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Camera module
-camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
+camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Collision module
-collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h gba.h $(LEVEL_HEADERS)
+collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player module
-player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h gba.h $(LEVEL_HEADERS)
+player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player rendering module
-player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h gba.h
+player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/core/gba.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Main object depends on all headers
-main.o: main.c gba.h text.h \
+main.o: $(SRCDIR)/main.c $(SRCDIR)/core/gba.h $(SRCDIR)/core/text.h \
 	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
 	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
 	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h \

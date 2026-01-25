@@ -1,9 +1,9 @@
 #ifndef PLAYER_RENDER_H
 #define PLAYER_RENDER_H
 
-#include "gba.h"
-#include "src/core/game_types.h"
-#include "src/core/game_math.h"
+#include "core/gba.h"
+#include "core/game_types.h"
+#include "core/game_math.h"
 
 /**
  * Draw the player sprite and dash trail

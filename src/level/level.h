@@ -1,7 +1,7 @@
 #ifndef LEVEL_H
 #define LEVEL_H
 
-#include "gba.h"
+#include "core/gba.h"
 #include "level3.h"
 
 /**

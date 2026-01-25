@@ -195,7 +195,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append(f"#ifndef {guard_name}")
     lines.append(f"#define {guard_name}")
     lines.append("")
-    lines.append("#include \"gba.h\"")
+    lines.append("#include \"core/gba.h\"")
     lines.append("")
     
     # Level metadata

@@ -1,10 +1,10 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "gba.h"
-#include "src/core/game_types.h"
-#include "src/core/game_math.h"
-#include "src/collision/collision.h"
+#include "core/gba.h"
+#include "core/game_types.h"
+#include "core/game_math.h"
+#include "collision/collision.h"
 
 /**
  * Initialize a player at the level spawn point

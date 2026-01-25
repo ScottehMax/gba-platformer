@@ -1,10 +1,10 @@
 #ifndef COLLISION_H
 #define COLLISION_H
 
-#include "gba.h"
-#include "src/core/game_types.h"
-#include "src/core/game_math.h"
-#include "src/level/level.h"
+#include "core/gba.h"
+#include "core/game_types.h"
+#include "core/game_math.h"
+#include "level/level.h"
 
 /**
  * Perform horizontal collision sweep

@@ -1,7 +1,7 @@
 #ifndef GAME_TYPES_H
 #define GAME_TYPES_H
 
-#include "gba.h"
+#include "core/gba.h"
 #include "game_math.h"
 
 typedef struct {
