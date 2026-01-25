@@ -18,6 +18,7 @@ typedef signed short s16;
 #define REG_BG0CNT      *((volatile u16*)(MEM_IO + 0x08))
 #define REG_BG1CNT      *((volatile u16*)(MEM_IO + 0x0A))
 #define REG_BG2CNT      *((volatile u16*)(MEM_IO + 0x0C))
+#define REG_BG3CNT      *((volatile u16*)(MEM_IO + 0x0E))
 #define REG_BG0HOFS     *((volatile u16*)(MEM_IO + 0x10))
 #define REG_BG0VOFS     *((volatile u16*)(MEM_IO + 0x12))
 #define REG_BG1HOFS     *((volatile u16*)(MEM_IO + 0x14))
@@ -31,6 +32,11 @@ typedef signed short s16;
 #define MEM_BG_TILES    ((volatile u32*)(MEM_VRAM))
 #define MEM_BG0_MAP     ((volatile u16*)(MEM_VRAM + 0x8000))
 #define MEM_SPRITE_TILES ((volatile u32*)(MEM_VRAM + 0x10000))
+
+// Character blocks (16KB each, 4 total for BG)
+#define CHAR_BLOCK(n)   ((volatile u32*)(MEM_VRAM + ((n) * 0x4000)))
+// Screen blocks (2KB each, 32 total)
+#define SCREEN_BLOCK(n) ((volatile u16*)(MEM_VRAM + ((n) * 0x800)))
 
 // Palette addresses
 #define MEM_BG_PALETTE  ((volatile u16*)(MEM_PALETTE))

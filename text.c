@@ -5,8 +5,8 @@
 #define FONT_PALETTE 1        // Font uses palette slot 1
 
 // Background text tile start (in background char block 1)
-#define BG_TEXT_DYNAMIC_START 96  // Start at tile 96 in char block 1 for dynamic text tiles
-#define MAX_TEXT_SLOTS 8  // Maximum number of text strings (each can use up to 20 tiles)
+#define BG_TEXT_DYNAMIC_START 1  // Start at tile 1 in char block 1 for dynamic text tiles
+#define MAX_TEXT_SLOTS 20  // Maximum number of text strings (each can use up to 20 tiles)
 
 // Tile slot tracking
 static u8 tile_slot_used[MAX_TEXT_SLOTS] = {0};  // 0 = free, 1 = in use
@@ -24,16 +24,16 @@ const unsigned char font_char_widths[] = {
 
 // Helper: Get pixel from font tile (4bpp format)
 static u8 get_font_pixel(int char_index, int px, int py) {
-    // Font tiles are in char block 1 at 0x06004000
-    volatile u32* fontData = (volatile u32*)0x06004000;
-    
+    // Read directly from ROM font data
+    const u32* fontData = (const u32*)tinypixieTiles;
+
     // Each tile is 8 u32s (32 bytes) in 4bpp format
     int tileStart = char_index * 8;  // 8 u32s per tile
-    
+
     // In 4bpp, each u32 holds 8 pixels (4 bits each)
     int row_offset = py;  // Which u32 in the tile (one per row)
     u32 row_data = fontData[tileStart + row_offset];
-    
+
     // Extract the pixel (4 bits) from the u32
     int shift = px * 4;
     return (row_data >> shift) & 0xF;
@@ -51,22 +51,16 @@ static void set_tile_pixel(u32* tileData, int px, int py, u8 colorIndex) {
 // ============================================================================
 
 void init_bg_text() {
-    // Copy font tiles to background VRAM char block 1 (0x06004000)
-    // This keeps text tiles separate from game tiles in char block 0
-    volatile u32* bgTiles = (volatile u32*)0x06004000;  // Char block 1
-    
-    for (int i = 0; i < tinypixieTilesLen / 4; i++) {
-        bgTiles[i] = tinypixieTiles[i];
-    }
-    
     // Set up BG3 control register (16-color mode, screen base 28, char base 1)
-    // Screen base 28 = 0x0600E000 (moved to avoid char block 2 conflict)
-    // Char base 1 = 0x06004000
-    *((volatile u16*)0x0400000E) = 0x0000 | (28 << 8) | (1 << 2);
-    
+    // Screen base 28 (moved to avoid char block 2 conflict)
+    // Char base 1
+    // Note: We only use char block 1 for dynamic text tiles (starting at tile 96)
+    // Font character tiles are read directly from ROM, not stored in VRAM
+    REG_BG3CNT = 0x0000 | (28 << 8) | (1 << 2);
+
     // Clear the text background
     clear_bg_text();
-    
+
     // Reset slot tracking
     for (int i = 0; i < MAX_TEXT_SLOTS; i++) {
         tile_slot_used[i] = 0;
@@ -75,8 +69,8 @@ void init_bg_text() {
 }
 
 void clear_bg_text() {
-    // BG3 screen map at base block 28 (0x0600E000)
-    volatile u16* bgMap = (volatile u16*)0x0600E000;
+    // BG3 screen map at base block 28
+    volatile u16* bgMap = SCREEN_BLOCK(28);
     
     // Clear entire 32x32 tile map (fill with tile 0 = space/transparent)
     for (int i = 0; i < 32 * 32; i++) {
@@ -85,7 +79,7 @@ void clear_bg_text() {
 }
 
 void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
-    volatile u16* bgMap = (volatile u16*)0x0600E000;
+    volatile u16* bgMap = SCREEN_BLOCK(28);
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -100,8 +94,8 @@ void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
 
 // Internal function to draw text to a specific slot
 static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int dynamic_tile_slot) {
-    volatile u16* bgMap = (volatile u16*)0x0600E000;
-    volatile u32* charBlock1 = (volatile u32*)0x06004000;
+    volatile u16* bgMap = SCREEN_BLOCK(28);
+    volatile u32* charBlock1 = CHAR_BLOCK(1);
     
     // Calculate starting tile in char block 1 (each slot gets 20 tiles)
     int base_tile = BG_TEXT_DYNAMIC_START + (dynamic_tile_slot * 20);
