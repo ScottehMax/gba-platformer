@@ -21,6 +21,11 @@
 #define JUMP_PEAK_THRESHOLD (FIXED_ONE / 2)  // vy threshold for "peak" (128 = 0.5)
 #define PEAK_GRAVITY_MULTIPLIER 2  // Divide gravity by this at peak
 
+// Corner correction
+#define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 4)  // Max 4 pixels nudge
+#define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max 6 pixels upward pop
+#define BONK_NUDGE_RANGE (FIXED_ONE * 4)  // Max 4 pixels for ceiling corner nudge
+
 // Player constants
 #define PLAYER_RADIUS 8
 #define TRAIL_LENGTH 10

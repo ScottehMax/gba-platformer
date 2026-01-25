@@ -1,5 +1,37 @@
 #include "collision.h"
 
+static int isPositionColliding(const Level* level, int screenX, int screenY) {
+    int tileMinX = (screenX - PLAYER_RADIUS) / 8;
+    int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
+    int tileMinY = (screenY - PLAYER_RADIUS) / 8;
+    int tileMaxY = (screenY + PLAYER_RADIUS) / 8;
+
+    int playerLeft = screenX - PLAYER_RADIUS;
+    int playerRight = screenX + PLAYER_RADIUS;
+    int playerTop = screenY - PLAYER_RADIUS;
+    int playerBottom = screenY + PLAYER_RADIUS;
+
+    for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+            u16 tile = getTileAt(level, tx, ty);
+            if (!isTileSolid(level, tile)) continue;
+
+            int tileLeft = tx * 8;
+            int tileRight = (tx + 1) * 8;
+            int tileTop = ty * 8;
+            int tileBottom = (ty + 1) * 8;
+
+            if (playerRight > tileLeft && playerLeft < tileRight &&
+                playerBottom > tileTop && playerTop < tileBottom) {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
 void collideHorizontal(Player* player, const Level* level) {
     // Horizontal sweep
     player->x += player->vx;
@@ -40,14 +72,32 @@ void collideHorizontal(Player* player, const Level* level) {
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
                     // Collision - snap to tile edge instead of reverting
-                    if (player->vx > 0) {
-                        // Moving right, snap to left edge of tile
-                        player->x = (tileLeft - PLAYER_RADIUS) << FIXED_SHIFT;
-                    } else {
-                        // Moving left, snap to right edge of tile
-                        player->x = (tileRight + PLAYER_RADIUS) << FIXED_SHIFT;
+                    int snappedX = player->vx > 0
+                        ? (tileLeft - PLAYER_RADIUS) << FIXED_SHIFT
+                        : (tileRight + PLAYER_RADIUS) << FIXED_SHIFT;
+
+                    // Dash ledge pop: pop up only if overlap is within range
+                    int popped = 0;
+                    if (player->dashing > 0) {
+                        int originalY = player->y;
+                        int baseScreenX = snappedX >> FIXED_SHIFT;
+                        int requiredPopPx = playerBottom - tileTop;
+                        int requiredPop = requiredPopPx << FIXED_SHIFT;
+
+                        if (requiredPopPx > 0 && requiredPop <= DASH_LEDGE_POP_HEIGHT) {
+                            int newY = originalY - requiredPop;
+                            int newScreenY = newY >> FIXED_SHIFT;
+                            if (!isPositionColliding(level, baseScreenX, newScreenY)) {
+                                player->y = newY;
+                                popped = 1;
+                            }
+                        }
                     }
-                    player->vx = 0;
+
+                    player->x = snappedX;
+                    if (!popped) {
+                        player->vx = 0;
+                    }
                     return;
                 }
             }
@@ -99,9 +149,35 @@ void collideVertical(Player* player, const Level* level) {
                         player->onGround = 1;
                         if (player->dashing > 0) player->dashing = 0;
                     } else {
-                        // Moving up, snap to bottom of tile
-                        player->y = (tileBottom + PLAYER_RADIUS) << FIXED_SHIFT;
-                        player->vy = 0;
+                        // Moving up, try corner correction before snapping
+                        int originalX = player->x;
+                        int nudged = 0;
+
+                        for (int nudge = FIXED_ONE; nudge <= BONK_NUDGE_RANGE; nudge += FIXED_ONE) {
+                            int newXRight = originalX + nudge;
+                            int newScreenXRight = newXRight >> FIXED_SHIFT;
+                            int clearRight = !isPositionColliding(level, newScreenXRight, screenY);
+
+                            int newXLeft = originalX - nudge;
+                            int newScreenXLeft = newXLeft >> FIXED_SHIFT;
+                            int clearLeft = !isPositionColliding(level, newScreenXLeft, screenY);
+
+                            if (clearRight ^ clearLeft) {
+                                if (clearRight) {
+                                    player->x = newXRight;
+                                } else {
+                                    player->x = newXLeft;
+                                }
+                                nudged = 1;
+                                break;
+                            }
+                        }
+
+                        if (!nudged) {
+                            player->x = originalX;
+                            player->y = (tileBottom + PLAYER_RADIUS) << FIXED_SHIFT;
+                            player->vy = 0;
+                        }
                     }
                     return;
                 }
@@ -110,9 +186,12 @@ void collideVertical(Player* player, const Level* level) {
     }
 
     // Ground check for standing still
-    if (!player->onGround) {
+    if (!player->onGround && player->vy >= 0) {
         screenX = player->x >> FIXED_SHIFT;
         screenY = player->y >> FIXED_SHIFT;
+        int playerBottom = screenY + PLAYER_RADIUS;
+        int playerLeft = screenX - PLAYER_RADIUS;
+        int playerRight = screenX + PLAYER_RADIUS;
         int feetY = (screenY + PLAYER_RADIUS + 1) / 8;
         int tileMinX = (screenX - PLAYER_RADIUS) / 8;
         int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
@@ -121,7 +200,10 @@ void collideVertical(Player* player, const Level* level) {
             u16 tile = getTileAt(level, tx, feetY);
             if (isTileSolid(level, tile)) {
                 int tileTop = feetY * 8;
-                if (screenY + PLAYER_RADIUS >= tileTop - 1) {
+                int tileLeft = tx * 8;
+                int tileRight = (tx + 1) * 8;
+                if (playerRight > tileLeft && playerLeft < tileRight &&
+                    playerBottom >= tileTop - 1 && playerBottom <= tileTop + 1) {
                     player->onGround = 1;
                     break;
                 }
