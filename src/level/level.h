@@ -2,6 +2,40 @@
 #define LEVEL_H
 
 #include "core/gba.h"
+
+typedef struct {
+    const char* type;
+    u16 x;
+    u16 y;
+} LevelObject;
+
+typedef struct {
+    const char* name;
+    u16 firstId;
+    u16 tileCount;
+    const u32* tileData;
+    u32 tileDataLen;
+    const u16* paletteData;
+    u16 paletteLen;
+} TilesetInfo;
+
+typedef struct {
+    const char* name;
+    u16 width;
+    u16 height;
+    const u16* tiles;
+    u16 objectCount;
+    const LevelObject* objects;
+    u16 playerSpawnX;
+    u16 playerSpawnY;
+    u8 tilesetCount;
+    const TilesetInfo* tilesets;
+    const u32* collisionBitmap;
+    u16 uniqueTileCount;
+    const u16* uniqueTileIds;
+    const u8* tilePaletteBanks;
+} Level;
+
 #include "level3.h"
 
 /**

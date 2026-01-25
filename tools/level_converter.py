@@ -256,17 +256,6 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("};")
     lines.append("")
     
-    # Object structure definition (if not already defined elsewhere)
-    lines.append("#ifndef LEVEL_OBJECT_DEFINED")
-    lines.append("#define LEVEL_OBJECT_DEFINED")
-    lines.append("typedef struct {")
-    lines.append("    const char* type;")
-    lines.append("    u16 x;")
-    lines.append("    u16 y;")
-    lines.append("} LevelObject;")
-    lines.append("#endif")
-    lines.append("")
-    
     # Object data
     if objects:
         lines.append(f"static const LevelObject {level_name}_objects[{len(objects)}] = {{")
@@ -280,43 +269,6 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     else:
         # Empty array for no objects
         lines.append(f"static const LevelObject {level_name}_objects[1] = {{{{\"none\", 0, 0}}}};")
-    lines.append("")
-    
-    # TilesetInfo structure definition
-    lines.append("#ifndef TILESET_INFO_DEFINED")
-    lines.append("#define TILESET_INFO_DEFINED")
-    lines.append("typedef struct {")
-    lines.append("    const char* name;")
-    lines.append("    u16 firstId;")
-    lines.append("    u16 tileCount;")
-    lines.append("    const u32* tileData;")
-    lines.append("    u32 tileDataLen;")
-    lines.append("    const u16* paletteData;")
-    lines.append("    u16 paletteLen;")
-    lines.append("} TilesetInfo;")
-    lines.append("#endif")
-    lines.append("")
-    
-    # Level structure definition
-    lines.append("#ifndef LEVEL_STRUCT_DEFINED")
-    lines.append("#define LEVEL_STRUCT_DEFINED")
-    lines.append("typedef struct {")
-    lines.append("    const char* name;")
-    lines.append("    u16 width;")
-    lines.append("    u16 height;")
-    lines.append("    const u16* tiles;")
-    lines.append("    u16 objectCount;")
-    lines.append("    const LevelObject* objects;")
-    lines.append("    u16 playerSpawnX;")
-    lines.append("    u16 playerSpawnY;")
-    lines.append("    u8 tilesetCount;")
-    lines.append("    const TilesetInfo* tilesets;")
-    lines.append("    const u32* collisionBitmap;")
-    lines.append("    u16 uniqueTileCount;")
-    lines.append("    const u16* uniqueTileIds;")
-    lines.append("    const u8* tilePaletteBanks;")
-    lines.append("} Level;")
-    lines.append("#endif")
     lines.append("")
     
     # Level instance

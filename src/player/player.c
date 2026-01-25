@@ -140,6 +140,10 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         } else {
             player->vy += GRAVITY;
         }
+
+        if (player->vy > MAX_FALL_SPEED) {
+            player->vy = MAX_FALL_SPEED;
+        }
     }
 
     // Variable jump height: cut upward velocity on release

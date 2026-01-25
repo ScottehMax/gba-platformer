@@ -3,7 +3,6 @@
 #include "grassy_stone.h"
 #include "plants.h"
 #include "decals.h"
-#include "level3.h"
 #include "core/text.h"
 #include "nightsky.h"
 #include <stdlib.h>
@@ -195,6 +194,10 @@ int main() {
         u16 keys = getKeys();
         updatePlayer(&player, keys, currentLevel);
         updateCamera(&camera, &player, currentLevel);
+
+        // Write scroll registers early in VBlank to avoid top-row tearing
+        REG_BG2HOFS = camera.x & 7;
+        REG_BG2VOFS = camera.y & 7;
         
         // Same approach as before - simple and working
         static int oldCameraTileX = -1;
@@ -216,9 +219,6 @@ int main() {
             oldCameraTileX = cameraTileX;
             oldCameraTileY = cameraTileY;
         }
-        
-        REG_BG2HOFS = camera.x % 8;
-        REG_BG2VOFS = camera.y % 8;
         
         drawPlayer(&player, &camera);
         

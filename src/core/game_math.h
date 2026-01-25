@@ -10,10 +10,11 @@
 #define JUMP_STRENGTH (FIXED_ONE * 5)
 #define MAX_SPEED (FIXED_ONE * 3)
 #define ACCELERATION (FIXED_ONE * 1)
-#define FRICTION (FIXED_ONE / 10)
-#define AIR_FRICTION (FIXED_ONE / 8)
+#define FRICTION (FIXED_ONE / 6)
+#define AIR_FRICTION (FIXED_ONE / 4)
 #define DASH_SPEED (FIXED_ONE * 5)
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge
+#define MAX_FALL_SPEED (FIXED_ONE * 6)
 
 // Jump feel
 #define JUMP_BUFFER_TIME 5  // Frames to remember jump press
@@ -22,9 +23,9 @@
 #define PEAK_GRAVITY_MULTIPLIER 2  // Divide gravity by this at peak
 
 // Corner correction
-#define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 4)  // Max 4 pixels nudge
-#define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max 6 pixels upward pop
-#define BONK_NUDGE_RANGE (FIXED_ONE * 4)  // Max 4 pixels for ceiling corner nudge
+#define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge
+#define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop
+#define BONK_NUDGE_RANGE (FIXED_ONE * 6)  // Max pixels for ceiling corner nudge
 
 // Player constants
 #define PLAYER_RADIUS 8
