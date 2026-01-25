@@ -15,6 +15,12 @@
 #define DASH_SPEED (FIXED_ONE * 5)
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge
 
+// Jump feel
+#define JUMP_BUFFER_TIME 5  // Frames to remember jump press
+#define JUMP_RELEASE_MULTIPLIER 2  // Divide vy by this when jump released
+#define JUMP_PEAK_THRESHOLD (FIXED_ONE / 2)  // vy threshold for "peak" (128 = 0.5)
+#define PEAK_GRAVITY_MULTIPLIER 2  // Divide gravity by this at peak
+
 // Player constants
 #define PLAYER_RADIUS 8
 #define TRAIL_LENGTH 10

@@ -11,6 +11,8 @@ typedef struct {
     int vy; // Fixed-point
     int onGround;
     int coyoteTime;   // Frames remaining for coyote time jump
+    int jumpBuffer;   // Frames remaining in jump buffer
+    int jumpHeld;     // 1 if jump was initiated this aerial phase
     int dashing;
     int dashCooldown;
     int facingRight;  // 1 = right, 0 = left

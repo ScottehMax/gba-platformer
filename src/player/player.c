@@ -7,6 +7,8 @@ void initPlayer(Player* player, const Level* level) {
     player->vy = 0;
     player->onGround = 0;
     player->coyoteTime = 0;
+    player->jumpBuffer = 0;
+    player->jumpHeld = 0;
     player->dashing = 0;
     player->dashCooldown = 0;
     player->facingRight = 1;
@@ -30,6 +32,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Dash cooldown
     if (player->dashCooldown > 0) {
         player->dashCooldown--;
+    }
+
+    // Decay jump buffer
+    if (player->jumpBuffer > 0) {
+        player->jumpBuffer--;
     }
 
     // R button: Dash (8-directional or forward) - only on press, not hold
@@ -110,25 +117,53 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     }
 
     // A button: Jump - only on press, not hold
-    // Allow jump if grounded OR within coyote time window
-    if ((pressed & KEY_A) && (player->onGround || player->coyoteTime > 0)) {
-        player->vy = -JUMP_STRENGTH;
-        player->onGround = 0;
-        player->coyoteTime = 0;  // Consume coyote time on jump
+    if (pressed & KEY_A) {
+        if (player->onGround || player->coyoteTime > 0) {
+            // Execute jump immediately
+            player->vy = -JUMP_STRENGTH;
+            player->onGround = 0;
+            player->coyoteTime = 0;  // Consume coyote time on jump
+            player->jumpBuffer = 0;
+            player->jumpHeld = 1;
+        } else {
+            // Buffer for later
+            player->jumpBuffer = JUMP_BUFFER_TIME;
+        }
     }
 
     // Apply gravity (but not during dash, to preserve dash trajectory)
     if (!player->onGround && player->dashing == 0) {
-        player->vy += GRAVITY;
+        int absVy = player->vy < 0 ? -player->vy : player->vy;
+        if (absVy < JUMP_PEAK_THRESHOLD) {
+            player->vy += GRAVITY / PEAK_GRAVITY_MULTIPLIER;
+        } else {
+            player->vy += GRAVITY;
+        }
+    }
+
+    // Variable jump height: cut upward velocity on release
+    if (player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
+        player->vy /= JUMP_RELEASE_MULTIPLIER;
+        player->jumpHeld = 0;
     }
 
     // Swept collision - move along each axis and stop at first collision
     collideHorizontal(player, level);
     collideVertical(player, level);
 
+    // Execute buffered jump on landing
+    if (player->jumpBuffer > 0 && player->onGround) {
+        player->vy = -JUMP_STRENGTH;
+        player->onGround = 0;
+        player->coyoteTime = 0;
+        player->jumpBuffer = 0;
+        player->jumpHeld = 1;
+    }
+
     // Update coyote time
     if (player->onGround) {
         player->coyoteTime = COYOTE_TIME;  // Reset when grounded
+        player->jumpHeld = 0;
     } else if (player->coyoteTime > 0) {
         player->coyoteTime--;  // Count down when airborne
     }
