@@ -5,8 +5,9 @@
 #define FONT_PALETTE 1        // Font uses palette slot 1
 
 // Background text tile start (in background char block 1)
-#define BG_TEXT_DYNAMIC_START 1  // Start at tile 1 in char block 1 for dynamic text tiles
-#define MAX_TEXT_SLOTS 20  // Maximum number of text strings (each can use up to 20 tiles)
+#define BG_TEXT_DYNAMIC_START 1   // Start at tile 1 in char block 1 for dynamic text tiles
+#define TEXT_SLOT_TILES 28        // Number of tiles allocated per text slot
+#define MAX_TEXT_SLOTS 18         // Maximum number of text strings that can be allocated
 
 // Tile slot tracking
 static u8 tile_slot_used[MAX_TEXT_SLOTS] = {0};  // 0 = free, 1 = in use
@@ -54,7 +55,7 @@ void init_bg_text() {
     // Set up BG3 control register (16-color mode, screen base 28, char base 1)
     // Screen base 28 (moved to avoid char block 2 conflict)
     // Char base 1
-    // Note: We only use char block 1 for dynamic text tiles (starting at tile 96)
+    // Note: We only use char block 1 for dynamic text tiles (starting at BG_TEXT_DYNAMIC_START)
     // Font character tiles are read directly from ROM, not stored in VRAM
     REG_BG3CNT = 0x0000 | (28 << 8) | (1 << 2);
 
@@ -97,8 +98,8 @@ static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int d
     volatile u16* bgMap = SCREEN_BLOCK(28);
     volatile u32* charBlock1 = CHAR_BLOCK(1);
     
-    // Calculate starting tile in char block 1 (each slot gets 20 tiles)
-    int base_tile = BG_TEXT_DYNAMIC_START + (dynamic_tile_slot * 20);
+    // Calculate starting tile in char block 1
+    int base_tile = BG_TEXT_DYNAMIC_START + (dynamic_tile_slot * TEXT_SLOT_TILES);
     
     // Calculate string width in pixels
     int total_width = 0;
@@ -112,27 +113,27 @@ static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int d
     
     // Calculate number of tiles needed
     int tiles_needed = (total_width + 7) / 8;
-    if (tiles_needed > 20) tiles_needed = 20;  // Limit to prevent overflow
-    
-    // Create pixel buffer for the text (max 20 tiles = 160 pixels wide, 8 pixels tall)
-    u8 pixelBuffer[8][160];
+    if (tiles_needed > TEXT_SLOT_TILES) tiles_needed = TEXT_SLOT_TILES;  // Limit to prevent overflow
+
+    // Create pixel buffer for the text (8 pixels tall, width = TEXT_SLOT_TILES * 8 pixels)
+    u8 pixelBuffer[8][TEXT_SLOT_TILES * 8];
     for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 160; x++) {
+        for (int x = 0; x < TEXT_SLOT_TILES * 8; x++) {
             pixelBuffer[y][x] = 0;  // Transparent
         }
     }
-    
+
     // Render text into pixel buffer with variable width
     int cursor_x = 0;
-    for (int i = 0; str[i] != '\0' && cursor_x < 160; i++) {
+    for (int i = 0; str[i] != '\0' && cursor_x < TEXT_SLOT_TILES * 8; i++) {
         char c = str[i];
         if (c >= FONT_START_CHAR && c <= FONT_END_CHAR) {
             int char_index = c - FONT_START_CHAR;
             int width = font_char_widths[char_index];
-            
+
             // Copy character pixels to buffer
             for (int py = 0; py < 8; py++) {
-                for (int px = 0; px < width && (cursor_x + px) < 160; px++) {
+                for (int px = 0; px < width && (cursor_x + px) < TEXT_SLOT_TILES * 8; px++) {
                     u8 pixel = get_font_pixel(char_index, px, py);
                     pixelBuffer[py][cursor_x + px] = pixel;
                 }
