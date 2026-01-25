@@ -44,6 +44,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->dashing = 8; // Dash lasts 8 frames
         player->dashCooldown = 30; // 30 frames cooldown
         player->trailFadeTimer = 0; // Reset fade timer for new dash
+        player->jumpHeld = 0;
 
         // Clear old trail positions
         for (int i = 0; i < TRAIL_LENGTH; i++) {
@@ -142,7 +143,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     }
 
     // Variable jump height: cut upward velocity on release
-    if (player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
+    if (player->dashing == 0 && player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
         player->vy /= JUMP_RELEASE_MULTIPLIER;
         player->jumpHeld = 0;
     }
