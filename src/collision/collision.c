@@ -114,13 +114,17 @@ void collideVertical(Player* player, const Level* level) {
         screenX = player->x >> FIXED_SHIFT;
         screenY = player->y >> FIXED_SHIFT;
         int feetY = (screenY + PLAYER_RADIUS + 1) / 8;
-        int checkX = screenX / 8;
+        int tileMinX = (screenX - PLAYER_RADIUS) / 8;
+        int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
 
-        u16 tile = getTileAt(level, checkX, feetY);
-        if (isTileSolid(level, tile)) {
-            int tileTop = feetY * 8;
-            if (screenY + PLAYER_RADIUS >= tileTop - 1) {
-                player->onGround = 1;
+        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+            u16 tile = getTileAt(level, tx, feetY);
+            if (isTileSolid(level, tile)) {
+                int tileTop = feetY * 8;
+                if (screenY + PLAYER_RADIUS >= tileTop - 1) {
+                    player->onGround = 1;
+                    break;
+                }
             }
         }
     }
