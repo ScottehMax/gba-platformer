@@ -63,6 +63,20 @@ typedef struct {
 
 #define OAM ((volatile OBJ_ATTR*)MEM_OAM)
 
+// Timer registers
+#define REG_TM0CNT_L (*(volatile u16*)(MEM_IO + 0x100))
+#define REG_TM0CNT_H (*(volatile u16*)(MEM_IO + 0x102))
+#define REG_TM1CNT_L (*(volatile u16*)(MEM_IO + 0x104))
+#define REG_TM1CNT_H (*(volatile u16*)(MEM_IO + 0x106))
+
+// Timer control flags
+#define TM_ENABLE    0x0080
+#define TM_CASCADE   0x0004
+#define TM_FREQ_1    0x0000  // 16.78 MHz
+#define TM_FREQ_64   0x0001  // 262.21 KHz
+#define TM_FREQ_256  0x0002  // 65.536 KHz
+#define TM_FREQ_1024 0x0003  // 16.384 KHz
+
 // Input registers
 #define REG_KEYINPUT (*(volatile u16*)0x04000130)
 

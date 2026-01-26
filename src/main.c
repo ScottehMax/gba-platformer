@@ -170,90 +170,177 @@ int main() {
         }
     }
 
-    // Frame counter for demo
+    // Initialize timers for FPS counter
+    // Timer 0: counts at 16.384 KHz (overflow after ~4 seconds)
+    // Timer 1: cascades from Timer 0 for extended range
+    REG_TM0CNT_L = 0;  // Initial value
+    REG_TM1CNT_L = 0;
+    REG_TM0CNT_H = TM_ENABLE | TM_FREQ_1024;  // Enable, prescaler 1024
+    REG_TM1CNT_H = TM_ENABLE | TM_CASCADE;    // Enable, cascade from Timer 0
+
+    // Frame counter and profiling
     int frameCount = 0;
-    char posXStr[32] = "X: 0";
-    char posYStr[32] = "Y: 0";
-    char velXStr[32] = "VX: 0";
-    char velYStr[32] = "VY: 0";
-    char groundStr[32] = "Ground: No";
-    
+    u32 lastTimerValue = 0;
+    u16 fps = 60;
+
+    // Profiling: track max over 16 frames (not average, since FPS = slowest frame)
+    u16 maxPlayer = 0, maxCamera = 0, maxTilemap = 0, maxRender = 0, maxTotal = 0;
+
+    char fpsStr[32] = "FPS: 60";
+    char playerTimeStr[32] = "P:0";
+    char cameraTimeStr[32] = "C:0";
+    char tilemapTimeStr[32] = "T:0";
+    char renderTimeStr[32] = "R:0";
+    char totalTimeStr[32] = "Tot:0";
+
     // Allocate text slots once
-    draw_bg_text_auto("Debug Info", 1, 1);
-    int posXSlot = draw_bg_text_auto(posXStr, 1, 2);
-    int posYSlot = draw_bg_text_auto(posYStr, 1, 3);
-    int velXSlot = draw_bg_text_auto(velXStr, 1, 4);
-    int velYSlot = draw_bg_text_auto(velYStr, 1, 5);
-    int groundSlot = draw_bg_text_auto(groundStr, 1, 6);
+    int fpsSlot = draw_bg_text_auto(fpsStr, 1, 1);
+    int playerTimeSlot = draw_bg_text_auto(playerTimeStr, 1, 2);
+    int cameraTimeSlot = draw_bg_text_auto(cameraTimeStr, 1, 3);
+    int tilemapTimeSlot = draw_bg_text_auto(tilemapTimeStr, 1, 4);
+    int renderTimeSlot = draw_bg_text_auto(renderTimeStr, 1, 5);
+    int totalTimeSlot = draw_bg_text_auto(totalTimeStr, 1, 6);
 
     // Game loop
     while (1) {
+        u16 frameStart = REG_TM0CNT_L;
         vsync();
         frameCount++;
 
+        // Profile: Player update
+        u16 t0 = REG_TM0CNT_L;
         u16 keys = getKeys();
         updatePlayer(&player, keys, currentLevel);
-        updateCamera(&camera, &player, currentLevel);
+        u16 t1 = REG_TM0CNT_L;
+        u16 dtPlayer = t1 - t0;
+        if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
 
-        // Write scroll registers early in VBlank to avoid top-row tearing
-        REG_BG2HOFS = camera.x & 7;
-        REG_BG2VOFS = camera.y & 7;
-        
-        // Same approach as before - simple and working
+        // Profile: Camera update
+        updateCamera(&camera, &player, currentLevel);
+        u16 t2 = REG_TM0CNT_L;
+        u16 dtCamera = t2 - t1;
+        if (dtCamera > maxCamera) maxCamera = dtCamera;
+
+        // Use hardware scrolling in pixel space
+        REG_BG2HOFS = camera.x;
+        REG_BG2VOFS = camera.y;
+
+        // Optimized tilemap update using hardware scrolling wraparound
+        // The tilemap buffer is circular - hardware wraps at 256x256 pixels (32x32 tiles)
+        // Tilemap position (x%32, y%32) contains level tile at floor(camera/8) + [x, y]
         static int oldCameraTileX = -1;
         static int oldCameraTileY = -1;
         int cameraTileX = camera.x / 8;
         int cameraTileY = camera.y / 8;
-        
+
         if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
-            // Update the single tilemap - exactly like the original
-            for (int y = 0; y < 32; y++) {
-                for (int x = 0; x < 32; x++) {
-                    int tx = cameraTileX + x;
-                    int ty = cameraTileY + y;
-                    u16 tileId = getTileAt(currentLevel, tx, ty);
-                    // Palette bank is pre-computed and stored with tile
-                    bgMap[y * 32 + x] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+            // Determine scroll direction
+            int deltaX = cameraTileX - oldCameraTileX;
+            int deltaY = cameraTileY - oldCameraTileY;
+
+            // First time or large jump - fill entire tilemap
+            if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
+                for (int ty = 0; ty < 32; ty++) {
+                    for (int tx = 0; tx < 32; tx++) {
+                        int levelX = cameraTileX + tx;
+                        int levelY = cameraTileY + ty;
+                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
+                        // Use wraparound: tilemap position wraps at 32
+                        int mapX = (cameraTileX + tx) & 31;
+                        int mapY = (cameraTileY + ty) & 31;
+                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                    }
+                }
+            } else {
+                // Incremental update - only update new tiles entering the 32x32 window
+                if (deltaX != 0) {
+                    // Scrolled horizontally - update one column
+                    int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
+                    int mapX = levelX & 31;
+                    for (int ty = 0; ty < 32; ty++) {
+                        int levelY = cameraTileY + ty;
+                        int mapY = levelY & 31;
+                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
+                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                    }
+                }
+                if (deltaY != 0) {
+                    // Scrolled vertically - update one row
+                    int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
+                    int mapY = levelY & 31;
+                    for (int tx = 0; tx < 32; tx++) {
+                        int levelX = cameraTileX + tx;
+                        int mapX = levelX & 31;
+                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
+                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                    }
                 }
             }
+
             oldCameraTileX = cameraTileX;
             oldCameraTileY = cameraTileY;
         }
-        
+
+        // Profile: Tilemap update
+        u16 t3 = REG_TM0CNT_L;
+        u16 dtTilemap = t3 - t2;
+        if (dtTilemap > maxTilemap) maxTilemap = dtTilemap;
+
+        // Profile: Rendering
         drawPlayer(&player, &camera);
-        
-        // Update debug info every frame
-        // Position X (in pixels)
-        int posX = player.x >> FIXED_SHIFT;
-        int posY = player.y >> FIXED_SHIFT;
-        
-        // Convert X position to string
-        int_to_string(posX, posXStr, sizeof(posXStr), "X: ");
-        draw_bg_text_slot(posXStr, 1, 2, posXSlot);
-        
-        // Convert Y position to string
-        posY = player.y >> FIXED_SHIFT;
-        int_to_string(posY, posYStr, sizeof(posYStr), "Y: ");
-        draw_bg_text_slot(posYStr, 1, 3, posYSlot);
-        
-        // Convert VX velocity to string
-        int velX = player.vx >> FIXED_SHIFT;
-        int_to_string(velX, velXStr, sizeof(velXStr), "VX: ");
-        draw_bg_text_slot(velXStr, 1, 4, velXSlot);
-        
-        // Convert VY velocity to string
-        int velY = player.vy >> FIXED_SHIFT;
-        int_to_string(velY, velYStr, sizeof(velYStr), "VY: ");
-        draw_bg_text_slot(velYStr, 1, 5, velYSlot);
-        
-        // On ground status
-        if (player.onGround) {
-            draw_bg_text_slot("Ground: Yes", 1, 6, groundSlot);
-        } else {
-            draw_bg_text_slot("Ground: No", 1, 6, groundSlot);
+        u16 t4 = REG_TM0CNT_L;
+        u16 dtRender = t4 - t3;
+        if (dtRender > maxRender) maxRender = dtRender;
+
+        // Track subsystem total
+        u16 subsystemTotal = dtPlayer + dtCamera + dtTilemap + dtRender;
+        if (subsystemTotal > maxTotal) maxTotal = subsystemTotal;
+
+        // Measure COMPLETE frame time (vsync to vsync)
+        u16 frameEnd = REG_TM0CNT_L;
+        u16 completeFrameTime = frameEnd - frameStart;
+        if (completeFrameTime > maxTotal) maxTotal = completeFrameTime;
+
+        // Calculate FPS and profiling stats every 16 frames
+        if ((frameCount & 15) == 0) {
+            // Read timer value (combined 32-bit from Timer 1:0)
+            u32 currentTimerValue = (REG_TM1CNT_L << 16) | REG_TM0CNT_L;
+            u32 timerDelta = currentTimerValue - lastTimerValue;
+
+            // Timer runs at 16.384 KHz (16384 ticks per second)
+            // FPS = frames / (ticks / 16384) = (frames * 16384) / ticks
+            // For 16 frames: FPS = (16 * 16384) / timerDelta
+            if (timerDelta > 0) {
+                fps = (16 * 16384) / timerDelta;
+            }
+
+            lastTimerValue = currentTimerValue;
+            int_to_string(fps, fpsStr, sizeof(fpsStr), "FPS:");
+            draw_bg_text_slot(fpsStr, 1, 1, fpsSlot);
+
+            // Update profiling display - show MAX values (worst frame)
+            int_to_string(maxPlayer, playerTimeStr, sizeof(playerTimeStr), "P:");
+            draw_bg_text_slot(playerTimeStr, 1, 2, playerTimeSlot);
+
+            int_to_string(maxCamera, cameraTimeStr, sizeof(cameraTimeStr), "C:");
+            draw_bg_text_slot(cameraTimeStr, 1, 3, cameraTimeSlot);
+
+            int_to_string(maxTilemap, tilemapTimeStr, sizeof(tilemapTimeStr), "T:");
+            draw_bg_text_slot(tilemapTimeStr, 1, 4, tilemapTimeSlot);
+
+            int_to_string(maxRender, renderTimeStr, sizeof(renderTimeStr), "R:");
+            draw_bg_text_slot(renderTimeStr, 1, 5, renderTimeSlot);
+
+            int_to_string(maxTotal, totalTimeStr, sizeof(totalTimeStr), "Max:");
+            draw_bg_text_slot(totalTimeStr, 1, 6, totalTimeSlot);
+
+            // Reset max trackers
+            maxPlayer = 0;
+            maxCamera = 0;
+            maxTilemap = 0;
+            maxRender = 0;
+            maxTotal = 0;
         }
-        
-        frameCount++;
     }
 
     return 0;
