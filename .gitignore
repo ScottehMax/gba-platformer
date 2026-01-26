@@ -5,6 +5,7 @@
 
 # Generated files (grit outputs and level headers)
 generated/
+levels/platformer.tiled-session
 
 # GBA save files
 *.sav

@@ -19,8 +19,8 @@ GRIT_SOURCES = $(patsubst assets/%.png,$(GENDIR)/%.c,$(ASSET_PNGS))
 GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 
 # Level files
-LEVEL_JSONS = $(wildcard levels/*.json)
-LEVEL_HEADERS = $(patsubst levels/%.json,$(GENDIR)/%.h,$(LEVEL_JSONS))
+LEVEL_TMXS = $(wildcard levels/*.tmx)
+LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
 OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o $(GRIT_OBJS)
 
@@ -55,7 +55,7 @@ $(GENDIR)/nightsky.c $(GENDIR)/nightsky.h: assets/nightsky.png | $(GENDIR)
 	$(GRIT) $< -gB4 -gt -mR8 -mLs -pn16 -ftc -o$(GENDIR)/nightsky
 
 # Level converter
-$(GENDIR)/%.h: levels/%.json | $(GENDIR)
+$(GENDIR)/%.h: levels/%.tmx | $(GENDIR)
 	$(PYTHON) tools/level_converter.py $< $@
 
 # Build targets
