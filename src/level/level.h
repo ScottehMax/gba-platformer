@@ -21,9 +21,17 @@ typedef struct {
 
 typedef struct {
     const char* name;
+    u8 bgLayer;      // Which BG layer (0-3)
+    u8 priority;     // Priority (0-3, lower = in front)
+    const u16* tiles;
+} TileLayer;
+
+typedef struct {
+    const char* name;
     u16 width;
     u16 height;
-    const u16* tiles;
+    u8 layerCount;
+    const TileLayer* layers;
     u16 objectCount;
     const LevelObject* objects;
     u16 playerSpawnX;
@@ -39,18 +47,20 @@ typedef struct {
 #include "level3.h"
 
 /**
- * Get the tile ID at the specified tile coordinates
+ * Get the tile ID at the specified tile coordinates for a specific layer
  *
  * @param level The level to query
+ * @param layerIndex The layer index (0 = first layer)
  * @param tileX The tile X coordinate
  * @param tileY The tile Y coordinate
  * @return The tile ID, or 0 if out of bounds
  */
-static inline u16 getTileAt(const Level* level, int tileX, int tileY) {
+static inline u16 getTileAt(const Level* level, u8 layerIndex, int tileX, int tileY) {
+    if (layerIndex >= level->layerCount) return 0;
     if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
         return 0; // Out of bounds
     }
-    return level->tiles[tileY * level->width + tileX];
+    return level->layers[layerIndex].tiles[tileY * level->width + tileX];
 }
 
 /**

@@ -30,9 +30,9 @@ int main() {
     // Load level
     const Level* currentLevel = &Tutorial_Level;
     
-    // Mode 0 with BG0, BG2, BG3 and sprites enabled
-    // BG0 = nightsky, BG2 = terrain, decorations, BG3 = text
-    REG_DISPCNT = VIDEOMODE_0 | (1 << 8) | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG0_ENABLE = bit 8, BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
+    // Mode 0 with BG0, BG1, BG2, BG3 and sprites enabled
+    // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text
+    REG_DISPCNT = VIDEOMODE_0 | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG0_ENABLE = bit 8, BG1_ENABLE = bit 9, BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
 
     // Load nightsky tiles to VRAM (char block 2)
     volatile u32* nightskyTilesDst = (volatile u32*)(0x06000000 + (2 << 14));
@@ -66,8 +66,8 @@ int main() {
 
     // Enable alpha blending for sprites
     // BLDCNT: Effect=Alpha blend (bit 6), NO global OBJ target (sprites set semi-transparent individually)
-    // 2nd target=BG0+BG1+BD (bits 8,9,13) - what semi-transparent sprites blend with
-    REG_BLDCNT = (1 << 6) | (1 << 8) | (1 << 9) | (1 << 13);
+    // 2nd target=BG0+BG1+BG2+BD (bits 8,9,10,13) - what semi-transparent sprites blend with
+    REG_BLDCNT = (1 << 6) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 13);
     // Set blend coefficients EVA (sprite) and EVB (background) - must sum to 16 or less
     REG_BLDALPHA = (7 << 0) | (9 << 8);  // ~44% trail, ~56% background (more transparent)
 
@@ -97,9 +97,22 @@ int main() {
     // Load only the tiles used in the current level to VRAM
     loadLevelToVRAM(&Tutorial_Level);
 
-    // Set BG2 control register (4-bit color, screen base 26, char base 0, priority 1)
-    REG_BG2CNT = (26 << 8) | (0 << 2) | (1 << 0);
-    
+    // Set up BG control registers for each layer based on level data
+    // Screen base assignments: BG1=25, BG2=26
+    // Layer priorities and BG assignments are stored in the level data
+    for (u8 i = 0; i < currentLevel->layerCount; i++) {
+        const TileLayer* layer = &currentLevel->layers[i];
+        u8 bgLayer = layer->bgLayer;
+        u8 priority = layer->priority;
+        u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26, etc.
+
+        if (bgLayer == 1) {
+            REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        } else if (bgLayer == 2) {
+            REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        }
+    }
+
     // Initialize background text system (BG3 - uses char block 1)
     init_bg_text();
 
@@ -158,15 +171,21 @@ int main() {
     camera.x = 0;
     camera.y = 0;
 
-    // Background map pointer (32x32 tilemap on BG2 at screen base 26)
-    volatile u16* bgMap = (volatile u16*)(0x06000000 + (26 << 11));
-    
-    // Initialize tilemap once at startup
-    for (int y = 0; y < 32; y++) {
-        for (int x = 0; x < 32; x++) {
-            u16 vramIndex = getTileAt(currentLevel, x, y);
-            u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
-            bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
+    // Initialize tilemaps for each layer
+    for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
+        const TileLayer* layer = &currentLevel->layers[layerIdx];
+        u8 bgLayer = layer->bgLayer;
+        u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+
+        volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+
+        // Initialize tilemap once at startup
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 32; x++) {
+                u16 vramIndex = getTileAt(currentLevel, layerIdx, x, y);
+                u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
+                bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
+            }
         }
     }
 
@@ -221,7 +240,9 @@ int main() {
         u16 dtCamera = t2 - t1;
         if (dtCamera > maxCamera) maxCamera = dtCamera;
 
-        // Use hardware scrolling in pixel space
+        // Use hardware scrolling in pixel space for all terrain layers
+        REG_BG1HOFS = camera.x;
+        REG_BG1VOFS = camera.y;
         REG_BG2HOFS = camera.x;
         REG_BG2VOFS = camera.y;
 
@@ -238,41 +259,50 @@ int main() {
             int deltaX = cameraTileX - oldCameraTileX;
             int deltaY = cameraTileY - oldCameraTileY;
 
-            // First time or large jump - fill entire tilemap
-            if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
-                for (int ty = 0; ty < 32; ty++) {
-                    for (int tx = 0; tx < 32; tx++) {
-                        int levelX = cameraTileX + tx;
-                        int levelY = cameraTileY + ty;
-                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
-                        // Use wraparound: tilemap position wraps at 32
-                        int mapX = (cameraTileX + tx) & 31;
-                        int mapY = (cameraTileY + ty) & 31;
-                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
-                    }
-                }
-            } else {
-                // Incremental update - only update new tiles entering the 32x32 window
-                if (deltaX != 0) {
-                    // Scrolled horizontally - update one column
-                    int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
-                    int mapX = levelX & 31;
+            // Update all layers
+            for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
+                const TileLayer* layer = &currentLevel->layers[layerIdx];
+                u8 bgLayer = layer->bgLayer;
+                u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+
+                volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+
+                // First time or large jump - fill entire tilemap
+                if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
                     for (int ty = 0; ty < 32; ty++) {
-                        int levelY = cameraTileY + ty;
-                        int mapY = levelY & 31;
-                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
-                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                        for (int tx = 0; tx < 32; tx++) {
+                            int levelX = cameraTileX + tx;
+                            int levelY = cameraTileY + ty;
+                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                            // Use wraparound: tilemap position wraps at 32
+                            int mapX = (cameraTileX + tx) & 31;
+                            int mapY = (cameraTileY + ty) & 31;
+                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                        }
                     }
-                }
-                if (deltaY != 0) {
-                    // Scrolled vertically - update one row
-                    int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
-                    int mapY = levelY & 31;
-                    for (int tx = 0; tx < 32; tx++) {
-                        int levelX = cameraTileX + tx;
+                } else {
+                    // Incremental update - only update new tiles entering the 32x32 window
+                    if (deltaX != 0) {
+                        // Scrolled horizontally - update one column
+                        int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
                         int mapX = levelX & 31;
-                        u16 tileId = getTileAt(currentLevel, levelX, levelY);
-                        bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                        for (int ty = 0; ty < 32; ty++) {
+                            int levelY = cameraTileY + ty;
+                            int mapY = levelY & 31;
+                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                        }
+                    }
+                    if (deltaY != 0) {
+                        // Scrolled vertically - update one row
+                        int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
+                        int mapY = levelY & 31;
+                        for (int tx = 0; tx < 32; tx++) {
+                            int levelX = cameraTileX + tx;
+                            int mapX = levelX & 31;
+                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                        }
                     }
                 }
             }

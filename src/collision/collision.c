@@ -13,7 +13,7 @@ static int isPositionColliding(const Level* level, int screenX, int screenY) {
 
     for (int ty = tileMinY; ty <= tileMaxY; ty++) {
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u16 tile = getTileAt(level, tx, ty);
+            u16 tile = getTileAt(level, 0, tx, ty);
             if (!isTileSolid(level, tile)) continue;
 
             int tileLeft = tx * 8;
@@ -56,7 +56,7 @@ void collideHorizontal(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u16 tile = getTileAt(level, tx, ty);
+                u16 tile = getTileAt(level, 0, tx, ty);
                 if (!isTileSolid(level, tile)) continue;
 
                 int tileLeft = tx * 8;
@@ -126,7 +126,7 @@ void collideVertical(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u16 tile = getTileAt(level, tx, ty);
+                u16 tile = getTileAt(level, 0, tx, ty);
                 if (!isTileSolid(level, tile)) continue;
 
                 int tileLeft = tx * 8;
@@ -197,7 +197,7 @@ void collideVertical(Player* player, const Level* level) {
         int tileMaxX = (screenX + PLAYER_RADIUS) / 8;
 
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u16 tile = getTileAt(level, tx, feetY);
+            u16 tile = getTileAt(level, 0, tx, feetY);
             if (isTileSolid(level, tile)) {
                 int tileTop = feetY * 8;
                 int tileLeft = tx * 8;

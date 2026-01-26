@@ -55,7 +55,7 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
         'height': height,
         'tileWidth': tile_width,
         'tileHeight': tile_height,
-        'tiles': [],
+        'layers': [],
         'objects': [],
         'playerSpawn': {'x': 0, 'y': 0},
         'tilesets': [],
@@ -108,14 +108,38 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
     data['tilesets'].sort(key=lambda t: t['firstId'])
 
     # Parse tile layers
+    layer_index = 0
     for layer in root.findall('layer'):
-        layer_name = layer.get('name')
+        layer_name = layer.get('name', f'Layer {layer_index}')
         layer_data = layer.find('data')
 
         if layer_data is not None:
             encoding = layer_data.get('encoding')
 
             if encoding == 'csv':
+                # Parse layer properties for BG layer and priority
+                bg_layer = 2  # Default to BG2
+                priority = 1  # Default priority
+
+                # Layer-specific defaults
+                if layer_index == 0:
+                    bg_layer = 2
+                    priority = 1
+                elif layer_index == 1:
+                    bg_layer = 1
+                    priority = 0
+
+                # Check for custom properties
+                properties = layer.find('properties')
+                if properties is not None:
+                    for prop in properties.findall('property'):
+                        prop_name = prop.get('name')
+                        prop_value = prop.get('value')
+                        if prop_name == 'bgLayer':
+                            bg_layer = int(prop_value)
+                        elif prop_name == 'priority':
+                            priority = int(prop_value)
+
                 # Parse CSV data
                 csv_text = layer_data.text.strip()
                 rows = csv_text.split('\n')
@@ -129,9 +153,14 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
                         game_tile_row = [gid_to_game_id.get(gid, 0) for gid in tmx_gids]
                         tiles.append(game_tile_row)
 
-                # Use the first tile layer as the main tiles
-                if not data['tiles']:
-                    data['tiles'] = tiles
+                # Add layer to layers array
+                data['layers'].append({
+                    'name': layer_name,
+                    'bgLayer': bg_layer,
+                    'priority': priority,
+                    'tiles': tiles
+                })
+                layer_index += 1
             else:
                 raise ValueError(f"Unsupported encoding: {encoding}. Only CSV encoding is supported.")
 
@@ -188,7 +217,7 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
     errors = []
 
     # Required fields
-    required_fields = ['name', 'width', 'height', 'tiles', 'playerSpawn']
+    required_fields = ['name', 'width', 'height', 'layers', 'playerSpawn']
     for field in required_fields:
         if field not in data:
             errors.append(f"Missing required field: {field}")
@@ -205,17 +234,23 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
     if not isinstance(height, int) or height <= 0 or height > 256:
         errors.append(f"Invalid height: {height} (must be 1-256)")
 
-    # Validate tile array dimensions
-    tiles = data['tiles']
-    if len(tiles) != height:
-        errors.append(f"Tiles array has {len(tiles)} rows, expected {height}")
+    # Validate layers
+    layers = data['layers']
+    if not layers:
+        errors.append("Level must have at least one tile layer")
 
-    for i, row in enumerate(tiles):
-        if len(row) != width:
-            errors.append(f"Row {i} has {len(row)} columns, expected {width}")
-        for j, tile_id in enumerate(row):
-            if not isinstance(tile_id, int) or tile_id < 0 or tile_id > 65535:
-                errors.append(f"Invalid tile ID at ({i},{j}): {tile_id}")
+    # Validate each layer's tile array dimensions
+    for layer_idx, layer in enumerate(layers):
+        tiles = layer['tiles']
+        if len(tiles) != height:
+            errors.append(f"Layer {layer_idx} has {len(tiles)} rows, expected {height}")
+
+        for i, row in enumerate(tiles):
+            if len(row) != width:
+                errors.append(f"Layer {layer_idx} row {i} has {len(row)} columns, expected {width}")
+            for j, tile_id in enumerate(row):
+                if not isinstance(tile_id, int) or tile_id < 0 or tile_id > 65535:
+                    errors.append(f"Layer {layer_idx} invalid tile ID at ({i},{j}): {tile_id}")
 
     # Validate player spawn
     spawn = data['playerSpawn']
@@ -246,12 +281,13 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
                 if 'x' not in obj or 'y' not in obj:
                     errors.append(f"Object {i} missing position fields")
 
-    # Validate VRAM limit - count unique tiles used
+    # Validate VRAM limit - count unique tiles used across all layers
     unique_tiles: Set[int] = set()
-    for row in tiles:
-        for tile_id in row:
-            if tile_id > 0:  # Skip sky tile
-                unique_tiles.add(tile_id)
+    for layer in layers:
+        for row in layer['tiles']:
+            for tile_id in row:
+                if tile_id > 0:  # Skip sky tile
+                    unique_tiles.add(tile_id)
 
     if len(unique_tiles) > 1000:
         print(f"WARNING: Level uses {len(unique_tiles)} unique tiles. GBA VRAM limit is ~1000 tiles per level.")
@@ -298,7 +334,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
 
     width = data['width']
     height = data['height']
-    tiles = data['tiles']
+    layers = data['layers']
     objects = data.get('objects', [])
     spawn = data['playerSpawn']
 
@@ -308,12 +344,15 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     # Get collision tiles
     collision_tiles = data.get('collisionTiles', DEFAULT_COLLISION_TILES)
 
-    # Flatten tile array
-    flat_tiles = [tile for row in tiles for tile in row]
+    # Collect all unique tiles used across ALL layers
+    all_tiles = []
+    for layer in layers:
+        flat_tiles = [tile for row in layer['tiles'] for tile in row]
+        all_tiles.extend(flat_tiles)
 
     # Build compact tile mapping at build time
-    # Find all unique tiles used in the level
-    unique_tiles = sorted(set(flat_tiles))
+    # Find all unique tiles used in the level (across all layers)
+    unique_tiles = sorted(set(all_tiles))
 
     # Define tileset ranges and palette banks dynamically
     # Palette bank mapping based on tileset name
@@ -345,8 +384,17 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     for vram_index, tile_id in enumerate(unique_tiles):
         tile_id_to_vram[tile_id] = vram_index
 
-    # Remap level tiles to use VRAM indices directly
-    remapped_tiles = [tile_id_to_vram[tile] for tile in flat_tiles]
+    # Remap tiles for each layer to use VRAM indices directly
+    remapped_layers = []
+    for layer in layers:
+        flat_tiles = [tile for row in layer['tiles'] for tile in row]
+        remapped_tiles = [tile_id_to_vram[tile] for tile in flat_tiles]
+        remapped_layers.append({
+            'name': layer['name'],
+            'bgLayer': layer['bgLayer'],
+            'priority': layer['priority'],
+            'tiles': remapped_tiles
+        })
 
     # Remap collision bitmap from original tile IDs to VRAM indices
     # Build new collision set based on which VRAM indices are solid
@@ -372,6 +420,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
         lines.append(f"// Author: {data['author']}")
     lines.append(f"// Dimensions: {width}x{height} tiles ({width * 8}x{height * 8} pixels)")
     lines.append(f"// Tilesets: {len(tilesets)}")
+    lines.append(f"// Layers: {len(layers)}")
     lines.append(f"// Unique tiles: {len(unique_tiles)}")
     lines.append("")
 
@@ -399,19 +448,22 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("};")
     lines.append("")
 
-    # Tile data (u16 VRAM indices, not original tile IDs!)
-    lines.append(f"static const u16 {level_name}_tiles[{len(remapped_tiles)}] = {{")
+    # Tile data for each layer (u16 VRAM indices, not original tile IDs!)
+    for layer_idx, layer in enumerate(remapped_layers):
+        layer_tiles = layer['tiles']
+        lines.append(f"// Layer {layer_idx}: {layer['name']} (BG{layer['bgLayer']}, priority {layer['priority']})")
+        lines.append(f"static const u16 {level_name}_layer{layer_idx}_tiles[{len(layer_tiles)}] = {{")
 
-    # Format tiles in rows of 16 for readability
-    for i in range(0, len(remapped_tiles), 16):
-        chunk = remapped_tiles[i:i+16]
-        line = "    " + ", ".join(f"{tile:5d}" for tile in chunk)
-        if i + 16 < len(remapped_tiles):
-            line += ","
-        lines.append(line)
+        # Format tiles in rows of 16 for readability
+        for i in range(0, len(layer_tiles), 16):
+            chunk = layer_tiles[i:i+16]
+            line = "    " + ", ".join(f"{tile:5d}" for tile in chunk)
+            if i + 16 < len(layer_tiles):
+                line += ","
+            lines.append(line)
 
-    lines.append("};")
-    lines.append("")
+        lines.append("};")
+        lines.append("")
 
     # Collision bitmap
     lines.append(f"static const u32 {level_name}_collision[64] = {{")
@@ -421,6 +473,14 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
         if i + 8 < 64:
             line += ","
         lines.append(line)
+    lines.append("};")
+    lines.append("")
+
+    # Layer metadata array
+    lines.append(f"static const TileLayer {level_name}_layers[{len(remapped_layers)}] = {{")
+    for layer_idx, layer in enumerate(remapped_layers):
+        comma = "," if layer_idx < len(remapped_layers) - 1 else ""
+        lines.append(f'    {{"{layer["name"]}", {layer["bgLayer"]}, {layer["priority"]}, {level_name}_layer{layer_idx}_tiles}}{comma}')
     lines.append("};")
     lines.append("")
 
@@ -444,7 +504,8 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append(f'    "{data["name"]}",')
     lines.append(f"    {width},")
     lines.append(f"    {height},")
-    lines.append(f"    {level_name}_tiles,")
+    lines.append(f"    {len(remapped_layers)},  // layerCount")
+    lines.append(f"    {level_name}_layers,")
     lines.append(f"    {len(objects)},")
     lines.append(f"    {level_name}_objects,")
     lines.append(f"    {spawn['x']},")
