@@ -1,7 +1,7 @@
 #ifndef COLLISION_H
 #define COLLISION_H
 
-#include "core/gba.h"
+#include <tonc.h>
 #include "core/game_types.h"
 #include "core/game_math.h"
 #include "level/level.h"

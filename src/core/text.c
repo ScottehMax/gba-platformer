@@ -71,8 +71,8 @@ void init_bg_text() {
 
 void clear_bg_text() {
     // BG3 screen map at base block 28
-    volatile u16* bgMap = SCREEN_BLOCK(28);
-    
+    volatile u16* bgMap = (volatile u16*)se_mem[28];
+
     // Clear entire 32x32 tile map (fill with tile 0 = space/transparent)
     for (int i = 0; i < 32 * 32; i++) {
         bgMap[i] = 0;  // Tile 0 is empty
@@ -80,7 +80,7 @@ void clear_bg_text() {
 }
 
 void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
-    volatile u16* bgMap = SCREEN_BLOCK(28);
+    volatile u16* bgMap = (volatile u16*)se_mem[28];
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -95,8 +95,8 @@ void clear_bg_text_region(int tile_x, int tile_y, int width, int height) {
 
 // Internal function to draw text to a specific slot
 static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int dynamic_tile_slot) {
-    volatile u16* bgMap = SCREEN_BLOCK(28);
-    volatile u32* charBlock1 = CHAR_BLOCK(1);
+    volatile u16* bgMap = (volatile u16*)se_mem[28];
+    volatile u32* charBlock1 = (volatile u32*)tile_mem[1];
     
     // Calculate starting tile in char block 1
     int base_tile = BG_TEXT_DYNAMIC_START + (dynamic_tile_slot * TEXT_SLOT_TILES);
@@ -234,9 +234,9 @@ int draw_char(char c, int x, int y, int oam_index) {
     int tile_index = FONT_TILE_START + (char_row * FONT_CHARS_PER_ROW) + char_col;
     
     // Set OAM entry (8x8 sprite, 16-color mode, palette 1)
-    OAM[oam_index].attr0 = (y & 0xFF) | (0 << 8) | (0 << 10) | (0 << 13) | (0 << 14);
-    OAM[oam_index].attr1 = (x & 0x1FF) | (0 << 12) | (0 << 13) | (0 << 14);
-    OAM[oam_index].attr2 = tile_index | (FONT_PALETTE << 12) | (0 << 10);
+    oam_mem[oam_index].attr0 = (y & 0xFF) | (0 << 8) | (0 << 10) | (0 << 13) | (0 << 14);
+    oam_mem[oam_index].attr1 = (x & 0x1FF) | (0 << 12) | (0 << 13) | (0 << 14);
+    oam_mem[oam_index].attr2 = tile_index | (FONT_PALETTE << 12) | (0 << 10);
     
     return width;
 }

@@ -1,5 +1,5 @@
 #include "player_render.h"
-#include "core/gba.h"
+#include <tonc.h>
 
 void drawPlayer(Player* player, Camera* camera) {
     // Draw dash trail (sprites 1-10)
@@ -11,7 +11,7 @@ void drawPlayer(Player* player, Camera* camera) {
         // i=0 is newest (closest to player), i=9 is oldest (farthest)
         // We want to hide oldest first, so hide when i >= (TRAIL_LENGTH - fadeSteps)
         if (player->dashing == 0 && i >= (TRAIL_LENGTH - fadeSteps)) {
-            OAM[i + 1].attr0 = 160 << 0;  // Hide sprite
+            oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
             continue;
         }
 
@@ -24,7 +24,7 @@ void drawPlayer(Player* player, Camera* camera) {
 
             // Hide if off screen
             if (trailScreenX < -1000 || trailScreenX > 239 || trailScreenY < -1000 || trailScreenY > 159) {
-                OAM[i + 1].attr0 = 160 << 0;  // Hide sprite
+                oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
             } else {
                 // Calculate sprite "age" for palette selection (older = lighter/more transparent)
                 // i=0 is newest, i=9 is oldest
@@ -35,12 +35,12 @@ void drawPlayer(Player* player, Camera* camera) {
                 if (paletteNum < 0) paletteNum = 0;
 
                 // Use progressively lighter palettes (1-10) for very gradual fading effect
-                OAM[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
-                OAM[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
-                OAM[i + 1].attr2 = ((paletteNum + 1) << 12) | (1 << 10);  // tile 0, palette 1-10 based on age, priority 1
+                oam_mem[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
+                oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
+                oam_mem[i + 1].attr2 = ((paletteNum + 1) << 12) | (1 << 10);  // tile 0, palette 1-10 based on age, priority 1
             }
         } else {
-            OAM[i + 1].attr0 = 160 << 0;  // Hide sprite
+            oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
         }
     }
 
@@ -56,7 +56,7 @@ void drawPlayer(Player* player, Camera* camera) {
 
     // Update sprite position (16x16, 16-color mode, palette 0, normal/opaque mode)
     // Clear bits 10-11 to ensure normal mode (not semi-transparent)
-    OAM[0].attr0 = (screenY & 0xFF) | (0 << 10);   // attr0: Y position (8 bits), bits 10-11 = 00 (normal mode)
-    OAM[0].attr1 = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
-    OAM[0].attr2 = (1 << 10);              // attr2: tile 0, palette 0, priority 1
+    oam_mem[0].attr0 = (screenY & 0xFF) | (0 << 10);   // attr0: Y position (8 bits), bits 10-11 = 00 (normal mode)
+    oam_mem[0].attr1 = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
+    oam_mem[0].attr2 = (1 << 10);              // attr2: tile 0, palette 0, priority 1
 }

@@ -1,7 +1,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "core/gba.h"
+#include <tonc.h>
 #include "core/game_types.h"
 #include "core/game_math.h"
 #include "level/level.h"

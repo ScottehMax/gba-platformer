@@ -1,7 +1,7 @@
 #ifndef LEVEL_H
 #define LEVEL_H
 
-#include "core/gba.h"
+#include <tonc.h>
 
 typedef struct {
     const char* type;

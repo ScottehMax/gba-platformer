@@ -1,7 +1,7 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "core/gba.h"
+#include <tonc.h>
 #include "core/game_types.h"
 #include "core/game_math.h"
 #include "collision/collision.h"

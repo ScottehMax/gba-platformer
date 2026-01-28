@@ -7,8 +7,9 @@ PYTHON = python
 
 GENDIR = generated
 SRCDIR = src
-CFLAGS = -mthumb-interwork -mthumb -O2 -Wall -I. -I$(GENDIR) -I$(SRCDIR)
-LDFLAGS = -specs=gba.specs
+LIBTONC = $(DEVKITPRO)/libtonc
+CFLAGS = -mthumb-interwork -mthumb -O2 -Wall -I. -I$(GENDIR) -I$(SRCDIR) -I$(LIBTONC)/include
+LDFLAGS = -specs=gba.specs -L$(LIBTONC)/lib -ltonc
 
 TARGET = game
 
@@ -64,14 +65,14 @@ $(TARGET).gba: $(TARGET).elf
 	$(GBAFIX) $@
 
 $(TARGET).elf: $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Object files from generated sources
 %.o: $(GENDIR)/%.c $(GENDIR)/%.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Text module
-text.o: $(SRCDIR)/core/text.c $(SRCDIR)/core/text.h $(SRCDIR)/core/gba.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
+text.o: $(SRCDIR)/core/text.c $(SRCDIR)/core/text.h $(GENDIR)/tinypixie.h assets/tinypixie_widths.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Debug utilities module
@@ -79,27 +80,27 @@ debug_utils.o: $(SRCDIR)/core/debug_utils.c $(SRCDIR)/core/debug_utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Level module
-level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
+level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Camera module
-camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
+camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Collision module
-collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
+collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player module
-player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h $(SRCDIR)/core/gba.h $(LEVEL_HEADERS)
+player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player rendering module
-player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/core/gba.h
+player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Main object depends on all headers
-main.o: $(SRCDIR)/main.c $(SRCDIR)/core/gba.h $(SRCDIR)/core/text.h \
+main.o: $(SRCDIR)/main.c $(SRCDIR)/core/text.h \
 	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
 	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
 	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h \

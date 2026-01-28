@@ -1,4 +1,4 @@
-#include "core/gba.h"
+#include <tonc.h>
 #include "skelly.h"
 #include "grassy_stone.h"
 #include "plants.h"
@@ -21,18 +21,16 @@
 #define PALETTE_PLANTS       2
 #define PALETTE_DECALS       3
 
-void vsync() {
-    while (REG_VCOUNT >= 160);
-    while (REG_VCOUNT < 160);
-}
-
 int main() {
+    irq_init(NULL);
+    irq_add(II_VBLANK, NULL);
+
     // Load level
     const Level* currentLevel = &Tutorial_Level;
     
     // Mode 0 with BG0, BG1, BG2, BG3 and sprites enabled
     // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text
-    REG_DISPCNT = VIDEOMODE_0 | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | OBJ_ENABLE | OBJ_1D_MAP;  // BG0_ENABLE = bit 8, BG1_ENABLE = bit 9, BG2_ENABLE = bit 10, BG3_ENABLE = bit 11
+    REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_BG2 | DCNT_BG3 | DCNT_OBJ | DCNT_OBJ_1D;
 
     // Load nightsky tiles to VRAM (char block 2)
     volatile u32* nightskyTilesDst = (volatile u32*)(0x06000000 + (2 << 14));
@@ -52,7 +50,7 @@ int main() {
     }
 
     // Load nightsky palette to palette bank 4 (colors 64-79)
-    volatile u16* bgPalette = MEM_BG_PALETTE;
+    volatile u16* bgPalette = pal_bg_mem;
     for (int i = 0; i < nightskyPalLen / 2; i++) {
         bgPalette[64 + i] = nightskyPal[i];
     }
@@ -117,7 +115,7 @@ int main() {
     init_bg_text();
 
     // Copy sprite palette to VRAM
-    volatile u16* spritePalette = MEM_SPRITE_PALETTE;
+    volatile u16* spritePalette = pal_obj_mem;
 
     // Palette 0: Normal sprite colors
     for (int i = 0; i < 16; i++) {
@@ -140,13 +138,13 @@ int main() {
                 if (r < 2) r = 2;
                 if (g < 6) g = 6;
                 if (b < 16) b = 16;
-                spritePalette[(pal + 1) * 16 + i] = COLOR(r, g, b);
+                spritePalette[(pal + 1) * 16 + i] = RGB15(r, g, b);
             }
         }
     }
 
     // Copy player sprite to VRAM (char block 4)
-    volatile u32* spriteTiles = MEM_SPRITE_TILES;
+    volatile u32* spriteTiles = (volatile u32*)tile_mem[4];
     for (int i = 0; i < 32; i++) {  // 16-color mode: 4 tiles, 8 u32s per tile
         spriteTiles[i] = skellyTiles[i];
     }
@@ -223,12 +221,13 @@ int main() {
     // Game loop
     while (1) {
         u16 frameStart = REG_TM0CNT_L;
-        vsync();
+        VBlankIntrWait();  // Efficient VBlank wait using BIOS interrupt
         frameCount++;
 
         // Profile: Player update
         u16 t0 = REG_TM0CNT_L;
-        u16 keys = getKeys();
+        key_poll();
+        u16 keys = key_curr_state();
         updatePlayer(&player, keys, currentLevel);
         u16 t1 = REG_TM0CNT_L;
         u16 dtPlayer = t1 - t0;

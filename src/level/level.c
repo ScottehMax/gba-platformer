@@ -14,7 +14,7 @@
 typedef struct {
     u16 firstTileId;
     u16 lastTileId;
-    const u32* tileData;
+    const unsigned int* tileData;
     u8 paletteBank;
 } TilesetMetadata;
 

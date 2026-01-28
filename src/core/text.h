@@ -1,7 +1,7 @@
 #ifndef TEXT_H
 #define TEXT_H
 
-#include "gba.h"
+#include <tonc.h>
 #include "tinypixie.h"
 #include "assets/tinypixie_widths.h"
 
