@@ -14,6 +14,7 @@
 #include "collision/collision.h"
 #include "player/player.h"
 #include "player/player_render.h"
+#include "util/calc.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -26,7 +27,7 @@ int main() {
     irq_add(II_VBLANK, NULL);
 
     // Load level
-    const Level* currentLevel = &Tutorial_Level;
+    const Level* currentLevel = &Celeste1;
     
     // Mode 0 with BG0, BG1, BG2, BG3 and sprites enabled
     // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text
@@ -93,7 +94,7 @@ int main() {
     }
 
     // Load only the tiles used in the current level to VRAM
-    loadLevelToVRAM(&Tutorial_Level);
+    loadLevelToVRAM(currentLevel);
 
     // Set up BG control registers for each layer based on level data
     // Screen base assignments: BG1=25, BG2=26
@@ -217,6 +218,8 @@ int main() {
     int tilemapTimeSlot = draw_bg_text_auto(tilemapTimeStr, 1, 4);
     int renderTimeSlot = draw_bg_text_auto(renderTimeStr, 1, 5);
     int totalTimeSlot = draw_bg_text_auto(totalTimeStr, 1, 6);
+    int playerSpeedSlot = draw_bg_text_auto("PS: 0", 1, 7);
+    int playerFFSlot = draw_bg_text_auto("PFFS: 0", 1, 8);
 
     // Game loop
     while (1) {
@@ -362,6 +365,18 @@ int main() {
 
             int_to_string(maxTotal, totalTimeStr, sizeof(totalTimeStr), "Max:");
             draw_bg_text_slot(totalTimeStr, 1, 6, totalTimeSlot);
+
+            // draw player X AND Y speed
+            int playerSpeed = (ABS(player.vx) * 10000 + ABS(player.vy));  // Convert from fixed-point
+            char playerSpeedStr[32];
+            int_to_string(playerSpeed, playerSpeedStr, sizeof(playerSpeedStr), "PS:");
+            draw_bg_text_slot(playerSpeedStr, 1, 7, playerSpeedSlot);
+
+            // Show player max fall speed for debugging
+            int playerFFS = (int)(player.maxFall);  // Convert to more readable format
+            char playerFFSStr[32];
+            int_to_string(playerFFS, playerFFSStr, sizeof(playerFFSStr), "PFFS:");
+            draw_bg_text_slot(playerFFSStr, 1, 8, playerFFSlot);
 
             // Reset max trackers
             maxPlayer = 0;

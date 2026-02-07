@@ -1,14 +1,18 @@
 #include "player.h"
+#include "util/calc.h"
 
 void initPlayer(Player* player, const Level* level) {
     player->x = level->playerSpawnX << FIXED_SHIFT;
     player->y = level->playerSpawnY << FIXED_SHIFT;
     player->vx = 0;
     player->vy = 0;
+    player->maxFall = MAX_FALL_SPEED;
     player->onGround = 0;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 0;
+    player->varJumpSpeed = 0;
+    player->varJumpTimer = 0;
     player->dashing = 0;
     player->dashCooldown = 0;
     player->facingRight = 1;
@@ -39,9 +43,14 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->jumpBuffer--;
     }
 
+    // Decay var jump timer
+    if (player->varJumpTimer > 0) {
+        player->varJumpTimer--;
+    }
+
     // R button: Dash (8-directional or forward) - only on press, not hold
     if ((pressed & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
-        player->dashing = 8; // Dash lasts 8 frames
+        player->dashing = DASH_LENGTH + 1;  // +1 because we decrement on the same frame
         player->dashCooldown = 30; // 30 frames cooldown
         player->trailFadeTimer = 0; // Reset fade timer for new dash
         player->jumpHeld = 0;
@@ -67,8 +76,8 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         // Apply dash velocity (normalize diagonals to maintain speed)
         if (dashX != 0 && dashY != 0) {
             // Diagonal: multiply by ~0.707 (using 181/256 as approximation)
-            player->vx = (dashX * DASH_SPEED * 181) >> 8;
-            player->vy = (dashY * DASH_SPEED * 181) >> 8;
+            player->vx = (dashX * DASH_SPEED * 0.707f);
+            player->vy = (dashY * DASH_SPEED * 0.707f);
         } else {
             player->vx = dashX * DASH_SPEED;
             player->vy = dashY * DASH_SPEED;
@@ -82,6 +91,17 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         if (player->dashing == 0) {
             player->trailTimer = 0;
             player->trailFadeTimer = 0;
+
+            // Set end dash speed (like Celeste)
+            float dashDirX = player->vx > 0 ? 1.0f : (player->vx < 0 ? -1.0f : 0.0f);
+            float dashDirY = player->vy > 0 ? 1.0f : (player->vy < 0 ? -1.0f : 0.0f);
+            player->vx = dashDirX * END_DASH_SPEED;
+            player->vy = dashDirY * END_DASH_SPEED;
+
+            // Upward dash multiplier
+            if (player->vy < 0) {
+                player->vy *= 0.75f;  // EndDashUpMult
+            }
         }
     }
 
@@ -92,36 +112,62 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Horizontal movement (disabled during dash)
     if (player->dashing == 0) {
+        // if (keys & KEY_LEFT) {
+        //     player->vx -= ACCELERATION;
+        //     if (player->vx < -MAX_SPEED) {
+        //         player->vx = -MAX_SPEED;
+        //     }
+        //     player->facingRight = 0;  // Face left
+        // } else if (keys & KEY_RIGHT) {
+        //     player->vx += ACCELERATION;
+        //     if (player->vx > MAX_SPEED) {
+        //         player->vx = MAX_SPEED;
+        //     }
+        //     player->facingRight = 1;  // Face right
+        // } else {
+            // Apply friction when no input
+            // float mult = onGround ? 1 : AirMult;
+            // if (Math.Abs(Speed.X) > max && Math.Sign(Speed.X) == moveX)
+            //     Speed.X = Calc.Approach(Speed.X, max * moveX, RunReduce * mult * Engine.DeltaTime);  //Reduce back from beyond the max speed
+            // else
+            //     Speed.X = Calc.Approach(Speed.X, max * moveX, RunAccel * mult * Engine.DeltaTime);   //Approach the max speed
+
         if (keys & KEY_LEFT) {
-            player->vx -= ACCELERATION;
-            if (player->vx < -MAX_SPEED) {
-                player->vx = -MAX_SPEED;
-            }
             player->facingRight = 0;  // Face left
         } else if (keys & KEY_RIGHT) {
-            player->vx += ACCELERATION;
-            if (player->vx > MAX_SPEED) {
-                player->vx = MAX_SPEED;
-            }
             player->facingRight = 1;  // Face right
-        } else {
-            // Apply friction when no input
-            int friction = player->onGround ? FRICTION : AIR_FRICTION;
-            if (player->vx > 0) {
-                player->vx -= friction;
-                if (player->vx < 0) player->vx = 0;
-            } else if (player->vx < 0) {
-                player->vx += friction;
-                if (player->vx > 0) player->vx = 0;
-            }
         }
+        int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+        float mult = player->onGround ? 1 : AIR_MULT;
+        // if (player->vx > 0) {
+        //     player->vx = approach(player->vx, MAX_SPEED, ACCELERATION * mult / 60.0f);
+        // } else if (player->vx < 0) {
+        //     player->vx = approach(player->vx, -MAX_SPEED, ACCELERATION * mult / 60.0f);
+        // }
+        if (ABS(player->vx) > MAX_SPEED && ((moveX > 0 && player->vx > 0) || (moveX < 0 && player->vx < 0))) {
+            player->vx = approach(player->vx, MAX_SPEED * moveX, RUN_REDUCE * mult / 60.0f);
+        } else {
+            player->vx = approach(player->vx, MAX_SPEED * moveX, ACCELERATION * mult / 60.0f);
+        }
+            // if (player->vx > 0) {
+            //     player->vx -= friction;
+            //     if (player->vx < 0) player->vx = 0;
+            // } else if (player->vx < 0) {
+            //     player->vx += friction;
+            //     if (player->vx > 0) player->vx = 0;
+            // }
+        // }
     }
 
     // A button: Jump - only on press, not hold
     if (pressed & KEY_A) {
         if (player->onGround || player->coyoteTime > 0) {
+            int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+            player->vx += moveX * JUMP_HORIZONTAL_BOOST;  // Add horizontal boost based on input direction
             // Execute jump immediately
-            player->vy = -JUMP_STRENGTH;
+            player->vy = JUMP_STRENGTH;
+            player->varJumpSpeed = JUMP_STRENGTH;  // Store initial jump velocity
+            player->varJumpTimer = VAR_JUMP_TIME;   // Start var jump window
             player->onGround = 0;
             player->coyoteTime = 0;  // Consume coyote time on jump
             player->jumpBuffer = 0;
@@ -132,17 +178,35 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
+    // Fast fall: update maxFall based on down input (before gravity application)
+    if (!player->onGround && player->dashing == 0) {
+        // Use threshold to account for approach() not reaching exact values
+        if ((keys & KEY_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
+            player->maxFall = approach(player->maxFall, FAST_MAX_FALL_SPEED, FAST_MAX_ACCEL / 60.0f);
+        } else {
+            player->maxFall = approach(player->maxFall, MAX_FALL_SPEED, FAST_MAX_ACCEL / 60.0f);
+        }
+    }
+
     // Apply gravity (but not during dash, to preserve dash trajectory)
     if (!player->onGround && player->dashing == 0) {
         int absVy = player->vy < 0 ? -player->vy : player->vy;
-        if (absVy < JUMP_PEAK_THRESHOLD) {
-            player->vy += GRAVITY / PEAK_GRAVITY_MULTIPLIER;
-        } else {
-            player->vy += GRAVITY;
-        }
+        float mult = (absVy < HALF_GRAV_THRESHOLD && (keys & KEY_A)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
 
-        if (player->vy > MAX_FALL_SPEED) {
-            player->vy = MAX_FALL_SPEED;
+        player->vy = approach(player->vy, player->maxFall, mult / 60.0f);
+
+        // Variable jump: clamp upward velocity during var jump time (like Celeste)
+        // This prevents gravity from slowing down the jump for the first ~12 frames
+        if (player->varJumpTimer > 0) {
+            if (keys & KEY_A) {
+                // Holding jump: maintain initial jump velocity (don't let gravity slow it)
+                if (player->vy > player->varJumpSpeed) {
+                    player->vy = player->varJumpSpeed;
+                }
+            } else {
+                // Released jump: end var jump time
+                player->varJumpTimer = 0;
+            }
         }
     }
 
@@ -158,7 +222,9 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Execute buffered jump on landing
     if (player->jumpBuffer > 0 && player->onGround) {
-        player->vy = -JUMP_STRENGTH;
+        player->vy = JUMP_STRENGTH;
+        player->varJumpSpeed = JUMP_STRENGTH;
+        player->varJumpTimer = VAR_JUMP_TIME;
         player->onGround = 0;
         player->coyoteTime = 0;
         player->jumpBuffer = 0;

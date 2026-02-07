@@ -7,12 +7,15 @@
 typedef struct {
     int x;  // Fixed-point
     int y;  // Fixed-point
-    int vx; // Fixed-point
-    int vy; // Fixed-point
+    float vx; // Fixed-point
+    float vy; // Fixed-point
+    float maxFall; // Current max fall speed (ramps for fast fall)
     int onGround;
     int coyoteTime;   // Frames remaining for coyote time jump
     int jumpBuffer;   // Frames remaining in jump buffer
     int jumpHeld;     // 1 if jump was initiated this aerial phase
+    float varJumpSpeed; // Initial jump velocity for var jump clamping
+    int varJumpTimer;   // Frames remaining for variable jump window
     int dashing;
     int dashCooldown;
     int facingRight;  // 1 = right, 0 = left
