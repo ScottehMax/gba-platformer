@@ -7,8 +7,8 @@
 typedef struct {
     int x;  // Fixed-point
     int y;  // Fixed-point
-    float vx; // Fixed-point
-    float vy; // Fixed-point
+    float vx; // Floating-point
+    float vy; // Floating-point
     float maxFall; // Current max fall speed (ramps for fast fall)
     int onGround;
     int coyoteTime;   // Frames remaining for coyote time jump
