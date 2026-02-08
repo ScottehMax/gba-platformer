@@ -47,6 +47,14 @@
 #define WALL_JUMP_H_SPEED TO_GBA(130.0f)  // 554.67 - Horizontal speed for wall jump (MaxRun + JumpHBoost)
 #define WALL_JUMP_CHECK_DIST 3  // Pixels to check for wall
 
+// Super jump (hyper dash) mechanics
+#define SUPER_JUMP_H TO_GBA(260.0f)  // 1109.33 - Horizontal speed for super jump from dash
+#define SUPER_JUMP_SPEED JUMP_STRENGTH  // Same vertical as normal jump
+#define SUPER_WALL_JUMP_H TO_GBA(170.0f)  // 725.33 - MaxRun + JumpHBoost * 2
+#define SUPER_WALL_JUMP_SPEED TO_GBA(-160.0f)  // -682.67 - Stronger than normal jump
+#define SUPER_WALL_JUMP_VAR_TIME 15  // 0.25s at 60fps - Longer var jump time
+#define DASH_ATTACK_TIME 18  // 0.3s at 60fps - Window for super jumps after dash
+
 
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge

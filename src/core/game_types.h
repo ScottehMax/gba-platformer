@@ -25,6 +25,9 @@ typedef struct {
     float wallSlideTimer;  // Time remaining for wall slide ability (resets on ground/jump)
     int wallSlideDir;      // Direction of current wall slide: 1=right, -1=left, 0=none
 
+    // Dash attack (for super jumps)
+    int dashAttackTimer;   // Frames remaining where super jumps can be triggered (set on dash start)
+
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions
     int trailY[TRAIL_LENGTH];

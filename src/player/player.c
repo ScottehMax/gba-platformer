@@ -19,6 +19,7 @@ void initPlayer(Player* player, const Level* level) {
     player->prevKeys = 0;
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->wallSlideDir = 0;
+    player->dashAttackTimer = 0;
     player->trailIndex = 0;
     player->trailTimer = 0;
     player->trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
@@ -50,6 +51,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->varJumpTimer--;
     }
 
+    // Decay dash attack timer
+    if (player->dashAttackTimer > 0) {
+        player->dashAttackTimer--;
+    }
+
     // R button: Dash (8-directional or forward) - only on press, not hold
     if ((pressed & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
         player->dashing = DASH_LENGTH + 1;  // +1 because we decrement on the same frame
@@ -57,6 +63,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->trailFadeTimer = 0; // Reset fade timer for new dash
         player->jumpHeld = 0;
         player->varJumpTimer = 0;  // CRITICAL FIX: Clear varJumpTimer to prevent jump from affecting post-dash velocity
+        player->dashAttackTimer = DASH_ATTACK_TIME;  // Enable super jumps during and after dash
 
         // Clear old trail positions
         for (int i = 0; i < TRAIL_LENGTH; i++) {
@@ -170,43 +177,90 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // A button: Jump - only on press, not hold
     if (pressed & KEY_A) {
-        // Wall jump check
-        int wallJumpDir = 0;
-        if (!player->onGround && player->coyoteTime == 0) {
-            if (checkWall(player, level, 1)) {
-                wallJumpDir = -1;  // Wall on right, jump left
-            } else if (checkWall(player, level, -1)) {
-                wallJumpDir = 1;   // Wall on left, jump right
+        // Check for super jump (during/after dash)
+        if (player->dashAttackTimer > 0) {
+            // Super jump from ground (hyper dash)
+            if (player->onGround || player->coyoteTime > 0) {
+                int facingDir = player->facingRight ? 1 : -1;
+                player->vx = facingDir * SUPER_JUMP_H;
+                player->vy = SUPER_JUMP_SPEED;
+                player->varJumpSpeed = SUPER_JUMP_SPEED;
+                player->varJumpTimer = VAR_JUMP_TIME;
+                player->wallSlideTimer = WALL_SLIDE_TIME;
+                player->dashAttackTimer = 0;
+                player->onGround = 0;
+                player->coyoteTime = 0;
+                player->jumpBuffer = 0;
+                player->jumpHeld = 1;
+                player->dashing = 0;  // Cancel dash
+            }
+            // Super wall jump from dash
+            else if (checkWall(player, level, 1)) {
+                player->vx = -1 * SUPER_WALL_JUMP_H;  // Wall on right, jump left
+                player->vy = SUPER_WALL_JUMP_SPEED;
+                player->varJumpSpeed = SUPER_WALL_JUMP_SPEED;
+                player->varJumpTimer = SUPER_WALL_JUMP_VAR_TIME;
+                player->wallSlideTimer = WALL_SLIDE_TIME;
+                player->dashAttackTimer = 0;
+                player->coyoteTime = 0;
+                player->jumpBuffer = 0;
+                player->jumpHeld = 1;
+                player->facingRight = 1;  // Face away from wall
+                player->dashing = 0;  // Cancel dash
+            }
+            else if (checkWall(player, level, -1)) {
+                player->vx = 1 * SUPER_WALL_JUMP_H;  // Wall on left, jump right
+                player->vy = SUPER_WALL_JUMP_SPEED;
+                player->varJumpSpeed = SUPER_WALL_JUMP_SPEED;
+                player->varJumpTimer = SUPER_WALL_JUMP_VAR_TIME;
+                player->wallSlideTimer = WALL_SLIDE_TIME;
+                player->dashAttackTimer = 0;
+                player->coyoteTime = 0;
+                player->jumpBuffer = 0;
+                player->jumpHeld = 1;
+                player->facingRight = 0;  // Face away from wall
+                player->dashing = 0;  // Cancel dash
             }
         }
+        // Regular wall jump check
+        else {
+            int wallJumpDir = 0;
+            if (!player->onGround && player->coyoteTime == 0) {
+                if (checkWall(player, level, 1)) {
+                    wallJumpDir = -1;  // Wall on right, jump left
+                } else if (checkWall(player, level, -1)) {
+                    wallJumpDir = 1;   // Wall on left, jump right
+                }
+            }
 
-        if (wallJumpDir != 0) {
-            // Wall jump!
-            player->vx = wallJumpDir * WALL_JUMP_H_SPEED;
-            player->vy = JUMP_STRENGTH;
-            player->varJumpSpeed = JUMP_STRENGTH;
-            player->varJumpTimer = VAR_JUMP_TIME;
-            player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
-            player->coyoteTime = 0;
-            player->jumpBuffer = 0;
-            player->jumpHeld = 1;
-            player->facingRight = wallJumpDir > 0 ? 1 : 0;
-        } else if (player->onGround || player->coyoteTime > 0) {
-            // Normal jump
-            int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
-            player->vx += moveX * JUMP_HORIZONTAL_BOOST;  // Add horizontal boost based on input direction
-            // Execute jump immediately
-            player->vy = JUMP_STRENGTH;
-            player->varJumpSpeed = JUMP_STRENGTH;  // Store initial jump velocity
-            player->varJumpTimer = VAR_JUMP_TIME;   // Start var jump window
-            player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
-            player->onGround = 0;
-            player->coyoteTime = 0;  // Consume coyote time on jump
-            player->jumpBuffer = 0;
-            player->jumpHeld = 1;
-        } else {
-            // Buffer for later
-            player->jumpBuffer = JUMP_BUFFER_TIME;
+            if (wallJumpDir != 0) {
+                // Wall jump!
+                player->vx = wallJumpDir * WALL_JUMP_H_SPEED;
+                player->vy = JUMP_STRENGTH;
+                player->varJumpSpeed = JUMP_STRENGTH;
+                player->varJumpTimer = VAR_JUMP_TIME;
+                player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
+                player->coyoteTime = 0;
+                player->jumpBuffer = 0;
+                player->jumpHeld = 1;
+                player->facingRight = wallJumpDir > 0 ? 1 : 0;
+            } else if (player->onGround || player->coyoteTime > 0) {
+                // Normal jump
+                int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+                player->vx += moveX * JUMP_HORIZONTAL_BOOST;  // Add horizontal boost based on input direction
+                // Execute jump immediately
+                player->vy = JUMP_STRENGTH;
+                player->varJumpSpeed = JUMP_STRENGTH;  // Store initial jump velocity
+                player->varJumpTimer = VAR_JUMP_TIME;   // Start var jump window
+                player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
+                player->onGround = 0;
+                player->coyoteTime = 0;  // Consume coyote time on jump
+                player->jumpBuffer = 0;
+                player->jumpHeld = 1;
+            } else {
+                // Buffer for later
+                player->jumpBuffer = JUMP_BUFFER_TIME;
+            }
         }
     }
 
