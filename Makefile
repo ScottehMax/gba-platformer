@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -99,11 +99,15 @@ player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/gam
 player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Menu module
+menu.o: $(SRCDIR)/menu/menu.c $(SRCDIR)/menu/menu.h $(SRCDIR)/core/text.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Main object depends on all headers
 main.o: $(SRCDIR)/main.c $(SRCDIR)/core/text.h \
 	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
 	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
-	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h \
+	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h $(SRCDIR)/menu/menu.h \
 	$(GRIT_HEADERS) $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 

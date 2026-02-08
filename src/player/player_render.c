@@ -2,7 +2,7 @@
 #include <tonc.h>
 
 void drawPlayer(Player* player, Camera* camera) {
-    // Draw dash trail (sprites 1-3) - Celeste creates exactly 3 trail sprites per dash
+    // Draw dash trail (sprites 1-3)
     // Trail sprites: 0=first (oldest), 1=middle, 2=last (newest/closest to player)
     for (int i = 0; i < TRAIL_LENGTH; i++) {
         // Only show trail if actively dashing or still fading

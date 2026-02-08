@@ -84,13 +84,13 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
             player->trailY[i] = -1000 << FIXED_SHIFT;
         }
 
-        // Create first trail sprite at dash start (Celeste line 3588)
+        // Create first trail sprite at dash start
         player->trailIndex = 0;
         player->trailX[0] = player->x;
         player->trailY[0] = player->y;
         player->trailFacing[0] = player->facingRight;
 
-        // Set timer for next trail sprite (0.08s = ~5 frames at 60fps, Celeste line 3589)
+        // Set timer for next trail sprite (0.08s = ~5 frames at 60fps)
         player->trailTimer = 5;
         player->trailFadeTimer = 0; // Reset fade timer for new dash
 
@@ -119,7 +119,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Countdown dash timer
     if (player->dashing > 0) {
-        // Create trail sprite when timer expires (Celeste line 3479-3483)
+        // Create trail sprite when timer expires
         if (player->trailTimer > 0) {
             player->trailTimer--;
             if (player->trailTimer == 0) {
@@ -142,9 +142,9 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
         player->dashing--;
 
-        // Set end dash speed when dash actually ends (Celeste line 3621)
+        // Set end dash speed when dash actually ends
         if (player->dashing == 0) {
-            // Set end dash speed (like Celeste)
+            // Set end dash speed
             float dashDirX = player->vx > 0 ? 1.0f : (player->vx < 0 ? -1.0f : 0.0f);
             float dashDirY = player->vy > 0 ? 1.0f : (player->vy < 0 ? -1.0f : 0.0f);
             player->vx = dashDirX * END_DASH_SPEED;
@@ -312,7 +312,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
         int facingDir = player->facingRight ? 1 : -1;
 
-        // Wall slide conditions (from Celeste):
+        // Wall slide conditions:
         // - Moving toward wall OR no input
         // - Falling (vy >= 0)
         // - wallSlideTimer > 0
@@ -344,7 +344,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
         player->vy = approach(player->vy, player->maxFall, mult / 60.0f);
 
-        // Variable jump: clamp upward velocity during var jump time (like Celeste)
+        // Variable jump: clamp upward velocity during var jump time
         // This prevents gravity from slowing down the jump for the first ~12 frames
         if (player->varJumpTimer > 0) {
             if (keys & KEY_A) {

@@ -15,9 +15,7 @@
 #include "player/player.h"
 #include "player/player_render.h"
 #include "util/calc.h"
-#include "generated/celeste1.h"
-#include "generated/level1.h"
-#include "generated/smb11.h"
+#include "menu/menu.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -25,31 +23,7 @@
 #define PALETTE_PLANTS       2
 #define PALETTE_DECALS       3
 
-// Level registry for menu
-typedef struct {
-    const char* displayName;
-    const Level* level;
-} LevelEntry;
-
-static const LevelEntry levels[] = {
-    {"Tutorial", &Tutorial_Level},
-    {"Celeste 1", &Celeste1},
-    {"Test Level", &Test_Level_1},
-    {"SMB 1-1", &smb11}
-};
-#define LEVEL_COUNT (sizeof(levels) / sizeof(levels[0]))
-
-// Menu state
-static int inMenu = 1;              // Start in menu mode
-static int menuSelection = 0;       // Currently highlighted level
-static u16 prevKeys = 0;            // Previous frame keys for edge detection
-
-// Fixed slot indices for menu (0-6) and profiling (8-15)
-#define MENU_SLOT_TITLE 0
-#define MENU_SLOT_LEVEL_START 1
-#define MENU_SLOT_INSTRUCTIONS_1 5
-#define MENU_SLOT_INSTRUCTIONS_2 6
-
+// Fixed slot indices for profiling (8-15)
 #define PROFILING_SLOT_FPS 8
 #define PROFILING_SLOT_PLAYER 9
 #define PROFILING_SLOT_CAMERA 10
@@ -57,23 +31,12 @@ static u16 prevKeys = 0;            // Previous frame keys for edge detection
 #define PROFILING_SLOT_RENDER 12
 #define PROFILING_SLOT_TOTAL 13
 
-static int menuInitialized = 0;     // Whether menu text has been drawn
-
-// Forward declarations
-static void renderMenu(void);
-static void updateMenu(u16 keys, u16 pressed, Player* player, Camera* camera);
-static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera);
-static void returnToMenu(void);
-
-// Tilemap state (accessed by menu functions)
+// Tilemap state (used in game loop)
 static int oldCameraTileX = -1;
 static int oldCameraTileY = -1;
 
 // Profiling state
 static int profilingInitialized = 0;
-
-// Current level (set by menu)
-static const Level* currentLevel = NULL;
 
 int main() {
     irq_init(NULL);
@@ -209,7 +172,8 @@ int main() {
         bg2Map[i] = 0;
     }
 
-    // Show the level selection menu
+    // Initialize and show the level selection menu
+    initMenu();
     renderMenu();
 
     // Initialize timers for FPS counter
@@ -235,6 +199,9 @@ int main() {
     char renderTimeStr[32] = "R:0";
     char totalTimeStr[32] = "Tot:0";
 
+    // Previous frame keys for edge detection
+    u16 prevKeys = 0;
+
     // Game loop
     while (1) {
         u16 frameStart = REG_TM0CNT_L;  // Measure from start of frame
@@ -244,9 +211,9 @@ int main() {
         u16 pressed = keys & ~prevKeys;
         prevKeys = keys;
 
-        if (inMenu) {
+        if (isInMenuMode()) {
             // Menu mode
-            updateMenu(keys, pressed, &player, &camera);
+            updateAndRenderMenu(keys, pressed, &player, &camera);
         } else {
             // Gameplay mode
             frameCount++;
@@ -265,8 +232,14 @@ int main() {
             // Check for START to return to menu
             if (pressed & KEY_START) {
                 returnToMenu();
+                profilingInitialized = 0;  // Reset profiling display for next time
+                oldCameraTileX = -1;       // Reset tilemap state
+                oldCameraTileY = -1;
                 continue;
             }
+
+            // Get current level
+            const Level* currentLevel = getCurrentLevel();
 
             // Profile: Player update
             u16 t0 = REG_TM0CNT_L;
@@ -414,153 +387,4 @@ int main() {
     }  // End while loop
 
     return 0;
-}
-
-// Render the level selection menu
-static void renderMenu(void) {
-    // Draw static text (only once)
-    if (!menuInitialized) {
-        draw_bg_text_slot("SELECT LEVEL", 8, 3, MENU_SLOT_TITLE);
-        draw_bg_text_slot("UP/DOWN: Navigate", 4, 16, MENU_SLOT_INSTRUCTIONS_1);
-        draw_bg_text_slot("A: Start", 4, 17, MENU_SLOT_INSTRUCTIONS_2);
-        menuInitialized = 1;
-    }
-
-    // Update level list (changes based on selection)
-    for (int i = 0; i < LEVEL_COUNT; i++) {
-        char line[32];
-        if (i == menuSelection) {
-            // Selected item with arrow
-            line[0] = '>';
-            line[1] = ' ';
-            int j;
-            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
-                line[j + 2] = levels[i].displayName[j];
-            }
-            line[j + 2] = '\0';
-        } else {
-            // Unselected item with spacing
-            line[0] = ' ';
-            line[1] = ' ';
-            int j;
-            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
-                line[j + 2] = levels[i].displayName[j];
-            }
-            line[j + 2] = '\0';
-        }
-        draw_bg_text_slot(line, 8, 7 + i, MENU_SLOT_LEVEL_START + i);
-    }
-}
-
-// Update menu state based on input
-static void updateMenu(u16 keys, u16 pressed, Player* player, Camera* camera) {
-    int oldSelection = menuSelection;
-
-    if (pressed & KEY_UP) {
-        menuSelection--;
-        if (menuSelection < 0) {
-            menuSelection = LEVEL_COUNT - 1;  // Wrap to bottom
-        }
-    } else if (pressed & KEY_DOWN) {
-        menuSelection++;
-        if (menuSelection >= LEVEL_COUNT) {
-            menuSelection = 0;  // Wrap to top
-        }
-    }
-
-    // Re-render if selection changed
-    if (menuSelection != oldSelection) {
-        renderMenu();
-    }
-
-    // Start selected level
-    if (pressed & KEY_A) {
-        initGameplayForLevel(menuSelection, player, camera);
-    }
-}
-
-// Initialize gameplay for a selected level
-static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera) {
-    currentLevel = levels[levelIndex].level;
-
-    // Clear menu text and reset menu state
-    clear_bg_text();
-    menuInitialized = 0;  // Menu slots are now invalid
-
-    // Load level tiles to VRAM
-    loadLevelToVRAM(currentLevel);
-
-    // Reset tilemap state variables to force full refresh
-    oldCameraTileX = -1;
-    oldCameraTileY = -1;
-
-    // Set up BG control registers for each layer
-    for (u8 i = 0; i < currentLevel->layerCount; i++) {
-        const TileLayer* layer = &currentLevel->layers[i];
-        u8 bgLayer = layer->bgLayer;
-        u8 priority = layer->priority;
-        u8 screenBase = 25 + bgLayer;
-
-        if (bgLayer == 1) {
-            REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
-        } else if (bgLayer == 2) {
-            REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
-        }
-    }
-
-    // Initialize tilemaps for each layer
-    for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
-        const TileLayer* layer = &currentLevel->layers[layerIdx];
-        u8 bgLayer = layer->bgLayer;
-        u8 screenBase = 25 + bgLayer;
-
-        volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
-
-        for (int y = 0; y < 32; y++) {
-            for (int x = 0; x < 32; x++) {
-                u16 vramIndex = getTileAt(currentLevel, layerIdx, x, y);
-                u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
-                bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
-            }
-        }
-    }
-
-    // Reset player to level spawn point
-    initPlayer(player, currentLevel);
-
-    // Reset camera
-    camera->x = 0;
-    camera->y = 0;
-
-    // Show player sprite (make sure it's visible)
-    volatile u16* oam = (volatile u16*)MEM_OAM;
-    oam[0] = 0;
-
-    // Switch to gameplay mode
-    inMenu = 0;
-}
-
-// Return to menu from gameplay
-static void returnToMenu(void) {
-    inMenu = 1;
-
-    // Hide player sprite (move offscreen)
-    volatile u16* oam = (volatile u16*)MEM_OAM;
-    oam[0] = 160;  // Y coordinate offscreen
-
-    // Clear BG1 and BG2 tilemaps (hide level tiles)
-    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (25 << 11));
-    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (26 << 11));
-    for (int i = 0; i < 32 * 32; i++) {
-        bg1Map[i] = 0;
-        bg2Map[i] = 0;
-    }
-
-    // Clear all text (profiling and menu)
-    clear_bg_text();
-    menuInitialized = 0;         // Reset so menu text will be redrawn
-    profilingInitialized = 0;    // Reset so profiling text will be redrawn
-
-    // Show menu
-    renderMenu();
 }
