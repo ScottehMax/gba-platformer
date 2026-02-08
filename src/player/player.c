@@ -24,7 +24,7 @@ void initPlayer(Player* player, const Level* level) {
     player->wallSlideDir = 0;
     player->dashAttackTimer = 0;
     player->trailIndex = 0;
-    player->trailTimer = 0;
+    player->trailTimer = 0;  // Counts down, when reaches 0 creates next trail sprite
     player->trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
 
     // Initialize trail positions off-screen
@@ -74,16 +74,25 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->dashing = DASH_LENGTH + 1;  // +1 because we decrement on the same frame
         player->dashCooldownTimer = DASH_COOLDOWN_TIME;
         player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;
-        player->trailFadeTimer = 0; // Reset fade timer for new dash
         player->jumpHeld = 0;
         player->varJumpTimer = 0;  // CRITICAL FIX: Clear varJumpTimer to prevent jump from affecting post-dash velocity
         player->dashAttackTimer = DASH_ATTACK_TIME;  // Enable super jumps during and after dash
 
-        // Clear old trail positions
+        // Clear all trail positions to prevent old trails from showing
         for (int i = 0; i < TRAIL_LENGTH; i++) {
             player->trailX[i] = -1000 << FIXED_SHIFT;
             player->trailY[i] = -1000 << FIXED_SHIFT;
         }
+
+        // Create first trail sprite at dash start (Celeste line 3588)
+        player->trailIndex = 0;
+        player->trailX[0] = player->x;
+        player->trailY[0] = player->y;
+        player->trailFacing[0] = player->facingRight;
+
+        // Set timer for next trail sprite (0.08s = ~5 frames at 60fps, Celeste line 3589)
+        player->trailTimer = 5;
+        player->trailFadeTimer = 0; // Reset fade timer for new dash
 
         // Check which directions are held
         int dashX = 0, dashY = 0;
@@ -111,10 +120,26 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Countdown dash timer
     if (player->dashing > 0) {
         player->dashing--;
-        // Start fade timer when dash ends
+
+        // Create trail sprite when timer expires (Celeste line 3479-3483)
+        if (player->trailTimer > 0) {
+            player->trailTimer--;
+            if (player->trailTimer == 0) {
+                // Create second trail sprite
+                player->trailX[1] = player->x;
+                player->trailY[1] = player->y;
+                player->trailFacing[1] = player->facingRight;
+            }
+        }
+
+        // Create final trail sprite when dash ends (Celeste line 3621)
         if (player->dashing == 0) {
-            player->trailTimer = 0;
+            player->trailX[2] = player->x;
+            player->trailY[2] = player->y;
+            player->trailFacing[2] = player->facingRight;
+
             player->trailFadeTimer = 0;
+            player->trailIndex = 2;  // Track which was last sprite created
 
             // Set end dash speed (like Celeste)
             float dashDirX = player->vx > 0 ? 1.0f : (player->vx < 0 ? -1.0f : 0.0f);
@@ -129,7 +154,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
-    // Update trail fade after dash ends (10 sprites * 2 frames each = 20 frames)
+    // Update trail fade after dash ends (3 sprites * 2 frames each = 6 frames)
     if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 2) {
         player->trailFadeTimer++;
     }
@@ -359,19 +384,6 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer on landing
     } else if (player->coyoteTime > 0) {
         player->coyoteTime--;  // Count down when airborne
-    }
-
-    // Update dash trail (record every 2 frames for spacing)
-    // Continue recording for a bit after dash ends to fill the trail buffer
-    if (player->dashing > 0 || player->trailFadeTimer < 10) {
-        player->trailTimer++;
-        if (player->trailTimer >= 2) {
-            player->trailTimer = 0;
-            player->trailIndex = (player->trailIndex + 1) % TRAIL_LENGTH;
-            player->trailX[player->trailIndex] = player->x;
-            player->trailY[player->trailIndex] = player->y;
-            player->trailFacing[player->trailIndex] = player->facingRight;
-        }
     }
 
     // Update previous keys for next frame

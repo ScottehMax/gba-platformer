@@ -2,42 +2,44 @@
 #include <tonc.h>
 
 void drawPlayer(Player* player, Camera* camera) {
-    // Draw dash trail (sprites 1-10)
+    // Draw dash trail (sprites 1-3) - Celeste creates exactly 3 trail sprites per dash
+    // Trail sprites: 0=first (oldest), 1=middle, 2=last (newest/closest to player)
     for (int i = 0; i < TRAIL_LENGTH; i++) {
-        // Calculate how many frames since dash ended (for gradual fade)
-        int fadeSteps = player->trailFadeTimer / 2;  // Hide one sprite every 2 frames
+        // Calculate how many sprites to hide based on fade timer
+        // Hide one sprite every 2 frames: 0-1 frames = show all 3, 2-3 = hide oldest, 4-5 = hide 2, 6+ = hide all
+        int fadeSteps = player->trailFadeTimer / 2;
 
-        // Hide this sprite if it's been faded out (fade from back to front)
-        // i=0 is newest (closest to player), i=9 is oldest (farthest)
-        // We want to hide oldest first, so hide when i >= (TRAIL_LENGTH - fadeSteps)
-        if (player->dashing == 0 && i >= (TRAIL_LENGTH - fadeSteps)) {
+        // Hide if faded out (fade from oldest to newest: 0 -> 1 -> 2)
+        if (player->dashing == 0 && i < fadeSteps) {
             oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
             continue;
         }
 
         // Only show trail if actively dashing or still fading
         if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 2) {
-            // Show every position to maximize visible trail
-            int trailIdx = (player->trailIndex - i + TRAIL_LENGTH) % TRAIL_LENGTH;
-            int trailScreenX = (player->trailX[trailIdx] >> FIXED_SHIFT) - camera->x - 8;
-            int trailScreenY = (player->trailY[trailIdx] >> FIXED_SHIFT) - camera->y - 8;
+            int trailScreenX = (player->trailX[i] >> FIXED_SHIFT) - camera->x - 8;
+            int trailScreenY = (player->trailY[i] >> FIXED_SHIFT) - camera->y - 8;
 
-            // Hide if off screen
-            if (trailScreenX < -1000 || trailScreenX > 239 || trailScreenY < -1000 || trailScreenY > 159) {
+            // Hide if not initialized or off screen (we use -1000 as sentinel value)
+            if (trailScreenX <= -1000 || trailScreenX > 239 || trailScreenY <= -1000 || trailScreenY > 159) {
                 oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
             } else {
-                // Calculate sprite "age" for palette selection (older = lighter/more transparent)
-                // i=0 is newest, i=9 is oldest
-                // fadeSteps adds extra age during fadeout for smooth transition
-                int spriteAge = i + fadeSteps; // Combine position and fade
-                int paletteNum = spriteAge; // 0-9 range for 10 palettes
-                if (paletteNum > 9) paletteNum = 9; // Clamp to available palettes (1-10)
-                if (paletteNum < 0) paletteNum = 0;
+                // Calculate progressive fade: base age + fade progress
+                // Base age: sprite 0 (oldest) = 3, sprite 1 = 2, sprite 2 (newest) = 1
+                int baseAge = (TRAIL_LENGTH - i);
 
-                // Use progressively lighter palettes (1-10) for very gradual fading effect
+                // Add fade progress to make all sprites gradually fade together
+                // This creates smooth transition: sprite 2 goes 1->2->3, sprite 1 goes 2->3->4, etc.
+                int paletteNum = baseAge + fadeSteps;
+
+                // Clamp to available palettes (1-10)
+                if (paletteNum > 10) paletteNum = 10;
+                if (paletteNum < 1) paletteNum = 1;
+
+                // Use progressively lighter palettes for gradual fade effect
                 oam_mem[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
-                oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[trailIdx] ? 0 : (1 << 12));
-                oam_mem[i + 1].attr2 = ((paletteNum + 1) << 12) | (1 << 10);  // tile 0, palette 1-10 based on age, priority 1
+                oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[i] ? 0 : (1 << 12));
+                oam_mem[i + 1].attr2 = (paletteNum << 12) | (1 << 10);  // tile 0, palette 1-10, priority 1
             }
         } else {
             oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite

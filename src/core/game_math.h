@@ -65,6 +65,6 @@
 
 // Player constants
 #define PLAYER_RADIUS 8
-#define TRAIL_LENGTH 10
+#define TRAIL_LENGTH 3  // Celeste creates exactly 3 trail sprites per dash
 
 #endif
