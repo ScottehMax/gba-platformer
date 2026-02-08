@@ -75,7 +75,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->dashCooldownTimer = DASH_COOLDOWN_TIME;
         player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;
         player->jumpHeld = 0;
-        player->varJumpTimer = 0;  // CRITICAL FIX: Clear varJumpTimer to prevent jump from affecting post-dash velocity
+        player->varJumpTimer = 0;  // Clear varJumpTimer to prevent jump from affecting post-dash velocity
         player->dashAttackTimer = DASH_ATTACK_TIME;  // Enable super jumps during and after dash
 
         // Clear all trail positions to prevent old trails from showing
@@ -164,26 +164,6 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Horizontal movement (disabled during dash)
     if (player->dashing == 0) {
-        // if (keys & KEY_LEFT) {
-        //     player->vx -= ACCELERATION;
-        //     if (player->vx < -MAX_SPEED) {
-        //         player->vx = -MAX_SPEED;
-        //     }
-        //     player->facingRight = 0;  // Face left
-        // } else if (keys & KEY_RIGHT) {
-        //     player->vx += ACCELERATION;
-        //     if (player->vx > MAX_SPEED) {
-        //         player->vx = MAX_SPEED;
-        //     }
-        //     player->facingRight = 1;  // Face right
-        // } else {
-            // Apply friction when no input
-            // float mult = onGround ? 1 : AirMult;
-            // if (Math.Abs(Speed.X) > max && Math.Sign(Speed.X) == moveX)
-            //     Speed.X = Calc.Approach(Speed.X, max * moveX, RunReduce * mult * Engine.DeltaTime);  //Reduce back from beyond the max speed
-            // else
-            //     Speed.X = Calc.Approach(Speed.X, max * moveX, RunAccel * mult * Engine.DeltaTime);   //Approach the max speed
-
         if (keys & KEY_LEFT) {
             player->facingRight = 0;  // Face left
         } else if (keys & KEY_RIGHT) {
@@ -191,24 +171,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
         int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
         float mult = player->onGround ? 1 : AIR_MULT;
-        // if (player->vx > 0) {
-        //     player->vx = approach(player->vx, MAX_SPEED, ACCELERATION * mult / 60.0f);
-        // } else if (player->vx < 0) {
-        //     player->vx = approach(player->vx, -MAX_SPEED, ACCELERATION * mult / 60.0f);
-        // }
         if (ABS(player->vx) > MAX_SPEED && ((moveX > 0 && player->vx > 0) || (moveX < 0 && player->vx < 0))) {
             player->vx = approach(player->vx, MAX_SPEED * moveX, RUN_REDUCE * mult / 60.0f);
         } else {
             player->vx = approach(player->vx, MAX_SPEED * moveX, ACCELERATION * mult / 60.0f);
         }
-            // if (player->vx > 0) {
-            //     player->vx -= friction;
-            //     if (player->vx < 0) player->vx = 0;
-            // } else if (player->vx < 0) {
-            //     player->vx += friction;
-            //     if (player->vx > 0) player->vx = 0;
-            // }
-        // }
     }
 
     // Decay wall slide timer when not wall sliding
