@@ -15,6 +15,9 @@
 #include "player/player.h"
 #include "player/player_render.h"
 #include "util/calc.h"
+#include "generated/celeste1.h"
+#include "generated/level1.h"
+#include "generated/smb11.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -22,12 +25,59 @@
 #define PALETTE_PLANTS       2
 #define PALETTE_DECALS       3
 
+// Level registry for menu
+typedef struct {
+    const char* displayName;
+    const Level* level;
+} LevelEntry;
+
+static const LevelEntry levels[] = {
+    {"Tutorial", &Tutorial_Level},
+    {"Celeste 1", &Celeste1},
+    {"Test Level", &Test_Level_1},
+    {"SMB 1-1", &smb11}
+};
+#define LEVEL_COUNT (sizeof(levels) / sizeof(levels[0]))
+
+// Menu state
+static int inMenu = 1;              // Start in menu mode
+static int menuSelection = 0;       // Currently highlighted level
+static u16 prevKeys = 0;            // Previous frame keys for edge detection
+
+// Fixed slot indices for menu (0-6) and profiling (8-15)
+#define MENU_SLOT_TITLE 0
+#define MENU_SLOT_LEVEL_START 1
+#define MENU_SLOT_INSTRUCTIONS_1 5
+#define MENU_SLOT_INSTRUCTIONS_2 6
+
+#define PROFILING_SLOT_FPS 8
+#define PROFILING_SLOT_PLAYER 9
+#define PROFILING_SLOT_CAMERA 10
+#define PROFILING_SLOT_TILEMAP 11
+#define PROFILING_SLOT_RENDER 12
+#define PROFILING_SLOT_TOTAL 13
+
+static int menuInitialized = 0;     // Whether menu text has been drawn
+
+// Forward declarations
+static void renderMenu(void);
+static void updateMenu(u16 keys, u16 pressed, Player* player, Camera* camera);
+static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera);
+static void returnToMenu(void);
+
+// Tilemap state (accessed by menu functions)
+static int oldCameraTileX = -1;
+static int oldCameraTileY = -1;
+
+// Profiling state
+static int profilingInitialized = 0;
+
+// Current level (set by menu)
+static const Level* currentLevel = NULL;
+
 int main() {
     irq_init(NULL);
     irq_add(II_VBLANK, NULL);
-
-    // Load level
-    const Level* currentLevel = &Tutorial_Level;
     
     // Mode 0 with BG0, BG1, BG2, BG3 and sprites enabled
     // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text
@@ -93,25 +143,6 @@ int main() {
         bgPalette[PALETTE_DECALS * 16 + i] = decalsPal[i];
     }
 
-    // Load only the tiles used in the current level to VRAM
-    loadLevelToVRAM(currentLevel);
-
-    // Set up BG control registers for each layer based on level data
-    // Screen base assignments: BG1=25, BG2=26
-    // Layer priorities and BG assignments are stored in the level data
-    for (u8 i = 0; i < currentLevel->layerCount; i++) {
-        const TileLayer* layer = &currentLevel->layers[i];
-        u8 bgLayer = layer->bgLayer;
-        u8 priority = layer->priority;
-        u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26, etc.
-
-        if (bgLayer == 1) {
-            REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
-        } else if (bgLayer == 2) {
-            REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
-        }
-    }
-
     // Initialize background text system (BG3 - uses char block 1)
     init_bg_text();
 
@@ -161,32 +192,25 @@ int main() {
         oam[i * 4] = 160;
     }
 
-    // Initialize player from level spawn point
+    // Initialize player and camera (will be set properly when level loads)
     Player player;
-    initPlayer(&player, currentLevel);
-    
-    // Initialize camera
     Camera camera;
     camera.x = 0;
     camera.y = 0;
 
-    // Initialize tilemaps for each layer
-    for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
-        const TileLayer* layer = &currentLevel->layers[layerIdx];
-        u8 bgLayer = layer->bgLayer;
-        u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+    // Hide player sprite initially (we're in menu mode)
+    oam[0] = 160;  // Y coordinate offscreen (reuse oam pointer from above)
 
-        volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
-
-        // Initialize tilemap once at startup
-        for (int y = 0; y < 32; y++) {
-            for (int x = 0; x < 32; x++) {
-                u16 vramIndex = getTileAt(currentLevel, layerIdx, x, y);
-                u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
-                bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
-            }
-        }
+    // Clear BG1 and BG2 tilemaps (hide level tiles in menu)
+    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (25 << 11));
+    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (26 << 11));
+    for (int i = 0; i < 32 * 32; i++) {
+        bg1Map[i] = 0;
+        bg2Map[i] = 0;
     }
+
+    // Show the level selection menu
+    renderMenu();
 
     // Initialize timers for FPS counter
     // Timer 0: counts at 16.384 KHz (overflow after ~4 seconds)
@@ -196,7 +220,7 @@ int main() {
     REG_TM0CNT_H = TM_ENABLE | TM_FREQ_1024;  // Enable, prescaler 1024
     REG_TM1CNT_H = TM_ENABLE | TM_CASCADE;    // Enable, cascade from Timer 0
 
-    // Frame counter and profiling
+    // Frame counter and profiling (only used during gameplay)
     int frameCount = 0;
     u32 lastTimerValue = 0;
     u16 fps = 60;
@@ -211,181 +235,332 @@ int main() {
     char renderTimeStr[32] = "R:0";
     char totalTimeStr[32] = "Tot:0";
 
-    // Allocate text slots once
-    int fpsSlot = draw_bg_text_auto(fpsStr, 1, 1);
-    int playerTimeSlot = draw_bg_text_auto(playerTimeStr, 1, 2);
-    int cameraTimeSlot = draw_bg_text_auto(cameraTimeStr, 1, 3);
-    int tilemapTimeSlot = draw_bg_text_auto(tilemapTimeStr, 1, 4);
-    int renderTimeSlot = draw_bg_text_auto(renderTimeStr, 1, 5);
-    int totalTimeSlot = draw_bg_text_auto(totalTimeStr, 1, 6);
-    int playerSpeedSlot = draw_bg_text_auto("PS: 0", 1, 7);
-    int playerFFSlot = draw_bg_text_auto("PFFS: 0", 1, 8);
-
     // Game loop
     while (1) {
-        u16 frameStart = REG_TM0CNT_L;
+        u16 frameStart = REG_TM0CNT_L;  // Measure from start of frame
         VBlankIntrWait();  // Efficient VBlank wait using BIOS interrupt
-        frameCount++;
-
-        // Profile: Player update
-        u16 t0 = REG_TM0CNT_L;
         key_poll();
         u16 keys = key_curr_state();
-        updatePlayer(&player, keys, currentLevel);
-        u16 t1 = REG_TM0CNT_L;
-        u16 dtPlayer = t1 - t0;
-        if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
+        u16 pressed = keys & ~prevKeys;
+        prevKeys = keys;
 
-        // Profile: Camera update
-        updateCamera(&camera, &player, currentLevel);
-        u16 t2 = REG_TM0CNT_L;
-        u16 dtCamera = t2 - t1;
-        if (dtCamera > maxCamera) maxCamera = dtCamera;
+        if (inMenu) {
+            // Menu mode
+            updateMenu(keys, pressed, &player, &camera);
+        } else {
+            // Gameplay mode
+            frameCount++;
 
-        // Use hardware scrolling in pixel space for all terrain layers
-        REG_BG1HOFS = camera.x;
-        REG_BG1VOFS = camera.y;
-        REG_BG2HOFS = camera.x;
-        REG_BG2VOFS = camera.y;
+            // Draw profiling text on first entry
+            if (!profilingInitialized) {
+                draw_bg_text_slot(fpsStr, 1, 1, PROFILING_SLOT_FPS);
+                draw_bg_text_slot(playerTimeStr, 1, 2, PROFILING_SLOT_PLAYER);
+                draw_bg_text_slot(cameraTimeStr, 1, 3, PROFILING_SLOT_CAMERA);
+                draw_bg_text_slot(tilemapTimeStr, 1, 4, PROFILING_SLOT_TILEMAP);
+                draw_bg_text_slot(renderTimeStr, 1, 5, PROFILING_SLOT_RENDER);
+                draw_bg_text_slot(totalTimeStr, 1, 6, PROFILING_SLOT_TOTAL);
+                profilingInitialized = 1;
+            }
 
-        // Optimized tilemap update using hardware scrolling wraparound
-        // The tilemap buffer is circular - hardware wraps at 256x256 pixels (32x32 tiles)
-        // Tilemap position (x%32, y%32) contains level tile at floor(camera/8) + [x, y]
-        static int oldCameraTileX = -1;
-        static int oldCameraTileY = -1;
-        int cameraTileX = camera.x / 8;
-        int cameraTileY = camera.y / 8;
+            // Check for START to return to menu
+            if (pressed & KEY_START) {
+                returnToMenu();
+                continue;
+            }
 
-        if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
-            // Determine scroll direction
-            int deltaX = cameraTileX - oldCameraTileX;
-            int deltaY = cameraTileY - oldCameraTileY;
+            // Profile: Player update
+            u16 t0 = REG_TM0CNT_L;
+            updatePlayer(&player, keys, currentLevel);
+            u16 t1 = REG_TM0CNT_L;
+            u16 dtPlayer = t1 - t0;
+            if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
 
-            // Update all layers
-            for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
-                const TileLayer* layer = &currentLevel->layers[layerIdx];
-                u8 bgLayer = layer->bgLayer;
-                u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+            // Profile: Camera update
+            updateCamera(&camera, &player, currentLevel);
+            u16 t2 = REG_TM0CNT_L;
+            u16 dtCamera = t2 - t1;
+            if (dtCamera > maxCamera) maxCamera = dtCamera;
 
-                volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+            // Use hardware scrolling in pixel space for all terrain layers
+            REG_BG1HOFS = camera.x;
+            REG_BG1VOFS = camera.y;
+            REG_BG2HOFS = camera.x;
+            REG_BG2VOFS = camera.y;
 
-                // First time or large jump - fill entire tilemap
-                if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
-                    for (int ty = 0; ty < 32; ty++) {
-                        for (int tx = 0; tx < 32; tx++) {
-                            int levelX = cameraTileX + tx;
-                            int levelY = cameraTileY + ty;
-                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                            // Use wraparound: tilemap position wraps at 32
-                            int mapX = (cameraTileX + tx) & 31;
-                            int mapY = (cameraTileY + ty) & 31;
-                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
-                        }
-                    }
-                } else {
-                    // Incremental update - only update new tiles entering the 32x32 window
-                    if (deltaX != 0) {
-                        // Scrolled horizontally - update one column
-                        int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
-                        int mapX = levelX & 31;
+            // Optimized tilemap update using hardware scrolling wraparound
+            // The tilemap buffer is circular - hardware wraps at 256x256 pixels (32x32 tiles)
+            // Tilemap position (x%32, y%32) contains level tile at floor(camera/8) + [x, y]
+            int cameraTileX = camera.x / 8;
+            int cameraTileY = camera.y / 8;
+
+            if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
+                // Determine scroll direction
+                int deltaX = cameraTileX - oldCameraTileX;
+                int deltaY = cameraTileY - oldCameraTileY;
+
+                // Update all layers
+                for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
+                    const TileLayer* layer = &currentLevel->layers[layerIdx];
+                    u8 bgLayer = layer->bgLayer;
+                    u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+
+                    volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+
+                    // First time or large jump - fill entire tilemap
+                    if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
                         for (int ty = 0; ty < 32; ty++) {
-                            int levelY = cameraTileY + ty;
-                            int mapY = levelY & 31;
-                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            for (int tx = 0; tx < 32; tx++) {
+                                int levelX = cameraTileX + tx;
+                                int levelY = cameraTileY + ty;
+                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                                // Use wraparound: tilemap position wraps at 32
+                                int mapX = (cameraTileX + tx) & 31;
+                                int mapY = (cameraTileY + ty) & 31;
+                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            }
                         }
-                    }
-                    if (deltaY != 0) {
-                        // Scrolled vertically - update one row
-                        int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
-                        int mapY = levelY & 31;
-                        for (int tx = 0; tx < 32; tx++) {
-                            int levelX = cameraTileX + tx;
+                    } else {
+                        // Incremental update - only update new tiles entering the 32x32 window
+                        if (deltaX != 0) {
+                            // Scrolled horizontally - update one column
+                            int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
                             int mapX = levelX & 31;
-                            u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                            bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            for (int ty = 0; ty < 32; ty++) {
+                                int levelY = cameraTileY + ty;
+                                int mapY = levelY & 31;
+                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            }
+                        }
+                        if (deltaY != 0) {
+                            // Scrolled vertically - update one row
+                            int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
+                            int mapY = levelY & 31;
+                            for (int tx = 0; tx < 32; tx++) {
+                                int levelX = cameraTileX + tx;
+                                int mapX = levelX & 31;
+                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
+                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            }
                         }
                     }
                 }
+
+                oldCameraTileX = cameraTileX;
+                oldCameraTileY = cameraTileY;
             }
 
-            oldCameraTileX = cameraTileX;
-            oldCameraTileY = cameraTileY;
+            // Profile: Tilemap update
+            u16 t3 = REG_TM0CNT_L;
+            u16 dtTilemap = t3 - t2;
+            if (dtTilemap > maxTilemap) maxTilemap = dtTilemap;
+
+            // Profile: Rendering
+            drawPlayer(&player, &camera);
+            u16 t4 = REG_TM0CNT_L;
+            u16 dtRender = t4 - t3;
+            if (dtRender > maxRender) maxRender = dtRender;
+
+            // Track subsystem total
+            u16 subsystemTotal = dtPlayer + dtCamera + dtTilemap + dtRender;
+            if (subsystemTotal > maxTotal) maxTotal = subsystemTotal;
+
+            // Measure COMPLETE frame time (vsync to vsync)
+            u16 frameEnd = REG_TM0CNT_L;
+            u16 completeFrameTime = frameEnd - frameStart;
+            if (completeFrameTime > maxTotal) maxTotal = completeFrameTime;
+
+            // Calculate FPS and profiling stats every 16 frames
+            if ((frameCount & 15) == 0) {
+                // Read timer value (combined 32-bit from Timer 1:0)
+                u32 currentTimerValue = (REG_TM1CNT_L << 16) | REG_TM0CNT_L;
+                u32 timerDelta = currentTimerValue - lastTimerValue;
+
+                // Timer runs at 16.384 KHz (16384 ticks per second)
+                // FPS = frames / (ticks / 16384) = (frames * 16384) / ticks
+                // For 16 frames: FPS = (16 * 16384) / timerDelta
+                if (timerDelta > 0) {
+                    fps = (16 * 16384) / timerDelta;
+                }
+
+                lastTimerValue = currentTimerValue;
+                int_to_string(fps, fpsStr, sizeof(fpsStr), "FPS:");
+                draw_bg_text_slot(fpsStr, 1, 1, PROFILING_SLOT_FPS);
+
+                // Update profiling display - show MAX values (worst frame)
+                int_to_string(maxPlayer, playerTimeStr, sizeof(playerTimeStr), "P:");
+                draw_bg_text_slot(playerTimeStr, 1, 2, PROFILING_SLOT_PLAYER);
+
+                int_to_string(maxCamera, cameraTimeStr, sizeof(cameraTimeStr), "C:");
+                draw_bg_text_slot(cameraTimeStr, 1, 3, PROFILING_SLOT_CAMERA);
+
+                int_to_string(maxTilemap, tilemapTimeStr, sizeof(tilemapTimeStr), "T:");
+                draw_bg_text_slot(tilemapTimeStr, 1, 4, PROFILING_SLOT_TILEMAP);
+
+                int_to_string(maxRender, renderTimeStr, sizeof(renderTimeStr), "R:");
+                draw_bg_text_slot(renderTimeStr, 1, 5, PROFILING_SLOT_RENDER);
+
+                int_to_string(maxTotal, totalTimeStr, sizeof(totalTimeStr), "Max:");
+                draw_bg_text_slot(totalTimeStr, 1, 6, PROFILING_SLOT_TOTAL);
+
+                // Reset max trackers
+                maxPlayer = 0;
+                maxCamera = 0;
+                maxTilemap = 0;
+                maxRender = 0;
+                maxTotal = 0;
+            }
+        }  // End gameplay mode
+    }  // End while loop
+
+    return 0;
+}
+
+// Render the level selection menu
+static void renderMenu(void) {
+    // Draw static text (only once)
+    if (!menuInitialized) {
+        draw_bg_text_slot("SELECT LEVEL", 8, 3, MENU_SLOT_TITLE);
+        draw_bg_text_slot("UP/DOWN: Navigate", 4, 16, MENU_SLOT_INSTRUCTIONS_1);
+        draw_bg_text_slot("A: Start", 4, 17, MENU_SLOT_INSTRUCTIONS_2);
+        menuInitialized = 1;
+    }
+
+    // Update level list (changes based on selection)
+    for (int i = 0; i < LEVEL_COUNT; i++) {
+        char line[32];
+        if (i == menuSelection) {
+            // Selected item with arrow
+            line[0] = '>';
+            line[1] = ' ';
+            int j;
+            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
+                line[j + 2] = levels[i].displayName[j];
+            }
+            line[j + 2] = '\0';
+        } else {
+            // Unselected item with spacing
+            line[0] = ' ';
+            line[1] = ' ';
+            int j;
+            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
+                line[j + 2] = levels[i].displayName[j];
+            }
+            line[j + 2] = '\0';
         }
+        draw_bg_text_slot(line, 8, 7 + i, MENU_SLOT_LEVEL_START + i);
+    }
+}
 
-        // Profile: Tilemap update
-        u16 t3 = REG_TM0CNT_L;
-        u16 dtTilemap = t3 - t2;
-        if (dtTilemap > maxTilemap) maxTilemap = dtTilemap;
+// Update menu state based on input
+static void updateMenu(u16 keys, u16 pressed, Player* player, Camera* camera) {
+    int oldSelection = menuSelection;
 
-        // Profile: Rendering
-        drawPlayer(&player, &camera);
-        u16 t4 = REG_TM0CNT_L;
-        u16 dtRender = t4 - t3;
-        if (dtRender > maxRender) maxRender = dtRender;
-
-        // Track subsystem total
-        u16 subsystemTotal = dtPlayer + dtCamera + dtTilemap + dtRender;
-        if (subsystemTotal > maxTotal) maxTotal = subsystemTotal;
-
-        // Measure COMPLETE frame time (vsync to vsync)
-        u16 frameEnd = REG_TM0CNT_L;
-        u16 completeFrameTime = frameEnd - frameStart;
-        if (completeFrameTime > maxTotal) maxTotal = completeFrameTime;
-
-        // Calculate FPS and profiling stats every 16 frames
-        if ((frameCount & 15) == 0) {
-            // Read timer value (combined 32-bit from Timer 1:0)
-            u32 currentTimerValue = (REG_TM1CNT_L << 16) | REG_TM0CNT_L;
-            u32 timerDelta = currentTimerValue - lastTimerValue;
-
-            // Timer runs at 16.384 KHz (16384 ticks per second)
-            // FPS = frames / (ticks / 16384) = (frames * 16384) / ticks
-            // For 16 frames: FPS = (16 * 16384) / timerDelta
-            if (timerDelta > 0) {
-                fps = (16 * 16384) / timerDelta;
-            }
-
-            lastTimerValue = currentTimerValue;
-            int_to_string(fps, fpsStr, sizeof(fpsStr), "FPS:");
-            draw_bg_text_slot(fpsStr, 1, 1, fpsSlot);
-
-            // Update profiling display - show MAX values (worst frame)
-            int_to_string(maxPlayer, playerTimeStr, sizeof(playerTimeStr), "P:");
-            draw_bg_text_slot(playerTimeStr, 1, 2, playerTimeSlot);
-
-            int_to_string(maxCamera, cameraTimeStr, sizeof(cameraTimeStr), "C:");
-            draw_bg_text_slot(cameraTimeStr, 1, 3, cameraTimeSlot);
-
-            int_to_string(maxTilemap, tilemapTimeStr, sizeof(tilemapTimeStr), "T:");
-            draw_bg_text_slot(tilemapTimeStr, 1, 4, tilemapTimeSlot);
-
-            int_to_string(maxRender, renderTimeStr, sizeof(renderTimeStr), "R:");
-            draw_bg_text_slot(renderTimeStr, 1, 5, renderTimeSlot);
-
-            int_to_string(maxTotal, totalTimeStr, sizeof(totalTimeStr), "Max:");
-            draw_bg_text_slot(totalTimeStr, 1, 6, totalTimeSlot);
-
-            // draw player X AND Y speed
-            int playerSpeed = (ABS(player.vx) * 10000 + ABS(player.vy));  // Convert from fixed-point
-            char playerSpeedStr[32];
-            int_to_string(playerSpeed, playerSpeedStr, sizeof(playerSpeedStr), "PS:");
-            draw_bg_text_slot(playerSpeedStr, 1, 7, playerSpeedSlot);
-
-            // Show player max fall speed for debugging
-            int playerFFS = (int)(player.maxFall);  // Convert to more readable format
-            char playerFFSStr[32];
-            int_to_string(playerFFS, playerFFSStr, sizeof(playerFFSStr), "PFFS:");
-            draw_bg_text_slot(playerFFSStr, 1, 8, playerFFSlot);
-
-            // Reset max trackers
-            maxPlayer = 0;
-            maxCamera = 0;
-            maxTilemap = 0;
-            maxRender = 0;
-            maxTotal = 0;
+    if (pressed & KEY_UP) {
+        menuSelection--;
+        if (menuSelection < 0) {
+            menuSelection = LEVEL_COUNT - 1;  // Wrap to bottom
+        }
+    } else if (pressed & KEY_DOWN) {
+        menuSelection++;
+        if (menuSelection >= LEVEL_COUNT) {
+            menuSelection = 0;  // Wrap to top
         }
     }
 
-    return 0;
+    // Re-render if selection changed
+    if (menuSelection != oldSelection) {
+        renderMenu();
+    }
+
+    // Start selected level
+    if (pressed & KEY_A) {
+        initGameplayForLevel(menuSelection, player, camera);
+    }
+}
+
+// Initialize gameplay for a selected level
+static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera) {
+    currentLevel = levels[levelIndex].level;
+
+    // Clear menu text and reset menu state
+    clear_bg_text();
+    menuInitialized = 0;  // Menu slots are now invalid
+
+    // Load level tiles to VRAM
+    loadLevelToVRAM(currentLevel);
+
+    // Reset tilemap state variables to force full refresh
+    oldCameraTileX = -1;
+    oldCameraTileY = -1;
+
+    // Set up BG control registers for each layer
+    for (u8 i = 0; i < currentLevel->layerCount; i++) {
+        const TileLayer* layer = &currentLevel->layers[i];
+        u8 bgLayer = layer->bgLayer;
+        u8 priority = layer->priority;
+        u8 screenBase = 25 + bgLayer;
+
+        if (bgLayer == 1) {
+            REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        } else if (bgLayer == 2) {
+            REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        }
+    }
+
+    // Initialize tilemaps for each layer
+    for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
+        const TileLayer* layer = &currentLevel->layers[layerIdx];
+        u8 bgLayer = layer->bgLayer;
+        u8 screenBase = 25 + bgLayer;
+
+        volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 32; x++) {
+                u16 vramIndex = getTileAt(currentLevel, layerIdx, x, y);
+                u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
+                bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
+            }
+        }
+    }
+
+    // Reset player to level spawn point
+    initPlayer(player, currentLevel);
+
+    // Reset camera
+    camera->x = 0;
+    camera->y = 0;
+
+    // Show player sprite (make sure it's visible)
+    volatile u16* oam = (volatile u16*)MEM_OAM;
+    oam[0] = 0;
+
+    // Switch to gameplay mode
+    inMenu = 0;
+}
+
+// Return to menu from gameplay
+static void returnToMenu(void) {
+    inMenu = 1;
+
+    // Hide player sprite (move offscreen)
+    volatile u16* oam = (volatile u16*)MEM_OAM;
+    oam[0] = 160;  // Y coordinate offscreen
+
+    // Clear BG1 and BG2 tilemaps (hide level tiles)
+    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (25 << 11));
+    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (26 << 11));
+    for (int i = 0; i < 32 * 32; i++) {
+        bg1Map[i] = 0;
+        bg2Map[i] = 0;
+    }
+
+    // Clear all text (profiling and menu)
+    clear_bg_text();
+    menuInitialized = 0;         // Reset so menu text will be redrawn
+    profilingInitialized = 0;    // Reset so profiling text will be redrawn
+
+    // Show menu
+    renderMenu();
 }
