@@ -31,7 +31,7 @@ void drawPlayer(Player* player, Camera* camera) {
 
                     // Use progressively lighter palettes for gradual fade effect
                     oam_mem[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
-                    oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[i] ? 0 : (1 << 12));
+                    oam_mem[i + 1].attr1 = (trailScreenX & 0x1FF) | (1 << 14) | (player->trailFacing[i] ? 0 : (1 << 12));
                     oam_mem[i + 1].attr2 = (paletteNum << 12) | (1 << 10);  // tile 0, palette 1-10, priority 1
                 }
             }
@@ -53,6 +53,6 @@ void drawPlayer(Player* player, Camera* camera) {
     // Update sprite position (16x16, 16-color mode, palette 0, normal/opaque mode)
     // Clear bits 10-11 to ensure normal mode (not semi-transparent)
     oam_mem[0].attr0 = (screenY & 0xFF) | (0 << 10);   // attr0: Y position (8 bits), bits 10-11 = 00 (normal mode)
-    oam_mem[0].attr1 = screenX | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X + size 16x16 + H-flip if facing left
+    oam_mem[0].attr1 = (screenX & 0x1FF) | (1 << 14) | (player->facingRight ? 0 : (1 << 12));   // attr1: X position (9 bits masked) + size 16x16 + H-flip if facing left
     oam_mem[0].attr2 = (1 << 10);              // attr2: tile 0, palette 0, priority 1
 }
