@@ -27,6 +27,8 @@
 #define DASH_SPEED TO_GBA(240.0f)     // 1024
 #define DASH_LENGTH 9 // Frames of dash duration (0.15s at 60fps)
 #define END_DASH_SPEED TO_GBA(160.0f) // 682.67
+#define DASH_COOLDOWN_TIME 12  // 0.2s at 60fps - cooldown before can dash again
+#define DASH_REFILL_COOLDOWN_TIME 6  // 0.1s at 60fps - cooldown before dash refills on ground
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge, 0.1 seconds at 60fps
 #define MAX_FALL_SPEED TO_GBA(160.0f)     // 682.67
 #define FAST_MAX_FALL_SPEED TO_GBA(240.0f) // 1024

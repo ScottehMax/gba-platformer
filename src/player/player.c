@@ -14,7 +14,10 @@ void initPlayer(Player* player, const Level* level) {
     player->varJumpSpeed = 0;
     player->varJumpTimer = 0;
     player->dashing = 0;
-    player->dashCooldown = 0;
+    player->dashes = 1;  // Start with 1 dash
+    player->maxDashes = 1;
+    player->dashCooldownTimer = 0;
+    player->dashRefillCooldownTimer = 0;
     player->facingRight = 1;
     player->prevKeys = 0;
     player->wallSlideTimer = WALL_SLIDE_TIME;
@@ -36,9 +39,16 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Detect button presses (pressed this frame but not last frame)
     u16 pressed = keys & ~player->prevKeys;
 
-    // Dash cooldown
-    if (player->dashCooldown > 0) {
-        player->dashCooldown--;
+    // Dash cooldowns
+    if (player->dashCooldownTimer > 0) {
+        player->dashCooldownTimer--;
+    }
+
+    if (player->dashRefillCooldownTimer > 0) {
+        player->dashRefillCooldownTimer--;
+    } else if (player->onGround && player->dashes < player->maxDashes) {
+        // Refill dash when on ground and refill cooldown expired
+        player->dashes = player->maxDashes;
     }
 
     // Decay jump buffer
@@ -57,9 +67,13 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     }
 
     // R button: Dash (8-directional or forward) - only on press, not hold
-    if ((pressed & KEY_R) && player->dashCooldown == 0 && player->dashing == 0) {
+    if ((pressed & KEY_R) && player->dashCooldownTimer == 0 && player->dashing == 0 && player->dashes > 0) {
+        // Consume dash
+        player->dashes = max(0, player->dashes - 1);
+
         player->dashing = DASH_LENGTH + 1;  // +1 because we decrement on the same frame
-        player->dashCooldown = 30; // 30 frames cooldown
+        player->dashCooldownTimer = DASH_COOLDOWN_TIME;
+        player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;
         player->trailFadeTimer = 0; // Reset fade timer for new dash
         player->jumpHeld = 0;
         player->varJumpTimer = 0;  // CRITICAL FIX: Clear varJumpTimer to prevent jump from affecting post-dash velocity

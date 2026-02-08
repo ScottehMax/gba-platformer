@@ -27,7 +27,7 @@ int main() {
     irq_add(II_VBLANK, NULL);
 
     // Load level
-    const Level* currentLevel = &Celeste1;
+    const Level* currentLevel = &Tutorial_Level;
     
     // Mode 0 with BG0, BG1, BG2, BG3 and sprites enabled
     // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text

@@ -44,7 +44,7 @@ typedef struct {
     const u8* tilePaletteBanks;
 } Level;
 
-#include "celeste1.h"
+#include "level3.h"
 
 /**
  * Get the tile ID at the specified tile coordinates for a specific layer
