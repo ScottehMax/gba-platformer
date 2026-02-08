@@ -41,6 +41,12 @@
 #define PEAK_GRAVITY_MULTIPLIER 2  // Divide gravity by this at peak
 #define HALF_GRAV_THRESHOLD TO_GBA(40.0f) // 170.67 - When abs(vy) is below this, apply reduced gravity for floaty feel
 
+// Wall slide/jump
+#define WALL_SLIDE_START_MAX TO_GBA(20.0f)  // 85.33 - Very slow initial wall slide speed
+#define WALL_SLIDE_TIME 72  // Frames before wall slide reaches normal fall speed (1.2s at 60fps)
+#define WALL_JUMP_H_SPEED TO_GBA(130.0f)  // 554.67 - Horizontal speed for wall jump (MaxRun + JumpHBoost)
+#define WALL_JUMP_CHECK_DIST 3  // Pixels to check for wall
+
 
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge

@@ -17,6 +17,8 @@ void initPlayer(Player* player, const Level* level) {
     player->dashCooldown = 0;
     player->facingRight = 1;
     player->prevKeys = 0;
+    player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->wallSlideDir = 0;
     player->trailIndex = 0;
     player->trailTimer = 0;
     player->trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
@@ -54,6 +56,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->dashCooldown = 30; // 30 frames cooldown
         player->trailFadeTimer = 0; // Reset fade timer for new dash
         player->jumpHeld = 0;
+        player->varJumpTimer = 0;  // CRITICAL FIX: Clear varJumpTimer to prevent jump from affecting post-dash velocity
 
         // Clear old trail positions
         for (int i = 0; i < TRAIL_LENGTH; i++) {
@@ -159,15 +162,44 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         // }
     }
 
+    // Decay wall slide timer when not wall sliding
+    if (player->wallSlideDir != 0) {
+        player->wallSlideTimer = max(player->wallSlideTimer - 1, 0);
+        player->wallSlideDir = 0;
+    }
+
     // A button: Jump - only on press, not hold
     if (pressed & KEY_A) {
-        if (player->onGround || player->coyoteTime > 0) {
+        // Wall jump check
+        int wallJumpDir = 0;
+        if (!player->onGround && player->coyoteTime == 0) {
+            if (checkWall(player, level, 1)) {
+                wallJumpDir = -1;  // Wall on right, jump left
+            } else if (checkWall(player, level, -1)) {
+                wallJumpDir = 1;   // Wall on left, jump right
+            }
+        }
+
+        if (wallJumpDir != 0) {
+            // Wall jump!
+            player->vx = wallJumpDir * WALL_JUMP_H_SPEED;
+            player->vy = JUMP_STRENGTH;
+            player->varJumpSpeed = JUMP_STRENGTH;
+            player->varJumpTimer = VAR_JUMP_TIME;
+            player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
+            player->coyoteTime = 0;
+            player->jumpBuffer = 0;
+            player->jumpHeld = 1;
+            player->facingRight = wallJumpDir > 0 ? 1 : 0;
+        } else if (player->onGround || player->coyoteTime > 0) {
+            // Normal jump
             int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
             player->vx += moveX * JUMP_HORIZONTAL_BOOST;  // Add horizontal boost based on input direction
             // Execute jump immediately
             player->vy = JUMP_STRENGTH;
             player->varJumpSpeed = JUMP_STRENGTH;  // Store initial jump velocity
             player->varJumpTimer = VAR_JUMP_TIME;   // Start var jump window
+            player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer
             player->onGround = 0;
             player->coyoteTime = 0;  // Consume coyote time on jump
             player->jumpBuffer = 0;
@@ -178,14 +210,35 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
-    // Fast fall: update maxFall based on down input (before gravity application)
+    // Wall slide detection (before gravity application)
+    float targetMaxFall = MAX_FALL_SPEED;
     if (!player->onGround && player->dashing == 0) {
-        // Use threshold to account for approach() not reaching exact values
-        if ((keys & KEY_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
-            player->maxFall = approach(player->maxFall, FAST_MAX_FALL_SPEED, FAST_MAX_ACCEL / 60.0f);
-        } else {
-            player->maxFall = approach(player->maxFall, MAX_FALL_SPEED, FAST_MAX_ACCEL / 60.0f);
+        int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+        int facingDir = player->facingRight ? 1 : -1;
+
+        // Wall slide conditions (from Celeste):
+        // - Moving toward wall OR no input
+        // - Falling (vy >= 0)
+        // - wallSlideTimer > 0
+        // - Wall exists in facing direction
+        if (player->vy >= 0 && player->wallSlideTimer > 0 && checkWall(player, level, facingDir)) {
+            if (moveX == facingDir || moveX == 0) {
+                player->wallSlideDir = facingDir;
+                // Lerp from WALL_SLIDE_START_MAX (20) to MAX_FALL_SPEED (160) over WALL_SLIDE_TIME
+                float t = player->wallSlideTimer / (float)WALL_SLIDE_TIME;
+                targetMaxFall = WALL_SLIDE_START_MAX + (MAX_FALL_SPEED - WALL_SLIDE_START_MAX) * (1.0f - t);
+            }
         }
+
+        // Fast fall: update maxFall based on down input
+        if (player->wallSlideDir == 0) {
+            // Use threshold to account for approach() not reaching exact values
+            if ((keys & KEY_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
+                targetMaxFall = FAST_MAX_FALL_SPEED;
+            }
+        }
+
+        player->maxFall = approach(player->maxFall, targetMaxFall, FAST_MAX_ACCEL / 60.0f);
     }
 
     // Apply gravity (but not during dash, to preserve dash trajectory)
@@ -235,6 +288,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     if (player->onGround) {
         player->coyoteTime = COYOTE_TIME;  // Reset when grounded
         player->jumpHeld = 0;
+        player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer on landing
     } else if (player->coyoteTime > 0) {
         player->coyoteTime--;  // Count down when airborne
     }

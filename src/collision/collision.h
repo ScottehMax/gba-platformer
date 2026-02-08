@@ -25,4 +25,14 @@ void collideHorizontal(Player* player, const Level* level);
  */
 void collideVertical(Player* player, const Level* level);
 
+/**
+ * Check if there's a wall adjacent to the player
+ *
+ * @param player The player to check
+ * @param level The level to check against
+ * @param dir Direction to check: 1 for right, -1 for left
+ * @return 1 if there's a wall in that direction, 0 otherwise
+ */
+int checkWall(const Player* player, const Level* level, int dir);
+
 #endif

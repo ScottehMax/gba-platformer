@@ -211,3 +211,19 @@ void collideVertical(Player* player, const Level* level) {
         }
     }
 }
+
+int checkWall(const Player* player, const Level* level, int dir) {
+    int screenX = player->x >> FIXED_SHIFT;
+    int screenY = player->y >> FIXED_SHIFT;
+
+    // Check for wall at WALL_JUMP_CHECK_DIST pixels away
+    int checkX = screenX + (dir * (PLAYER_RADIUS + WALL_JUMP_CHECK_DIST));
+    int checkY = screenY;
+
+    // Check the tile at the check position
+    int tileX = checkX / 8;
+    int tileY = checkY / 8;
+
+    u16 tile = getTileAt(level, 0, tileX, tileY);
+    return isTileSolid(level, tile);
+}

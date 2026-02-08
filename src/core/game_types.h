@@ -21,6 +21,10 @@ typedef struct {
     int facingRight;  // 1 = right, 0 = left
     u16 prevKeys;     // Previous frame keys for detecting button presses
 
+    // Wall slide/jump
+    float wallSlideTimer;  // Time remaining for wall slide ability (resets on ground/jump)
+    int wallSlideDir;      // Direction of current wall slide: 1=right, -1=left, 0=none
+
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions
     int trailY[TRAIL_LENGTH];
