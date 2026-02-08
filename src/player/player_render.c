@@ -5,18 +5,8 @@ void drawPlayer(Player* player, Camera* camera) {
     // Draw dash trail (sprites 1-3) - Celeste creates exactly 3 trail sprites per dash
     // Trail sprites: 0=first (oldest), 1=middle, 2=last (newest/closest to player)
     for (int i = 0; i < TRAIL_LENGTH; i++) {
-        // Calculate how many sprites to hide based on fade timer
-        // Hide one sprite every 2 frames: 0-1 frames = show all 3, 2-3 = hide oldest, 4-5 = hide 2, 6+ = hide all
-        int fadeSteps = player->trailFadeTimer / 2;
-
-        // Hide if faded out (fade from oldest to newest: 0 -> 1 -> 2)
-        if (player->dashing == 0 && i < fadeSteps) {
-            oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
-            continue;
-        }
-
         // Only show trail if actively dashing or still fading
-        if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 2) {
+        if (player->dashing > 0 || player->trailFadeTimer < TRAIL_LENGTH * 8) {
             int trailScreenX = (player->trailX[i] >> FIXED_SHIFT) - camera->x - 8;
             int trailScreenY = (player->trailY[i] >> FIXED_SHIFT) - camera->y - 8;
 
@@ -29,17 +19,21 @@ void drawPlayer(Player* player, Camera* camera) {
                 int baseAge = (TRAIL_LENGTH - i);
 
                 // Add fade progress to make all sprites gradually fade together
-                // This creates smooth transition: sprite 2 goes 1->2->3, sprite 1 goes 2->3->4, etc.
-                int paletteNum = baseAge + fadeSteps;
+                // Use finer granularity: each sprite gets 2 palette steps per fade unit
+                int paletteNum = baseAge + (player->trailFadeTimer / 2);
 
-                // Clamp to available palettes (1-10)
-                if (paletteNum > 10) paletteNum = 10;
-                if (paletteNum < 1) paletteNum = 1;
+                // Hide sprite only after it reaches max palette (fully faded)
+                if (paletteNum > 10) {
+                    oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
+                } else {
+                    // Clamp to available palettes (1-10)
+                    if (paletteNum < 1) paletteNum = 1;
 
-                // Use progressively lighter palettes for gradual fade effect
-                oam_mem[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
-                oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[i] ? 0 : (1 << 12));
-                oam_mem[i + 1].attr2 = (paletteNum << 12) | (1 << 10);  // tile 0, palette 1-10, priority 1
+                    // Use progressively lighter palettes for gradual fade effect
+                    oam_mem[i + 1].attr0 = (trailScreenY & 0xFF) | (1 << 10);  // Semi-transparent mode
+                    oam_mem[i + 1].attr1 = trailScreenX | (1 << 14) | (player->trailFacing[i] ? 0 : (1 << 12));
+                    oam_mem[i + 1].attr2 = (paletteNum << 12) | (1 << 10);  // tile 0, palette 1-10, priority 1
+                }
             }
         } else {
             oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite

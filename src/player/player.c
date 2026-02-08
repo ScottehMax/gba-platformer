@@ -119,8 +119,6 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Countdown dash timer
     if (player->dashing > 0) {
-        player->dashing--;
-
         // Create trail sprite when timer expires (Celeste line 3479-3483)
         if (player->trailTimer > 0) {
             player->trailTimer--;
@@ -132,15 +130,20 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
             }
         }
 
-        // Create final trail sprite when dash ends (Celeste line 3621)
-        if (player->dashing == 0) {
+        // Create final trail sprite when appropriate time has passed
+        if (player->dashing == 2) {
             player->trailX[2] = player->x;
             player->trailY[2] = player->y;
             player->trailFacing[2] = player->facingRight;
 
             player->trailFadeTimer = 0;
             player->trailIndex = 2;  // Track which was last sprite created
+        }
 
+        player->dashing--;
+
+        // Set end dash speed when dash actually ends (Celeste line 3621)
+        if (player->dashing == 0) {
             // Set end dash speed (like Celeste)
             float dashDirX = player->vx > 0 ? 1.0f : (player->vx < 0 ? -1.0f : 0.0f);
             float dashDirY = player->vy > 0 ? 1.0f : (player->vy < 0 ? -1.0f : 0.0f);
@@ -154,8 +157,8 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
-    // Update trail fade after dash ends (3 sprites * 2 frames each = 6 frames)
-    if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 2) {
+    // Update trail fade after dash ends (3 sprites * 8 frames each = 24 frames for smoother fade)
+    if (player->dashing == 0 && player->trailFadeTimer < TRAIL_LENGTH * 8) {
         player->trailFadeTimer++;
     }
 
