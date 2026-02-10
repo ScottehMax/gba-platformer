@@ -16,6 +16,7 @@
 #include "player/player_render.h"
 #include "util/calc.h"
 #include "menu/menu.h"
+#include "core/replay.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -202,12 +203,66 @@ int main() {
     // Previous frame keys for edge detection
     u16 prevKeys = 0;
 
+    // Replay system
+    ReplayState replay;
+    initReplay(&replay);
+    char replayStr[32] = "";
+
     // Game loop
     while (1) {
         u16 frameStart = REG_TM0CNT_L;  // Measure from start of frame
         VBlankIntrWait();  // Efficient VBlank wait using BIOS interrupt
         key_poll();
-        u16 keys = key_curr_state();
+        u16 realKeys = key_curr_state();
+        u16 keys = realKeys;
+
+        // Replay controls (SELECT + L/R/B)
+        if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_L)) {
+            // SELECT+L: Start recording
+            startRecording(&replay);
+            profilingInitialized = 0;  // Force redraw to show replay status
+        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_R)) {
+            // SELECT+R: Start playback (of recorded replay)
+            startPlayback(&replay);
+            profilingInitialized = 0;  // Force redraw to show replay status
+        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_B)) {
+            // SELECT+B: Stop and save replay to SRAM
+            if (replay.mode != REPLAY_MODE_OFF) {
+                stopReplay(&replay);
+                saveReplayToSRAM(&replay);
+                // Show confirmation
+                siprintf(replayStr, "SAVED %d frames", replay.frameCount);
+                draw_bg_text_slot(replayStr, 1, 7, 14);
+                profilingInitialized = 0;  // Force redraw later
+            }
+        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_DOWN)) {
+            // SELECT+DOWN: Load replay from SRAM
+            loadReplayFromSRAM(&replay);
+            if (replay.frameCount > 0) {
+                startPlayback(&replay);
+                siprintf(replayStr, "LOADED %d frames", replay.frameCount);
+                draw_bg_text_slot(replayStr, 1, 7, 14);
+                profilingInitialized = 0;
+            } else {
+                siprintf(replayStr, "No replay in save");
+                draw_bg_text_slot(replayStr, 1, 7, 14);
+            }
+        }
+
+        // Use replay input if playing back
+        if (replay.mode == REPLAY_MODE_PLAYBACK) {
+            keys = getPlaybackInput(&replay);
+            if (replay.mode == REPLAY_MODE_OFF) {
+                // Playback finished
+                profilingInitialized = 0;  // Force redraw
+            }
+        }
+
+        // Record input if recording
+        if (replay.mode == REPLAY_MODE_RECORDING) {
+            recordFrame(&replay, keys);
+        }
+
         u16 pressed = keys & ~prevKeys;
         prevKeys = keys;
 
@@ -226,7 +281,28 @@ int main() {
                 draw_bg_text_slot(tilemapTimeStr, 1, 4, PROFILING_SLOT_TILEMAP);
                 draw_bg_text_slot(renderTimeStr, 1, 5, PROFILING_SLOT_RENDER);
                 draw_bg_text_slot(totalTimeStr, 1, 6, PROFILING_SLOT_TOTAL);
+
+                // Replay status
+                if (replay.mode == REPLAY_MODE_RECORDING) {
+                    siprintf(replayStr, "REC: %d/%d", replay.frameCount, MAX_REPLAY_FRAMES);
+                } else if (replay.mode == REPLAY_MODE_PLAYBACK) {
+                    siprintf(replayStr, "PLAY: %d/%d", replay.currentFrame, replay.frameCount);
+                } else {
+                    siprintf(replayStr, "L:Rec B:Save DOWN:Load");
+                }
+                draw_bg_text_slot(replayStr, 1, 7, 14);
+
                 profilingInitialized = 1;
+            }
+
+            // Update replay status every 60 frames
+            if (frameCount % 60 == 0 && replay.mode != REPLAY_MODE_OFF) {
+                if (replay.mode == REPLAY_MODE_RECORDING) {
+                    siprintf(replayStr, "REC: %d/%d", replay.frameCount, MAX_REPLAY_FRAMES);
+                } else if (replay.mode == REPLAY_MODE_PLAYBACK) {
+                    siprintf(replayStr, "PLAY: %d/%d", replay.currentFrame, replay.frameCount);
+                }
+                draw_bg_text_slot(replayStr, 1, 7, 14);
             }
 
             // Check for START to return to menu

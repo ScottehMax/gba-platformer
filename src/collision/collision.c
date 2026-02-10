@@ -147,7 +147,6 @@ void collideVertical(Player* player, const Level* level) {
                         player->y = (tileTop - PLAYER_RADIUS_Y) << FIXED_SHIFT;
                         player->vy = 0;
                         player->onGround = 1;
-                        if (player->dashing > 0) player->dashing = 0;
                     } else {
                         // Moving up, try corner correction before snapping
                         int originalX = player->x;

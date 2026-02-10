@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o replay.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -79,6 +79,11 @@ text.o: $(SRCDIR)/core/text.c $(SRCDIR)/core/text.h $(GENDIR)/tinypixie.h assets
 debug_utils.o: $(SRCDIR)/core/debug_utils.c $(SRCDIR)/core/debug_utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Replay module
+replay.o: $(SRCDIR)/core/replay.c $(SRCDIR)/core/replay.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
 # Level module
 level.o: $(SRCDIR)/level/level.c $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -92,11 +97,27 @@ collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player module
-player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h $(LEVEL_HEADERS)
+player.o: $(SRCDIR)/player/player.c $(SRCDIR)/player/player.h $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player rendering module
 player_render.o: $(SRCDIR)/player/player_render.c $(SRCDIR)/player/player_render.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state machine
+state.o: $(SRCDIR)/player/state.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state: Normal
+state_normal.o: $(SRCDIR)/player/state/normal.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state: Dash
+state_dash.o: $(SRCDIR)/player/state/dash.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state: Climb
+state_climb.o: $(SRCDIR)/player/state/climb.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Menu module

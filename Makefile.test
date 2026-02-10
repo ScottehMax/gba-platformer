@@ -1,0 +1,55 @@
+# Test suite build for mechanics testing
+CC = gcc
+CFLAGS = -Wall -O2 -DDESKTOP_BUILD -I. -Isrc -Isrc/desktop -Itests
+LDFLAGS = -lm
+
+TARGET = run_tests
+
+# Core game code (same as desktop build)
+CORE_SRCS = \
+	src/player/player.c \
+	src/player/state.c \
+	src/player/state/normal.c \
+	src/player/state/dash.c \
+	src/player/state/climb.c \
+	src/collision/collision.c \
+	src/core/replay.c
+
+# Test framework
+TEST_FRAMEWORK_SRCS = \
+	tests/test_framework.c \
+	tests/run_tests.c
+
+# Test cases
+TEST_CASE_SRCS = \
+	tests/mechanics/diagonal_dash_slide.c
+
+# Desktop stubs
+DESKTOP_SRCS = \
+	src/desktop/desktop_stubs.c
+
+SRCS = $(CORE_SRCS) $(TEST_FRAMEWORK_SRCS) $(TEST_CASE_SRCS) $(DESKTOP_SRCS)
+OBJS = $(SRCS:.c=.o)
+
+# Ensure level data is generated before building tests
+LEVEL_HEADER = generated/level3.h
+
+all: $(LEVEL_HEADER) $(TARGET)
+
+$(LEVEL_HEADER):
+	@echo "Level data not found. Running GBA build to generate..."
+	$(MAKE) -f Makefile
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c $(LEVEL_HEADER)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+test: $(TARGET)
+	./$(TARGET)
+
+.PHONY: all clean test

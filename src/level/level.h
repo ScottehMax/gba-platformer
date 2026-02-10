@@ -1,7 +1,11 @@
 #ifndef LEVEL_H
 #define LEVEL_H
 
+#ifdef DESKTOP_BUILD
+#include "desktop/desktop_stubs.h"
+#else
 #include <tonc.h>
+#endif
 
 typedef struct {
     const char* type;
@@ -44,7 +48,11 @@ typedef struct {
     const u8* tilePaletteBanks;
 } Level;
 
+#ifdef DESKTOP_BUILD
+#include "../../generated/level3.h"
+#else
 #include "level3.h"
+#endif
 
 /**
  * Get the tile ID at the specified tile coordinates for a specific layer

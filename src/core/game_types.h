@@ -1,10 +1,33 @@
 #ifndef GAME_TYPES_H
 #define GAME_TYPES_H
 
+#ifdef DESKTOP_BUILD
+#include "desktop/desktop_stubs.h"
+#else
 #include <tonc.h>
+#endif
+
 #include "game_math.h"
 
+// Forward declarations
+typedef struct Player Player;
+
+// State callback structure (using void* to avoid circular dependencies)
 typedef struct {
+    void* update;   // int (*)(Player*, u16, const Level*)
+    void* begin;    // void (*)(Player*)
+    void* end;      // void (*)(Player*)
+} StateCallbacks;
+
+// State machine structure
+typedef struct {
+    int state;
+    int previousState;
+    StateCallbacks callbacks[10];  // Max 10 states for now
+} StateMachine;
+
+// Player structure
+struct Player {
     int x;  // Fixed-point
     int y;  // Fixed-point
     float vx; // Floating-point
@@ -30,6 +53,9 @@ typedef struct {
 
     // Dash attack (for super jumps)
     int dashAttackTimer;   // Frames remaining where super jumps can be triggered (set on dash start)
+    int dashDirX;          // Dash direction X: -1=left, 0=none, 1=right
+    int dashDirY;          // Dash direction Y: -1=up, 0=none, 1=down
+    int ducking;           // 1 if player is ducking (affects super jump height)
 
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions
@@ -38,7 +64,10 @@ typedef struct {
     int trailIndex;  // Current trail buffer index
     int trailTimer;  // Frames since last trail update
     int trailFadeTimer;  // Frames since dash ended (for gradual fade)
-} Player;
+
+    // State machine
+    StateMachine stateMachine;
+};
 
 typedef struct {
     int x;  // Camera X in pixels

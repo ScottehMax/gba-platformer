@@ -45,6 +45,12 @@
 #define SUPER_WALL_JUMP_SPEED TO_GBA(-160.0f)  // -682.67 - Stronger than normal jump
 #define SUPER_WALL_JUMP_VAR_TIME 15  // 0.25s at 60fps - Longer var jump time
 #define DASH_ATTACK_TIME 18  // 0.3s at 60fps - Window for super jumps after dash
+#define DODGE_SLIDE_SPEED_MULT 1.2f  // Speed multiplier for diagonal down dash on ground
+#define DUCK_SUPER_JUMP_X_MULT 1.25f  // Horizontal boost for ducking super jump
+#define DUCK_SUPER_JUMP_Y_MULT 0.5f   // Vertical reduction for ducking super jump (makes it shorter)
+
+// Ducking
+#define DUCK_FRICTION TO_GBA(500.0f)  // 2133.33 - Friction when ducking on ground
 
 
 // Corner correction
@@ -53,7 +59,7 @@
 #define BONK_NUDGE_RANGE (FIXED_ONE * 6)  // Max pixels for ceiling corner nudge
 
 // Player constants
-#define PLAYER_RADIUS_X 6  // Half-width of player hitbox
+#define PLAYER_RADIUS_X 4  // Half-width of player hitbox
 #define PLAYER_RADIUS_Y 8  // Half-height of player hitbox
 #define TRAIL_LENGTH 3  // Trail sprites per dash
 
