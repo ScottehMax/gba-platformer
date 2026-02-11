@@ -1,7 +1,9 @@
 # State Machine Implementation
 
 ## Overview
-Successfully ported the Celeste state machine system to the GBA platformer. The implementation closely follows the C# code structure from `Player.cs`.
+AGENT: MAKE SURE you read the .cs file mentioned whenever asked to make any new changes! This is supposed to be a direct port, and prior attempts may not have always caught everything. Do NOT implement anything that is not in the C# file! Make sure every change is justified by being equivalent!
+
+Successfully ported the Celeste state machine system to the GBA platformer. The implementation closely follows the C# code structure from `D:\Projects\Celeste\Source\Player\Player.cs`.
 
 ## File Structure
 
@@ -229,11 +231,50 @@ state_dash.o: $(SRCDIR)/player/state/dash.c ...
 state_climb.o: $(SRCDIR)/player/state/climb.c ...
 ```
 
+## Recent Updates (2026-02-10)
+
+### Completed Missing Features
+
+1. **CanUnDuck Implementation** - Full ceiling collision checking with duck slide correction
+   - Uses `checkCeiling()` to detect blocking ceiling (collision.c line 231-249)
+   - Implements duck correct slide (Celeste line 2842-2854)
+   - Tries to slide left/right up to 4 pixels to find unduck position
+   - Falls back to staying ducked if no clear position found
+
+2. **Full Climb State Implementation** (climb.c - 254 lines)
+   - Complete stamina system (110 max, drains on climb/hold)
+   - Climb up/down with proper speeds and acceleration
+   - Climb jump (jump up while on wall) and wall jump (jump away)
+   - Climb hop over ledge when reaching top
+   - Slip check for hands-above-ledge detection
+   - Stamina costs: 45.45/s climbing up, 10/s holding still, 27.5 per jump
+   - Auto-release when stamina depleted
+   - Refills stamina on ground landing
+
+3. **New Constants Added** (game_math.h)
+   - Duck correct: `DUCK_CORRECT_CHECK` (4px), `DUCK_CORRECT_SLIDE` (50px/s)
+   - Climb speeds: `CLIMB_UP_SPEED` (-45), `CLIMB_DOWN_SPEED` (80), `CLIMB_SLIP_SPEED` (30)
+   - Climb costs: `CLIMB_UP_COST` (45.45/s), `CLIMB_STILL_COST` (10/s), `CLIMB_JUMP_COST` (27.5)
+   - Climb mechanics: `CLIMB_MAX_STAMINA` (110), `CLIMB_TIRED_THRESHOLD` (20), etc.
+
+4. **New Player Fields** (game_types.h)
+   - `stamina` - Current stamina (0-110)
+   - `climbNoMoveTimer` - Prevents grab spam (6 frames after grab)
+   - `lastClimbMove` - Tracks climb direction for stamina costs
+
+5. **Climb Entry** (normal.c line 110-127)
+   - Hold L to grab wall (ground or air, not ducking)
+   - Requires not moving away (vx not opposite facing) and vy >= 0
+   - Checks wall in facing direction or 1-2 pixels above (with clearance)
+   - Requires stamina > 20 (not tired)
+   - Automatically enters ST_CLIMB state
+
 ## Compilation Status
 
 ✅ Clean build with no errors
 ✅ No warnings
 ✅ ROM builds successfully (game.gba created)
+✅ All planned state machine features fully implemented
 
 ## Testing Checklist
 
@@ -246,6 +287,14 @@ state_climb.o: $(SRCDIR)/player/state/climb.c ...
 - [ ] Fast falling works
 - [ ] Dash refill on landing works
 - [ ] Coyote time still applies
+- [ ] Duck/unduck works with ceiling checks
+- [ ] Duck slide correction works when stuck
+- [ ] Climb grab works (hold L near wall)
+- [ ] Climb up/down works
+- [ ] Stamina drains properly
+- [ ] Climb jump works
+- [ ] Climb hop over ledge works
+- [ ] Release from climb works
 
 ## Code References
 
@@ -257,5 +306,11 @@ All implementations reference specific Celeste source lines:
 - **DashCoroutine**: Player.cs line 3548-3634
 - **DashBegin**: Player.cs line 3442-3467
 - **DashEnd**: Player.cs line 3469-3472
+- **CanUnDuck + DuckCorrectSlide**: Player.cs line 2835-2855
+- **ClimbBegin**: Player.cs line 3056-3078
+- **ClimbUpdate**: Player.cs line 3102-3277
+- **ClimbJump**: Player.cs line 1813-1842
+- **ClimbHop**: Player.cs line 3291-3314
+- **SlipCheck**: Player.cs line 3316-3325
 
 This ensures 1:1 accuracy with the original Celeste implementation.

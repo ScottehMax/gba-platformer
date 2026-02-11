@@ -211,12 +211,16 @@ void collideVertical(Player* player, const Level* level) {
     }
 }
 
-int checkWall(const Player* player, const Level* level, int dir) {
-    int screenX = player->x >> FIXED_SHIFT;
-    int screenY = player->y >> FIXED_SHIFT;
+int isPositionCollidingAt(const Level* level, int screenX, int screenY) {
+    return isPositionColliding(level, screenX, screenY);
+}
 
-    // Check for wall at WALL_JUMP_CHECK_DIST pixels away
-    int checkX = screenX + (dir * (PLAYER_RADIUS_X + WALL_JUMP_CHECK_DIST));
+int checkWallAt(const Player* player, const Level* level, int dir, int yAdd, int dist) {
+    int screenX = player->x >> FIXED_SHIFT;
+    int screenY = (player->y >> FIXED_SHIFT) + yAdd;
+
+    // Check for wall at requested distance
+    int checkX = screenX + (dir * (PLAYER_RADIUS_X + dist));
     int checkY = screenY;
 
     // Check the tile at the check position
@@ -225,4 +229,34 @@ int checkWall(const Player* player, const Level* level, int dir) {
 
     u16 tile = getTileAt(level, 0, tileX, tileY);
     return isTileSolid(level, tile);
+}
+
+int checkWall(const Player* player, const Level* level, int dir) {
+    return checkWallAt(player, level, dir, 0, WALL_JUMP_CHECK_DIST);
+}
+
+int checkCeiling(const Player* player, const Level* level) {
+    int screenX = player->x >> FIXED_SHIFT;
+    int screenY = player->y >> FIXED_SHIFT;
+
+    // When ducking, player has reduced height
+    // Check if standing height would collide with ceiling
+    // Standing uses full PLAYER_RADIUS_Y (8), ducking typically uses half
+    // We need to check if the top of standing hitbox would hit anything
+
+    int standingTop = screenY - PLAYER_RADIUS_Y;
+
+    // Check tiles above the player at standing height
+    int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
+    int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
+    int tileY = standingTop / 8;
+
+    for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+        u16 tile = getTileAt(level, 0, tx, tileY);
+        if (isTileSolid(level, tile)) {
+            return 1;  // Ceiling blocking
+        }
+    }
+
+    return 0;  // Clear to unduck
 }

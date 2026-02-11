@@ -55,7 +55,13 @@ struct Player {
     int dashAttackTimer;   // Frames remaining where super jumps can be triggered (set on dash start)
     int dashDirX;          // Dash direction X: -1=left, 0=none, 1=right
     int dashDirY;          // Dash direction Y: -1=up, 0=none, 1=down
+    float beforeDashSpeedX;  // Horizontal speed before dash (for preserving higher speeds)
     int ducking;           // 1 if player is ducking (affects super jump height)
+
+    // Climbing
+    float stamina;         // Current stamina (0-110)
+    int climbNoMoveTimer;  // Frames before climb movement is allowed (prevents grab spam)
+    int lastClimbMove;     // Last climb movement direction: -1=up, 0=still, 1=down
 
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions

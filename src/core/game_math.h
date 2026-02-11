@@ -51,7 +51,27 @@
 
 // Ducking
 #define DUCK_FRICTION TO_GBA(500.0f)  // 2133.33 - Friction when ducking on ground
+#define DUCK_CORRECT_CHECK 4  // Pixels to check for duck slide
+#define DUCK_CORRECT_SLIDE TO_GBA(50.0f)  // 213.33 - Speed when sliding to unduck
 
+
+// Climbing
+#define CLIMB_MAX_STAMINA 110.0f
+#define CLIMB_UP_COST (100.0f / 2.2f)  // 45.45 per second
+#define CLIMB_STILL_COST (100.0f / 10.0f)  // 10 per second
+#define CLIMB_JUMP_COST (110.0f / 4.0f)  // 27.5 per jump
+#define CLIMB_TIRED_THRESHOLD 20.0f
+#define CLIMB_UP_SPEED TO_GBA(-45.0f)  // -192
+#define CLIMB_DOWN_SPEED TO_GBA(80.0f)  // 341.33
+#define CLIMB_SLIP_SPEED TO_GBA(30.0f)  // 128
+#define CLIMB_ACCEL TO_GBA(900.0f)  // 3840
+#define CLIMB_GRAB_Y_MULT 0.2f
+#define CLIMB_NO_MOVE_TIME 6  // 0.1s at 60fps
+#define CLIMB_CHECK_DIST 2  // Pixels to check for wall
+#define CLIMB_UP_CHECK_DIST 2  // Pixels to check for climb up
+#define CLIMB_HOP_Y TO_GBA(-120.0f)  // -512
+#define CLIMB_HOP_X TO_GBA(100.0f)  // 426.67
+#define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps
 
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge

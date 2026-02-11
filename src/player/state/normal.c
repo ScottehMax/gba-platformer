@@ -41,9 +41,31 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     // Ducking (Celeste line 2831-2862)
     if (player->ducking) {
         if (player->onGround && !(keys & KEY_DOWN)) {
-            // Try to unduck
-            // TODO: Implement CanUnDuck check for ceiling collision
-            player->ducking = 0;
+            // Try to unduck (Celeste line 2835-2855)
+            if (!checkCeiling(player, level)) {
+                player->ducking = 0;
+            } else if (player->vx == 0) {
+                // Duck correct slide: try to slide sideways to find unblock position
+                // Celeste line 2842-2854
+                for (int i = DUCK_CORRECT_CHECK; i > 0; i--) {
+                    int origX = player->x;
+                    // Try right
+                    player->x = player->x + (i << FIXED_SHIFT);
+                    if (!checkCeiling(player, level)) {
+                        player->x = origX;
+                        player->vx = DUCK_CORRECT_SLIDE;
+                        break;
+                    }
+                    // Try left
+                    player->x = origX - (i << FIXED_SHIFT);
+                    if (!checkCeiling(player, level)) {
+                        player->x = origX;
+                        player->vx = -DUCK_CORRECT_SLIDE;
+                        break;
+                    }
+                    player->x = origX;  // Restore position
+                }
+            }
         }
     } else if (player->onGround && (keys & KEY_DOWN) && player->vy >= 0) {
         player->ducking = 1;
@@ -104,6 +126,31 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
             player->vy = player->vy < player->varJumpSpeed ? player->vy : player->varJumpSpeed;
         } else {
             player->varJumpTimer = 0;
+        }
+    }
+
+    // Climbing (Celeste line 2800-2819)
+    if ((keys & KEY_L) && player->stamina > CLIMB_TIRED_THRESHOLD && !player->ducking) {
+        int facingDir = player->facingRight ? 1 : -1;
+
+        // Allow grab from ground or air when not moving away
+        int speedDir = player->vx > 0 ? 1 : (player->vx < 0 ? -1 : 0);
+        if (player->vy >= 0 && speedDir != -facingDir) {
+            if (checkWallAt(player, level, facingDir, 0, CLIMB_CHECK_DIST)) {
+                player->ducking = 0;
+                return ST_CLIMB;
+            }
+
+            if (!(keys & KEY_DOWN)) {
+                for (int i = 1; i <= CLIMB_UP_CHECK_DIST; i++) {
+                    if (!isPositionCollidingAt(level, player->x >> FIXED_SHIFT, (player->y >> FIXED_SHIFT) - i) &&
+                        checkWallAt(player, level, facingDir, -i, CLIMB_CHECK_DIST)) {
+                        player->y -= i << FIXED_SHIFT;
+                        player->ducking = 0;
+                        return ST_CLIMB;
+                    }
+                }
+            }
         }
     }
 

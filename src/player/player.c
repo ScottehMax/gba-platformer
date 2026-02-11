@@ -26,6 +26,7 @@ void initPlayer(Player* player, const Level* level) {
     player->dashAttackTimer = 0;
     player->dashDirX = 0;
     player->dashDirY = 0;
+    player->beforeDashSpeedX = 0;
     player->ducking = 0;
     player->trailIndex = 0;
     player->trailTimer = 0;  // Counts down, when reaches 0 creates next trail sprite
@@ -37,6 +38,11 @@ void initPlayer(Player* player, const Level* level) {
         player->trailY[i] = -1000 << FIXED_SHIFT;
         player->trailFacing[i] = player->facingRight;
     }
+
+    // Initialize climb state
+    player->stamina = CLIMB_MAX_STAMINA;
+    player->climbNoMoveTimer = 0;
+    player->lastClimbMove = 0;
 
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
@@ -87,6 +93,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->trailFadeTimer++;
     }
 
+    // Climb no move timer
+    if (player->climbNoMoveTimer > 0) {
+        player->climbNoMoveTimer--;
+    }
+
     // === STATE MACHINE UPDATE ===
     // This is where the state-specific logic runs (Celeste line 632: StateMachine.Update())
     updateStateMachine(&player->stateMachine, player, keys, level);
@@ -128,6 +139,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime = COYOTE_TIME;  // Reset when grounded
         player->jumpHeld = 0;
         player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer on landing
+        player->stamina = CLIMB_MAX_STAMINA;  // Refill stamina on ground (Celeste line 3107-3108)
     } else if (player->coyoteTime > 0) {
         player->coyoteTime--;  // Count down when airborne
     }

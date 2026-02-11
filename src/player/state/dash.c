@@ -10,6 +10,7 @@ static void wallJump(Player* player, int dir);
 
 void dashBegin(Player* player) {
     // Celeste DashBegin (line 3442-3467)
+    player->beforeDashSpeedX = player->vx;
     player->dashCooldownTimer = DASH_COOLDOWN_TIME;
     player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;
     player->wallSlideTimer = WALL_SLIDE_TIME;
@@ -58,8 +59,7 @@ void dashCoroutineResume(Player* player, u16 keys) {
         return;
     }
 
-    // Store speed before setting dash speed (for preserving higher speed)
-    float beforeDashSpeedX = player->vx;
+    // Speed was stored in dashBegin (before zeroing out velocity)
 
     // Get dash direction from input (using prevKeys from when dash started)
     int dashX = 0, dashY = 0;
@@ -88,9 +88,9 @@ void dashCoroutineResume(Player* player, u16 keys) {
     }
 
     // Preserve higher speed if moving faster in same direction (Celeste line 3557-3558)
-    if ((beforeDashSpeedX > 0 && newSpeedX > 0) || (beforeDashSpeedX < 0 && newSpeedX < 0)) {
-        if (ABS(beforeDashSpeedX) > ABS(newSpeedX)) {
-            newSpeedX = beforeDashSpeedX;
+    if ((player->beforeDashSpeedX > 0 && newSpeedX > 0) || (player->beforeDashSpeedX < 0 && newSpeedX < 0)) {
+        if (ABS(player->beforeDashSpeedX) > ABS(newSpeedX)) {
+            newSpeedX = player->beforeDashSpeedX;
         }
     }
 
