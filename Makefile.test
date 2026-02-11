@@ -25,7 +25,8 @@ TEST_CASE_SRCS = \
 	tests/mechanics/diagonal_dash_slide.c \
 	tests/mechanics/dash_height_replay.c \
 	tests/mechanics/climb_stamina_glitch.c \
-	tests/mechanics/wall_grab_slide.c
+	tests/mechanics/wall_grab_slide.c \
+	tests/mechanics/climb_hop_ledge.c
 
 # Desktop stubs
 DESKTOP_SRCS = \

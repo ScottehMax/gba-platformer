@@ -5,7 +5,7 @@
 
 // Forward declarations
 static void climbJump(Player* player, u16 keys);
-static void climbHop(Player* player);
+static void climbHop(Player* player, const Level* level);
 static void wallJump(Player* player, int dir);
 static int slipCheck(const Player* player, const Level* level, int addY);
 
@@ -82,7 +82,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     if (!checkWallAt(player, level, facingDir, 0, CLIMB_CHECK_DIST)) {
         // Climbed over ledge
         if (player->vy < 0) {
-            climbHop(player);
+            climbHop(player, level);
         }
         return ST_NORMAL;
     }
@@ -96,15 +96,15 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
             // Climbing up
             target = CLIMB_UP_SPEED;
 
-            // Check if can climb up or if blocked
+            // Check if can climb up or if blocked (Celeste line 3190-3203)
             int checkY = (player->y - (PLAYER_RADIUS_Y << FIXED_SHIFT)) >> FIXED_SHIFT;
             int tileY = checkY / 8;
             int screenX = player->x >> FIXED_SHIFT;
             int tileX = screenX / 8;
             u16 tile = getTileAt(level, 0, tileX, tileY);
 
-            if (isTileSolid(level, tile) || slipCheck(player, level, -1)) {
-                // Blocked or at top, try to hop
+            if (isTileSolid(level, tile)) {
+                // Blocked by ceiling
                 if (player->vy < 0) {
                     player->vy = 0;
                 }
@@ -112,7 +112,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
                 trySlip = 1;
             } else if (slipCheck(player, level, 0)) {
                 // Hands above ledge, hop over
-                climbHop(player);
+                climbHop(player, level);
                 return ST_NORMAL;
             }
         } else if (moveY == 1) {
@@ -203,15 +203,36 @@ static void climbJump(Player* player, u16 keys) {
 }
 
 // Helper: Climb Hop (Celeste line 3291-3314)
-static void climbHop(Player* player) {
+static void climbHop(Player* player, const Level* level) {
     int facingDir = player->facingRight ? 1 : -1;
 
-    player->vx = facingDir * CLIMB_HOP_X;
+    // climbHopSolid = CollideFirst<Solid>(Position + Vector2.UnitX * (int)Facing); (line 3293)
+    // Check at center so full hitbox is considered (avoid feet colliding after hop)
+    int climbHopSolid = checkWallAt(player, level, facingDir, 0, 1);
 
-    // Min with current vy (don't reduce upward speed)
+    // playFootstepOnLand = 0.5f; (line 3294) - audio/visual, skip for GBA
+
+    if (climbHopSolid) {
+        // Celeste line 3296-3300: solid found, use hopWaitX system
+        player->hopWaitX = facingDir;
+        player->hopWaitXSpeed = facingDir * CLIMB_HOP_X;
+    } else {
+        // Celeste line 3302-3305: no solid, apply horizontal speed immediately
+        player->hopWaitX = 0;
+        player->vx = facingDir * CLIMB_HOP_X;
+    }
+
+    // Speed.Y = Math.Min(Speed.Y, ClimbHopY); (line 3308)
     if (player->vy > CLIMB_HOP_Y) {
         player->vy = CLIMB_HOP_Y;
     }
+
+    // forceMoveX = 0; forceMoveXTimer = ClimbHopForceTime; (line 3309-3310)
+    player->forceMoveX = 0;
+    player->forceMoveXTimer = CLIMB_HOP_FORCE_TIME;
+
+    // fastJump = false; noWindTimer = ClimbHopNoWindTime; (line 3311-3312) - skip for GBA
+    // Play(Sfxs.char_mad_climb_ledge); (line 3313) - audio, skip for GBA
 }
 
 // Helper: Slip Check (Celeste line 3316-3325)

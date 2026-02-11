@@ -8,6 +8,7 @@ void initReplay(ReplayState* replay) {
     replay->currentFrame = 0;
     replay->startX = 0;
     replay->startY = 0;
+    replay->levelIndex = 0;
     memset(replay->inputs, 0, sizeof(replay->inputs));
 }
 
@@ -155,6 +156,14 @@ void getReplayStartPosition(ReplayState* replay, int* x, int* y) {
     *y = replay->startY;
 }
 
+void setReplayLevel(ReplayState* replay, int levelIndex) {
+    replay->levelIndex = levelIndex;
+}
+
+int getReplayLevel(ReplayState* replay) {
+    return replay->levelIndex;
+}
+
 // SRAM save/load - must use byte writes for GBA SRAM
 #ifndef DESKTOP_BUILD
 #define SRAM_START ((u8*)0x0E000000)
@@ -184,8 +193,14 @@ void saveReplayToSRAM(ReplayState* replay) {
     sram[11] = (replay->startY >> 16) & 0xFF;
     sram[12] = (replay->startY >> 24) & 0xFF;
 
+    // Write level index (4 bytes, little endian)
+    sram[13] = (replay->levelIndex >> 0) & 0xFF;
+    sram[14] = (replay->levelIndex >> 8) & 0xFF;
+    sram[15] = (replay->levelIndex >> 16) & 0xFF;
+    sram[16] = (replay->levelIndex >> 24) & 0xFF;
+
     // Write input data (2 bytes per frame, little endian)
-    int offset = 13;
+    int offset = 17;
     for (int i = 0; i < replay->frameCount && i < MAX_REPLAY_FRAMES; i++) {
         sram[offset++] = (replay->inputs[i] >> 0) & 0xFF;  // Low byte
         sram[offset++] = (replay->inputs[i] >> 8) & 0xFF;  // High byte
@@ -214,8 +229,11 @@ void loadReplayFromSRAM(ReplayState* replay) {
     replay->startX = sram[5] | (sram[6] << 8) | (sram[7] << 16) | (sram[8] << 24);
     replay->startY = sram[9] | (sram[10] << 8) | (sram[11] << 16) | (sram[12] << 24);
 
+    // Read level index (4 bytes, little endian)
+    replay->levelIndex = sram[13] | (sram[14] << 8) | (sram[15] << 16) | (sram[16] << 24);
+
     // Read input data (2 bytes per frame, little endian)
-    int offset = 13;
+    int offset = 17;
     for (int i = 0; i < replay->frameCount; i++) {
         u8 low = sram[offset++];
         u8 high = sram[offset++];

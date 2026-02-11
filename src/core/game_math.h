@@ -71,6 +71,7 @@
 #define CLIMB_UP_CHECK_DIST 2  // Pixels to check for climb up
 #define CLIMB_HOP_Y TO_GBA(-120.0f)  // -512
 #define CLIMB_HOP_X TO_GBA(100.0f)  // 426.67
+#define CLIMB_HOP_FORCE_TIME 12  // 0.2s at 60fps - Force no horizontal input after climb hop (Celeste line 117)
 #define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps - Window to convert climb jump to wall jump
 
 // Corner correction
@@ -78,9 +79,14 @@
 #define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop
 #define BONK_NUDGE_RANGE (FIXED_ONE * 6)  // Max pixels for ceiling corner nudge
 
-// Player constants
-#define PLAYER_RADIUS_X 4  // Half-width of player hitbox
-#define PLAYER_RADIUS_Y 8  // Half-height of player hitbox
+// Player constants (exactly matching Celeste's 8x11 hitbox)
+#define PLAYER_WIDTH 8
+#define PLAYER_HEIGHT 11
+#define PLAYER_HITBOX_Y_SHIFT 3  // Higher value = player stands higher on ground (shifts hitbox down relative to center)
+#define PLAYER_TOP(y) ((y) - PLAYER_HEIGHT / 2 - 1 + PLAYER_HITBOX_Y_SHIFT)
+#define PLAYER_BOTTOM(y) ((y) + PLAYER_HEIGHT / 2 + PLAYER_HITBOX_Y_SHIFT)
+#define PLAYER_RADIUS_X 4  // For compatibility
+#define PLAYER_RADIUS_Y 5  // For compatibility
 #define TRAIL_LENGTH 3  // Trail sprites per dash
 
 #endif

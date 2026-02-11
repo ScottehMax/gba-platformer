@@ -65,6 +65,12 @@ struct Player {
     int wallBoostTimer;    // Frames remaining to convert climb jump to wall jump (refunds stamina)
     int wallBoostDir;      // Direction to press for wall boost: -1=left, 1=right
 
+    // Climb hop system (Celeste Player.cs line 218-219)
+    int hopWaitX;          // If you climb hop onto a solid, snap beside it until you get above it
+    float hopWaitXSpeed;   // Horizontal speed to apply when hopWaitX releases
+    int forceMoveX;        // Force horizontal input to this value
+    float forceMoveXTimer; // Frames remaining to force horizontal input
+
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions
     int trailY[TRAIL_LENGTH];

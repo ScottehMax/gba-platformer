@@ -1,15 +1,16 @@
 #include "collision.h"
 
 static int isPositionColliding(const Level* level, int screenX, int screenY) {
-    int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
-    int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
-    int tileMinY = (screenY - PLAYER_RADIUS_Y) / 8;
-    int tileMaxY = (screenY + PLAYER_RADIUS_Y) / 8;
+    // 8x11 hitbox with configurable Y shift (adjust PLAYER_HITBOX_Y_SHIFT to change sprite ground position)
+    int playerLeft = screenX - PLAYER_WIDTH / 2;
+    int playerRight = screenX + PLAYER_WIDTH / 2;
+    int playerTop = PLAYER_TOP(screenY);
+    int playerBottom = PLAYER_BOTTOM(screenY);
 
-    int playerLeft = screenX - PLAYER_RADIUS_X;
-    int playerRight = screenX + PLAYER_RADIUS_X;
-    int playerTop = screenY - PLAYER_RADIUS_Y;
-    int playerBottom = screenY + PLAYER_RADIUS_Y;
+    int tileMinX = playerLeft / 8;
+    int tileMaxX = playerRight / 8;
+    int tileMinY = playerTop / 8;
+    int tileMaxY = playerBottom / 8;
 
     for (int ty = tileMinY; ty <= tileMaxY; ty++) {
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
@@ -40,19 +41,25 @@ void collideHorizontal(Player* player, const Level* level) {
 
     // Level bounds
     int levelWidthPx = level->width * 8;
-    if (screenX < PLAYER_RADIUS_X) {
-        player->x = PLAYER_RADIUS_X << FIXED_SHIFT;
+    int halfWidth = PLAYER_WIDTH / 2;
+    if (screenX < halfWidth) {
+        player->x = halfWidth << FIXED_SHIFT;
         player->vx = 0;
-    } else if (screenX > levelWidthPx - PLAYER_RADIUS_X) {
-        player->x = (levelWidthPx - PLAYER_RADIUS_X) << FIXED_SHIFT;
+    } else if (screenX > levelWidthPx - halfWidth) {
+        player->x = (levelWidthPx - halfWidth) << FIXED_SHIFT;
         player->vx = 0;
     } else {
         // Check for tile collision at new X position
         screenX = player->x >> FIXED_SHIFT;
-        int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
-        int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
-        int tileMinY = (screenY - PLAYER_RADIUS_Y) / 8;
-        int tileMaxY = (screenY + PLAYER_RADIUS_Y) / 8;
+        int playerLeft = screenX - PLAYER_WIDTH / 2;
+        int playerRight = screenX + PLAYER_WIDTH / 2;
+        int playerTop = PLAYER_TOP(screenY);
+        int playerBottom = PLAYER_BOTTOM(screenY);
+
+        int tileMinX = playerLeft / 8;
+        int tileMaxX = playerRight / 8;
+        int tileMinY = playerTop / 8;
+        int tileMaxY = playerBottom / 8;
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
@@ -64,17 +71,12 @@ void collideHorizontal(Player* player, const Level* level) {
                 int tileTop = ty * 8;
                 int tileBottom = (ty + 1) * 8;
 
-                int playerLeft = screenX - PLAYER_RADIUS_X;
-                int playerRight = screenX + PLAYER_RADIUS_X;
-                int playerTop = screenY - PLAYER_RADIUS_Y;
-                int playerBottom = screenY + PLAYER_RADIUS_Y;
-
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
                     // Collision - snap to tile edge instead of reverting
                     int snappedX = player->vx > 0
-                        ? (tileLeft - PLAYER_RADIUS_X) << FIXED_SHIFT
-                        : (tileRight + PLAYER_RADIUS_X) << FIXED_SHIFT;
+                        ? (tileLeft - PLAYER_WIDTH / 2) << FIXED_SHIFT
+                        : (tileRight + PLAYER_WIDTH / 2) << FIXED_SHIFT;
 
                     // Dash ledge pop: pop up only if overlap is within range
                     int popped = 0;
@@ -114,15 +116,20 @@ void collideVertical(Player* player, const Level* level) {
     player->onGround = 0;
 
     // Ceiling bounds
-    if (screenY - PLAYER_RADIUS_Y < 0) {
-        player->y = PLAYER_RADIUS_Y << FIXED_SHIFT;
+    if (PLAYER_TOP(screenY) < 0) {
+        player->y = -PLAYER_TOP(0) << FIXED_SHIFT;
         player->vy = 0;
     } else {
         // Check for tile collision at new Y position
-        int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
-        int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
-        int tileMinY = (screenY - PLAYER_RADIUS_Y) / 8;
-        int tileMaxY = (screenY + PLAYER_RADIUS_Y) / 8;
+        int playerLeft = screenX - PLAYER_WIDTH / 2;
+        int playerRight = screenX + PLAYER_WIDTH / 2;
+        int playerTop = PLAYER_TOP(screenY);
+        int playerBottom = PLAYER_BOTTOM(screenY);
+
+        int tileMinX = playerLeft / 8;
+        int tileMaxX = playerRight / 8;
+        int tileMinY = playerTop / 8;
+        int tileMaxY = playerBottom / 8;
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
@@ -134,17 +141,13 @@ void collideVertical(Player* player, const Level* level) {
                 int tileTop = ty * 8;
                 int tileBottom = (ty + 1) * 8;
 
-                int playerLeft = screenX - PLAYER_RADIUS_X;
-                int playerRight = screenX + PLAYER_RADIUS_X;
-                int playerTop = screenY - PLAYER_RADIUS_Y;
-                int playerBottom = screenY + PLAYER_RADIUS_Y;
-
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
                     // Collision - snap to tile edge
                     if (player->vy > 0) {
-                        // Moving down, snap to top of tile
-                        player->y = (tileTop - PLAYER_RADIUS_Y) << FIXED_SHIFT;
+                        // Moving down, snap to top of tile (player bottom at tileTop)
+                        // PLAYER_BOTTOM(Y) = tileTop, so solve for Y
+                        player->y = (tileTop - PLAYER_HEIGHT / 2 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
                         player->vy = 0;
                         player->onGround = 1;
                     } else {
@@ -174,7 +177,8 @@ void collideVertical(Player* player, const Level* level) {
 
                         if (!nudged) {
                             player->x = originalX;
-                            player->y = (tileBottom + PLAYER_RADIUS_Y) << FIXED_SHIFT;
+                            // PLAYER_TOP(Y) = tileBottom, so solve for Y
+                            player->y = (tileBottom + PLAYER_HEIGHT / 2 + 1 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
                             player->vy = 0;
                         }
                     }
@@ -188,12 +192,12 @@ void collideVertical(Player* player, const Level* level) {
     if (!player->onGround && player->vy >= 0) {
         screenX = player->x >> FIXED_SHIFT;
         screenY = player->y >> FIXED_SHIFT;
-        int playerBottom = screenY + PLAYER_RADIUS_Y;
-        int playerLeft = screenX - PLAYER_RADIUS_X;
-        int playerRight = screenX + PLAYER_RADIUS_X;
-        int feetY = (screenY + PLAYER_RADIUS_Y + 1) / 8;
-        int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
-        int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
+        int playerBottom = PLAYER_BOTTOM(screenY);
+        int playerLeft = screenX - PLAYER_WIDTH / 2;
+        int playerRight = screenX + PLAYER_WIDTH / 2;
+        int feetY = (playerBottom + 1) / 8;
+        int tileMinX = playerLeft / 8;
+        int tileMaxX = playerRight / 8;
 
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
             u16 tile = getTileAt(level, 0, tx, feetY);
@@ -203,6 +207,9 @@ void collideVertical(Player* player, const Level* level) {
                 int tileRight = (tx + 1) * 8;
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom >= tileTop - 1 && playerBottom <= tileTop + 1) {
+                    // Snap to ground position (same as normal landing)
+                    player->y = (tileTop - PLAYER_HEIGHT / 2 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
+                    player->vy = 0;
                     player->onGround = 1;
                     break;
                 }
@@ -239,11 +246,11 @@ int checkCeiling(const Player* player, const Level* level) {
     // Standing uses full PLAYER_RADIUS_Y (8), ducking typically uses half
     // We need to check if the top of standing hitbox would hit anything
 
-    int standingTop = screenY - PLAYER_RADIUS_Y;
+    int standingTop = PLAYER_TOP(screenY);
 
     // Check tiles above the player at standing height
-    int tileMinX = (screenX - PLAYER_RADIUS_X) / 8;
-    int tileMaxX = (screenX + PLAYER_RADIUS_X) / 8;
+    int tileMinX = (screenX - PLAYER_WIDTH / 2) / 8;
+    int tileMaxX = (screenX + PLAYER_WIDTH / 2) / 8;
     int tileY = standingTop / 8;
 
     for (int tx = tileMinX; tx <= tileMaxX; tx++) {

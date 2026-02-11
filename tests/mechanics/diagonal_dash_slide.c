@@ -52,7 +52,7 @@ const MechanicsTest test_diagonal_dash_slide = {
     .startY = 28672,
     .verifyFrame = verifyNoDashBug,
     .expectFinalX = 77 << FIXED_SHIFT,  // Should stop around X=77
-    .expectFinalY = 112 << FIXED_SHIFT, // Should be on ground at Y=112
+    .expectFinalY = 112 << FIXED_SHIFT, // Should be on ground at Y=112 (adjusted for 11px hitbox + Y shift)
     .expectFinalVX = 0.0f,              // Should have stopped
     .expectFinalVY = 0.0f,              // Should be on ground
     .expectFinalState = ST_NORMAL,      // Should be in Normal state, not stuck in Dash

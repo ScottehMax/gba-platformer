@@ -218,9 +218,10 @@ int main() {
 
         // Replay controls (SELECT + L/R/B)
         if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_L)) {
-            // SELECT+L: Start recording and save current position
+            // SELECT+L: Start recording and save current position and level
             startRecording(&replay);
             setReplayStartPosition(&replay, player.x, player.y);
+            setReplayLevel(&replay, getCurrentLevelIndex());
             profilingInitialized = 0;  // Force redraw to show replay status
         } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_R)) {
             // SELECT+R: Start playback and restore position
@@ -243,9 +244,16 @@ int main() {
                 profilingInitialized = 0;  // Force redraw later
             }
         } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_DOWN)) {
-            // SELECT+DOWN: Load replay from SRAM and restore position
+            // SELECT+DOWN: Load replay from SRAM, switch level if needed, and restore position
             loadReplayFromSRAM(&replay);
             if (replay.frameCount > 0) {
+                int replayLevelIndex = getReplayLevel(&replay);
+
+                // Switch to the replay's level if different from current
+                if (replayLevelIndex != getCurrentLevelIndex()) {
+                    switchToLevel(replayLevelIndex, &player, &camera);
+                }
+
                 int startX, startY;
                 getReplayStartPosition(&replay, &startX, &startY);
                 player.x = startX;

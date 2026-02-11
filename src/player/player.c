@@ -46,6 +46,12 @@ void initPlayer(Player* player, const Level* level) {
     player->wallBoostTimer = 0;
     player->wallBoostDir = 0;
 
+    // Initialize climb hop system (Celeste line 218-219)
+    player->hopWaitX = 0;
+    player->hopWaitXSpeed = 0;
+    player->forceMoveX = 0;
+    player->forceMoveXTimer = 0;
+
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
     setStateCallbacks(&player->stateMachine, ST_NORMAL, normalUpdate, normalBegin, normalEnd);
@@ -105,6 +111,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->wallBoostTimer--;
     }
 
+    // Force move X timer (Celeste line 762)
+    if (player->forceMoveXTimer > 0) {
+        player->forceMoveXTimer--;
+    }
+
     // === STATE MACHINE UPDATE ===
     // This is where the state-specific logic runs (Celeste line 632: StateMachine.Update())
     updateStateMachine(&player->stateMachine, player, keys, level);
@@ -115,6 +126,23 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Apply collision (Celeste does this in Actor.Update via MoveH/MoveV)
     collideHorizontal(player, level);
     collideVertical(player, level);
+
+    // Hop Wait X - delays horizontal movement after climb hop until above ledge (Celeste line 814-823)
+    if (player->hopWaitX != 0) {
+        // If moving away from wall OR moving down, cancel hopWaitX (Celeste line 816-817)
+        int vxSign = player->vx > 0 ? 1 : (player->vx < 0 ? -1 : 0);
+        if (vxSign == -player->hopWaitX || player->vy > 0) {
+            player->hopWaitX = 0;
+        } else {
+            // Check if there's no solid at Position + UnitX * hopWaitX (Celeste line 818)
+            // Check at center so full hitbox clears before applying velocity
+            if (!checkWallAt(player, level, player->hopWaitX, 0, 1)) {
+                // No wall ahead - apply the horizontal speed (Celeste line 820-821)
+                player->vx = player->hopWaitXSpeed;
+                player->hopWaitX = 0;
+            }
+        }
+    }
 
     // Dash coroutine resume (emulates Celeste's yield return null)
     // This sets the dash velocity AFTER collision has updated onGround

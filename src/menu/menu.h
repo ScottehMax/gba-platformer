@@ -25,4 +25,10 @@ int isInMenuMode(void);
 // Get the currently loaded level (NULL if in menu)
 const Level* getCurrentLevel(void);
 
+// Get current level index (-1 if in menu)
+int getCurrentLevelIndex(void);
+
+// Switch to a specific level by index
+void switchToLevel(int levelIndex, Player* player, Camera* camera);
+
 #endif // MENU_H

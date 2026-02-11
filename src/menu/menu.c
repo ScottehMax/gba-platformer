@@ -34,6 +34,7 @@ static int menuInitialized = 0;     // Whether menu text has been drawn
 
 // Current level (set by menu)
 static const Level* currentLevel = NULL;
+static int currentLevelIndex = -1;  // -1 means in menu
 
 // Tilemap state (accessed by menu functions)
 static int oldCameraTileX = -1;
@@ -48,6 +49,7 @@ void initMenu(void) {
     prevKeys = 0;
     menuInitialized = 0;
     currentLevel = NULL;
+    currentLevelIndex = -1;
     oldCameraTileX = -1;
     oldCameraTileY = -1;
 }
@@ -156,6 +158,7 @@ void resetTilemapState(void) {
 // Initialize gameplay for a selected level
 static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera) {
     currentLevel = levels[levelIndex].level;
+    currentLevelIndex = levelIndex;
 
     // Clear menu text and reset menu state
     clear_bg_text();
@@ -211,4 +214,25 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
 
     // Switch to gameplay mode
     inMenu = 0;
+}
+
+int getCurrentLevelIndex(void) {
+    return currentLevelIndex;
+}
+
+void switchToLevel(int levelIndex, Player* player, Camera* camera) {
+    // Validate level index
+    if (levelIndex < 0 || levelIndex >= LEVEL_COUNT) {
+        return;
+    }
+
+    // Switch to the requested level
+    initGameplayForLevel(levelIndex, player, camera);
+
+    // Initialize player for the level
+    initPlayer(player, currentLevel);
+
+    // Reset camera position
+    camera->x = 0;
+    camera->y = 0;
 }

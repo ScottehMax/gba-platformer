@@ -14,8 +14,9 @@ void normalBegin(Player* player, const Level* level) {
 }
 
 void normalEnd(Player* player) {
-    // Clear wall slide direction (Celeste line 2765-2769)
+    // Clear wall slide direction and climb hop state (Celeste line 2765-2769)
     player->wallSlideDir = 0;
+    player->hopWaitX = 0;
 }
 
 int normalUpdate(Player* player, u16 keys, const Level* level) {
@@ -24,6 +25,11 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
     // moveX for input direction (Celeste uses Input.MoveX)
     int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+
+    // Force Move X - overrides input after climb hop (Celeste line 760-764)
+    if (player->forceMoveXTimer > 0) {
+        moveX = player->forceMoveX;
+    }
 
     // Update facing direction based on movement (Celeste updates Facing in Sprite logic)
     if (moveX != 0) {
@@ -148,7 +154,9 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
         checkStamina += CLIMB_JUMP_COST;
     }
 
-    if ((keys & KEY_L) && checkStamina > CLIMB_TIRED_THRESHOLD && !player->ducking) {
+    // Climb grab - but not during forceMoveXTimer or hopWaitX (after climb hop)
+    if ((keys & KEY_L) && checkStamina > CLIMB_TIRED_THRESHOLD && !player->ducking &&
+        player->forceMoveXTimer <= 0 && player->hopWaitX == 0) {
         int facingDir = player->facingRight ? 1 : -1;
 
         // Allow grab from ground or air when not moving away

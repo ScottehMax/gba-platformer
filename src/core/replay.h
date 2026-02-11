@@ -24,6 +24,7 @@ typedef struct {
     int currentFrame;
     int startX;  // Starting X position (fixed-point)
     int startY;  // Starting Y position (fixed-point)
+    int levelIndex;  // Level index (for switching levels on load)
     u16 inputs[MAX_REPLAY_FRAMES];
 } ReplayState;
 
@@ -67,5 +68,9 @@ void loadReplayFromArray(ReplayState* replay, const u16* inputs, int frameCount)
 // Set/get starting position for replay
 void setReplayStartPosition(ReplayState* replay, int x, int y);
 void getReplayStartPosition(ReplayState* replay, int* x, int* y);
+
+// Set/get level index for replay
+void setReplayLevel(ReplayState* replay, int levelIndex);
+int getReplayLevel(ReplayState* replay);
 
 #endif

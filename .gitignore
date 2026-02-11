@@ -2,6 +2,7 @@
 *.o
 *.elf
 *.gba
+run_tests.exe
 
 # Generated files (grit outputs and level headers)
 generated/
