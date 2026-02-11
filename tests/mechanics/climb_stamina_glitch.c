@@ -5,6 +5,7 @@
 #include "../test_framework.h"
 #include "core/game_math.h"
 #include "player/state.h"
+#include "level/level.h"
 
 // Replay data from game.sav (climb stamina glitch around frame 330)
 static const u16 climb_stamina_inputs[] = {
@@ -145,6 +146,7 @@ const MechanicsTest test_climb_stamina_glitch = {
     .description = "Player should drain stamina smoothly while climbing, not jitter or freeze stamina",
     .inputs = climb_stamina_inputs,
     .frameCount = sizeof(climb_stamina_inputs) / sizeof(climb_stamina_inputs[0]),
+    .level = &Tutorial_Level,
     .verifyFrame = verifyClimbStamina,
     .expectFinalX = -1,
     .expectFinalY = -1,

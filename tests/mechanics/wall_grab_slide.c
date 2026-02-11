@@ -5,6 +5,7 @@
 #include "../test_framework.h"
 #include "core/game_math.h"
 #include "player/state.h"
+#include "level/level.h"
 
 // Replay data from game.sav (wall grab sliding issue around frame 350)
 static const u16 wall_grab_inputs[] = {
@@ -143,6 +144,7 @@ const MechanicsTest test_wall_grab_slide = {
     .description = "Player should grab and hold wall after jumping into it, not slide down",
     .inputs = wall_grab_inputs,
     .frameCount = sizeof(wall_grab_inputs) / sizeof(wall_grab_inputs[0]),
+    .level = &Tutorial_Level,
     .verifyFrame = verifyWallGrab,
     .expectFinalX = -1,
     .expectFinalY = -1,

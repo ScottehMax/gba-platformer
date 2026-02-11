@@ -23,6 +23,7 @@ typedef struct {
     const char* description;
     const u16* inputs;
     int frameCount;
+    const Level* level;    // Level to use for this test (if NULL, uses default)
 
     // Optional: custom verification per frame
     void (*verifyFrame)(const Player* player, int frame, TestResults* results);

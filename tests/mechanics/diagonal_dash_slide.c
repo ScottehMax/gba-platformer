@@ -4,6 +4,7 @@
 #include "../test_framework.h"
 #include "core/game_math.h"
 #include "player/state.h"
+#include "level/level.h"
 
 // Replay data from the diagonal dash bug test
 static const u16 diagonal_dash_inputs[] = {
@@ -46,6 +47,7 @@ const MechanicsTest test_diagonal_dash_slide = {
     .description = "Dash diagonally into ground should trigger dash slide, not infinite dash",
     .inputs = diagonal_dash_inputs,
     .frameCount = sizeof(diagonal_dash_inputs) / sizeof(diagonal_dash_inputs[0]),
+    .level = &Tutorial_Level,
     .verifyFrame = verifyNoDashBug,
     .expectFinalX = 77 << FIXED_SHIFT,  // Should stop around X=77
     .expectFinalY = 112 << FIXED_SHIFT, // Should be on ground at Y=112

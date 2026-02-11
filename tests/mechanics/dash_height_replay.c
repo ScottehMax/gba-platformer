@@ -5,6 +5,7 @@
 #include "../test_framework.h"
 #include "core/game_math.h"
 #include "player/state.h"
+#include "level/level.h"
 
 // Replay data from game.sav (dash height issue)
 static const u16 dash_height_inputs[] = {
@@ -91,6 +92,7 @@ const MechanicsTest test_dash_height = {
     .description = "Dash should maintain upward speed (no gravity drag during dash)",
     .inputs = dash_height_inputs,
     .frameCount = sizeof(dash_height_inputs) / sizeof(dash_height_inputs[0]),
+    .level = &Tutorial_Level,
     .verifyFrame = verifyDashHeight,
     .expectFinalX = -1,
     .expectFinalY = -1,

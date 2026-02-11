@@ -27,13 +27,14 @@ int main(int argc, char** argv) {
     TestResults results;
     initTestResults(&results);
 
-    // Use the real level for testing
-    const Level* testLevel = &Tutorial_Level;
+    // Default level for tests that don't specify one
+    // Individual tests can override this by setting .level in their struct
+    const Level* defaultLevel = &Tutorial_Level;
 
     // Run all tests
     int numTests = sizeof(all_tests) / sizeof(all_tests[0]);
     for (int i = 0; i < numTests; i++) {
-        runMechanicsTest(all_tests[i], testLevel, &results);
+        runMechanicsTest(all_tests[i], defaultLevel, &results);
     }
 
     // Print summary

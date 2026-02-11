@@ -13,11 +13,14 @@ void initTestResults(TestResults* results) {
     results->currentTest = NULL;
 }
 
-void runMechanicsTest(const MechanicsTest* test, const Level* level, TestResults* results) {
+void runMechanicsTest(const MechanicsTest* test, const Level* defaultLevel, TestResults* results) {
     results->currentTest = test->name;
 
     printf("\n[TEST] %s\n", test->name);
     printf("  Description: %s\n", test->description);
+
+    // Use test-specific level if provided, otherwise use default
+    const Level* level = test->level ? test->level : defaultLevel;
 
     // Initialize player
     Player player;
