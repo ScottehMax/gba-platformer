@@ -132,7 +132,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
 
     // Down limit: don't fall off bottom of wall (Celeste line 3233-3235)
     if (moveY != 1 && player->vy > 0) {
-        if (!checkWallAt(player, level, facingDir, 0, CLIMB_CHECK_DIST)) {
+        if (!checkWallAt(player, level, facingDir, 1, CLIMB_CHECK_DIST)) {
             player->vy = 0;
         }
     }
