@@ -113,12 +113,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // This sets the dash velocity AFTER collision has updated onGround
     if (player->stateMachine.state == ST_DASH) {
         dashCoroutineResume(player, keys);
-        dashSlideCheck(player);  // Check for dash slide after collision
     }
 
     // Variable jump height: cut upward velocity on release (Celeste line 1090)
     // This is shared across states
-    if (player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
+    if (player->stateMachine.state != ST_DASH && player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
         player->vy /= JUMP_RELEASE_MULTIPLIER;
         player->jumpHeld = 0;
     }
@@ -142,6 +141,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->stamina = CLIMB_MAX_STAMINA;  // Refill stamina on ground (Celeste line 3107-3108)
     } else if (player->coyoteTime > 0) {
         player->coyoteTime--;  // Count down when airborne
+    }
+
+    // Dash slide check (Celeste DashCoroutine after collision)
+    if (player->stateMachine.state == ST_DASH) {
+        dashSlideCheck(player);
     }
 
     // Refill dash when on ground (Celeste line 1047-1050)

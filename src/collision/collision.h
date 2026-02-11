@@ -46,6 +46,7 @@ int isPositionCollidingAt(const Level* level, int screenX, int screenY);
  * @param level The level to check against
  * @param dir Direction to check: 1 for right, -1 for left
  * @param yAdd Additional Y offset in pixels
+ * @param dist Distance from player center in pixels
  * @return 1 if there's a wall in that direction, 0 otherwise
  */
 int checkWallAt(const Player* player, const Level* level, int dir, int yAdd, int dist);

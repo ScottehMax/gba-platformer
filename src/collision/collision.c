@@ -219,16 +219,11 @@ int checkWallAt(const Player* player, const Level* level, int dir, int yAdd, int
     int screenX = player->x >> FIXED_SHIFT;
     int screenY = (player->y >> FIXED_SHIFT) + yAdd;
 
-    // Check for wall at requested distance
-    int checkX = screenX + (dir * (PLAYER_RADIUS_X + dist));
+    // Check for wall at requested distance (from player center)
+    int checkX = screenX + (dir * dist);
     int checkY = screenY;
 
-    // Check the tile at the check position
-    int tileX = checkX / 8;
-    int tileY = checkY / 8;
-
-    u16 tile = getTileAt(level, 0, tileX, tileY);
-    return isTileSolid(level, tile);
+    return isPositionCollidingAt(level, checkX, checkY);
 }
 
 int checkWall(const Player* player, const Level* level, int dir) {

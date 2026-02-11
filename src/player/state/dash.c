@@ -61,12 +61,12 @@ void dashCoroutineResume(Player* player, u16 keys) {
 
     // Speed was stored in dashBegin (before zeroing out velocity)
 
-    // Get dash direction from input (using prevKeys from when dash started)
+    // Get dash direction from current input (matches lastAim)
     int dashX = 0, dashY = 0;
-    if (player->prevKeys & KEY_LEFT) dashX = -1;
-    if (player->prevKeys & KEY_RIGHT) dashX = 1;
-    if (player->prevKeys & KEY_UP) dashY = -1;
-    if (player->prevKeys & KEY_DOWN) dashY = 1;
+    if (keys & KEY_LEFT) dashX = -1;
+    if (keys & KEY_RIGHT) dashX = 1;
+    if (keys & KEY_UP) dashY = -1;
+    if (keys & KEY_DOWN) dashY = 1;
 
     // If no direction held, dash forward based on facing
     if (dashX == 0 && dashY == 0) {

@@ -7,10 +7,12 @@
 
 // External test declarations
 extern const MechanicsTest test_diagonal_dash_slide;
+extern const MechanicsTest test_dash_height;
 
 // Test registry
 static const MechanicsTest* all_tests[] = {
     &test_diagonal_dash_slide,
+    &test_dash_height,
     // Add more tests here as they're created
 };
 
