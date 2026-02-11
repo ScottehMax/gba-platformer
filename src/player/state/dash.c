@@ -16,6 +16,7 @@ void dashBegin(Player* player, const Level* level) {
     player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = DASH_ATTACK_TIME;
+    player->wallBoostTimer = 0;
 
     // Zero speed initially (Celeste line 3462)
     // The actual dash speed is set after collision (matching yield return null)
@@ -215,6 +216,7 @@ static void superJump(Player* player) {
     player->varJumpTimer = VAR_JUMP_TIME;
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
+    player->dashing = 0;  // End dash so trail can fade
     player->onGround = 0;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
@@ -230,6 +232,7 @@ static void superWallJump(Player* player, int dir) {
     player->varJumpTimer = SUPER_WALL_JUMP_VAR_TIME;
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
+    player->dashing = 0;  // End dash so trail can fade
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 1;
@@ -245,6 +248,7 @@ static void wallJump(Player* player, int dir) {
     player->varJumpTimer = VAR_JUMP_TIME;
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
+    player->dashing = 0;  // End dash so trail can fade
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 1;

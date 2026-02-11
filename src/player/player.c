@@ -43,6 +43,8 @@ void initPlayer(Player* player, const Level* level) {
     player->stamina = CLIMB_MAX_STAMINA;
     player->climbNoMoveTimer = 0;
     player->lastClimbMove = 0;
+    player->wallBoostTimer = 0;
+    player->wallBoostDir = 0;
 
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
@@ -96,6 +98,11 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Climb no move timer
     if (player->climbNoMoveTimer > 0) {
         player->climbNoMoveTimer--;
+    }
+
+    // Wall boost timer
+    if (player->wallBoostTimer > 0) {
+        player->wallBoostTimer--;
     }
 
     // === STATE MACHINE UPDATE ===

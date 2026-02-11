@@ -62,6 +62,8 @@ struct Player {
     float stamina;         // Current stamina (0-110)
     int climbNoMoveTimer;  // Frames before climb movement is allowed (prevents grab spam)
     int lastClimbMove;     // Last climb movement direction: -1=up, 0=still, 1=down
+    int wallBoostTimer;    // Frames remaining to convert climb jump to wall jump (refunds stamina)
+    int wallBoostDir;      // Direction to press for wall boost: -1=left, 1=right
 
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions

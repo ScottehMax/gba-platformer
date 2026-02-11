@@ -71,7 +71,7 @@
 #define CLIMB_UP_CHECK_DIST 2  // Pixels to check for climb up
 #define CLIMB_HOP_Y TO_GBA(-120.0f)  // -512
 #define CLIMB_HOP_X TO_GBA(100.0f)  // 426.67
-#define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps
+#define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps - Window to convert climb jump to wall jump
 
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge

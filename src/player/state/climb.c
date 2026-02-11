@@ -16,6 +16,7 @@ void climbBegin(Player* player, const Level* level) {
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->climbNoMoveTimer = CLIMB_NO_MOVE_TIME;
     player->lastClimbMove = 0;
+    player->wallBoostTimer = 0;
 
     // Wall snapping (Celeste line 3068-3072)
     // Move player closer to wall, up to ClimbCheckDist pixels
@@ -190,9 +191,14 @@ static void climbJump(Player* player, u16 keys) {
     player->jumpHeld = 1;
 
     // If no horizontal input, boost away from wall (Celeste line 1826-1830)
+    // Also set up wall boost timer to allow converting to wall jump
     if (moveX == 0) {
         int facingDir = player->facingRight ? 1 : -1;
         player->vx = -facingDir * JUMP_HORIZONTAL_BOOST;
+
+        // Wall boost setup (Celeste line 1828-1829)
+        player->wallBoostDir = -facingDir;  // Direction opposite to facing
+        player->wallBoostTimer = CLIMB_JUMP_BOOST_TIME;
     }
 }
 

@@ -130,8 +130,25 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
         }
     }
 
+    // Wall Boost (Celeste line 689-698)
+    // After climb jump with no horizontal input, pressing away from wall converts to wall jump
+    if (player->wallBoostTimer > 0) {
+        if (moveX == player->wallBoostDir) {
+            // Convert climb jump to wall jump and refund stamina
+            player->vx = player->wallBoostDir * WALL_JUMP_H_SPEED;
+            player->stamina += CLIMB_JUMP_COST;
+            player->wallBoostTimer = 0;
+        }
+    }
+
     // Climbing (Celeste line 2800-2819)
-    if ((keys & KEY_L) && player->stamina > CLIMB_TIRED_THRESHOLD && !player->ducking) {
+    // CheckStamina logic (Celeste line 3035-3042): account for wallBoostTimer
+    float checkStamina = player->stamina;
+    if (player->wallBoostTimer > 0) {
+        checkStamina += CLIMB_JUMP_COST;
+    }
+
+    if ((keys & KEY_L) && checkStamina > CLIMB_TIRED_THRESHOLD && !player->ducking) {
         int facingDir = player->facingRight ? 1 : -1;
 
         // Allow grab from ground or air when not moving away
