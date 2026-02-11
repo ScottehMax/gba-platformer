@@ -7,8 +7,9 @@
 static void jump(Player* player, u16 keys);
 static void wallJump(Player* player, int dir);
 
-void normalBegin(Player* player) {
+void normalBegin(Player* player, const Level* level) {
     // Reset max fall to normal (Celeste line 2762)
+    (void)level;  // Unused in normal state
     player->maxFall = MAX_FALL_SPEED;
 }
 

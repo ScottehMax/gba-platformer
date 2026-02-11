@@ -52,7 +52,7 @@ void initPlayer(Player* player, const Level* level) {
     // TODO: Add more states as needed
 
     // Set initial state to Normal
-    setState(&player->stateMachine, ST_NORMAL, player);
+    setState(&player->stateMachine, ST_NORMAL, player, level);
 }
 
 void updatePlayer(Player* player, u16 keys, const Level* level) {

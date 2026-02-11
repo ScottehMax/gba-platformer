@@ -8,8 +8,9 @@ static void superJump(Player* player);
 static void superWallJump(Player* player, int dir);
 static void wallJump(Player* player, int dir);
 
-void dashBegin(Player* player) {
+void dashBegin(Player* player, const Level* level) {
     // Celeste DashBegin (line 3442-3467)
+    (void)level;  // Unused in dash state
     player->beforeDashSpeedX = player->vx;
     player->dashCooldownTimer = DASH_COOLDOWN_TIME;
     player->dashRefillCooldownTimer = DASH_REFILL_COOLDOWN_TIME;

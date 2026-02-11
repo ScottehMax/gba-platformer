@@ -9,7 +9,7 @@ static void climbHop(Player* player);
 static void wallJump(Player* player, int dir);
 static int slipCheck(const Player* player, const Level* level, int addY);
 
-void climbBegin(Player* player) {
+void climbBegin(Player* player, const Level* level) {
     // Celeste ClimbBegin (line 3056-3078)
     player->vx = 0;
     player->vy *= CLIMB_GRAB_Y_MULT;
@@ -17,10 +17,22 @@ void climbBegin(Player* player) {
     player->climbNoMoveTimer = CLIMB_NO_MOVE_TIME;
     player->lastClimbMove = 0;
 
-    // Note: Wall snapping (Celeste line 3068-3072) requires level parameter
-    // which isn't available in Begin callback. The player should already
-    // be close enough to the wall from normal state's wall check.
-    // If needed, this can be done in the first frame of climbUpdate.
+    // Wall snapping (Celeste line 3068-3072)
+    // Move player closer to wall, up to ClimbCheckDist pixels
+    int facingDir = player->facingRight ? 1 : -1;
+    for (int i = 0; i < CLIMB_CHECK_DIST; i++) {
+        // Check if moving 1 pixel toward wall would collide
+        int nextX = (player->x >> FIXED_SHIFT) + facingDir;
+        int currentY = player->y >> FIXED_SHIFT;
+
+        if (!isPositionCollidingAt(level, nextX, currentY)) {
+            // No collision at next position, move 1 pixel closer
+            player->x += (facingDir << FIXED_SHIFT);
+        } else {
+            // Would collide, stop here
+            break;
+        }
+    }
 }
 
 void climbEnd(Player* player) {

@@ -23,7 +23,7 @@ int updateStateMachine(StateMachine* sm, Player* player, u16 keys, const Level* 
 
         // If state changed, call end/begin callbacks
         if (nextState != sm->state) {
-            setState(sm, nextState, player);
+            setState(sm, nextState, player, level);
         }
 
         return nextState;
@@ -32,7 +32,7 @@ int updateStateMachine(StateMachine* sm, Player* player, u16 keys, const Level* 
     return sm->state;
 }
 
-void setState(StateMachine* sm, int newState, Player* player) {
+void setState(StateMachine* sm, int newState, Player* player, const Level* level) {
     if (newState == sm->state) {
         return;
     }
@@ -49,6 +49,6 @@ void setState(StateMachine* sm, int newState, Player* player) {
     // Call new state's begin callback
     if (sm->callbacks[sm->state].begin) {
         StateBeginFunc beginFunc = (StateBeginFunc)sm->callbacks[sm->state].begin;
-        beginFunc(player);
+        beginFunc(player, level);
     }
 }

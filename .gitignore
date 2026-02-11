@@ -6,6 +6,7 @@
 # Generated files (grit outputs and level headers)
 generated/
 levels/platformer.tiled-session
+src/replays/replay_data.c
 
 # GBA save files
 *.sav

@@ -18,28 +18,28 @@
 
 // State function typedefs (actual types, not void*)
 typedef int (*StateUpdateFunc)(Player* player, u16 keys, const Level* level);
-typedef void (*StateBeginFunc)(Player* player);
+typedef void (*StateBeginFunc)(Player* player, const Level* level);
 typedef void (*StateEndFunc)(Player* player);
 
 // State machine functions
 void initStateMachine(StateMachine* sm);
 void setStateCallbacks(StateMachine* sm, int state, StateUpdateFunc update, StateBeginFunc begin, StateEndFunc end);
 int updateStateMachine(StateMachine* sm, Player* player, u16 keys, const Level* level);
-void setState(StateMachine* sm, int newState, Player* player);
+void setState(StateMachine* sm, int newState, Player* player, const Level* level);
 
 // Individual state update functions (defined in state/*.c)
 int normalUpdate(Player* player, u16 keys, const Level* level);
-void normalBegin(Player* player);
+void normalBegin(Player* player, const Level* level);
 void normalEnd(Player* player);
 
 int dashUpdate(Player* player, u16 keys, const Level* level);
-void dashBegin(Player* player);
+void dashBegin(Player* player, const Level* level);
 void dashEnd(Player* player);
 void dashCoroutineResume(Player* player, u16 keys);
 void dashSlideCheck(Player* player);
 
 int climbUpdate(Player* player, u16 keys, const Level* level);
-void climbBegin(Player* player);
+void climbBegin(Player* player, const Level* level);
 void climbEnd(Player* player);
 
 #endif
