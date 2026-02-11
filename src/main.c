@@ -218,11 +218,18 @@ int main() {
 
         // Replay controls (SELECT + L/R/B)
         if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_L)) {
-            // SELECT+L: Start recording
+            // SELECT+L: Start recording and save current position
             startRecording(&replay);
+            setReplayStartPosition(&replay, player.x, player.y);
             profilingInitialized = 0;  // Force redraw to show replay status
         } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_R)) {
-            // SELECT+R: Start playback (of recorded replay)
+            // SELECT+R: Start playback and restore position
+            int startX, startY;
+            getReplayStartPosition(&replay, &startX, &startY);
+            player.x = startX;
+            player.y = startY;
+            player.vx = 0;
+            player.vy = 0;
             startPlayback(&replay);
             profilingInitialized = 0;  // Force redraw to show replay status
         } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_B)) {
@@ -236,9 +243,15 @@ int main() {
                 profilingInitialized = 0;  // Force redraw later
             }
         } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_DOWN)) {
-            // SELECT+DOWN: Load replay from SRAM
+            // SELECT+DOWN: Load replay from SRAM and restore position
             loadReplayFromSRAM(&replay);
             if (replay.frameCount > 0) {
+                int startX, startY;
+                getReplayStartPosition(&replay, &startX, &startY);
+                player.x = startX;
+                player.y = startY;
+                player.vx = 0;
+                player.vy = 0;
                 startPlayback(&replay);
                 siprintf(replayStr, "LOADED %d frames", replay.frameCount);
                 draw_bg_text_slot(replayStr, 1, 7, 14);

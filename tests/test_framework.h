@@ -24,6 +24,8 @@ typedef struct {
     const u16* inputs;
     int frameCount;
     const Level* level;    // Level to use for this test (if NULL, uses default)
+    int startX;            // Starting X position in fixed-point (0 = use level spawn)
+    int startY;            // Starting Y position in fixed-point (0 = use level spawn)
 
     // Optional: custom verification per frame
     void (*verifyFrame)(const Player* player, int frame, TestResults* results);

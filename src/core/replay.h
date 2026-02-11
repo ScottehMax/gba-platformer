@@ -22,6 +22,8 @@ typedef struct {
     ReplayMode mode;
     int frameCount;
     int currentFrame;
+    int startX;  // Starting X position (fixed-point)
+    int startY;  // Starting Y position (fixed-point)
     u16 inputs[MAX_REPLAY_FRAMES];
 } ReplayState;
 
@@ -61,5 +63,9 @@ void loadReplayFromSRAM(ReplayState* replay);
 
 // Load replay from a hardcoded array (for embedded replays)
 void loadReplayFromArray(ReplayState* replay, const u16* inputs, int frameCount);
+
+// Set/get starting position for replay
+void setReplayStartPosition(ReplayState* replay, int x, int y);
+void getReplayStartPosition(ReplayState* replay, int* x, int* y);
 
 #endif

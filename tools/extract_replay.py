@@ -39,6 +39,13 @@ def extract_replay(sav_file):
             print(f"Warning: Frame count {frame_count} exceeds maximum {MAX_REPLAY_FRAMES}", file=sys.stderr)
             frame_count = MAX_REPLAY_FRAMES
 
+        # Read starting position (8 bytes: 4 for X, 4 for Y, little endian)
+        pos_bytes = f.read(8)
+        if len(pos_bytes) < 8:
+            print("Error: Incomplete position data", file=sys.stderr)
+            return None
+        startX, startY = struct.unpack('<ii', pos_bytes)  # signed integers
+
         # Read input data (2 bytes per frame)
         inputs = []
         for i in range(frame_count):
@@ -49,10 +56,14 @@ def extract_replay(sav_file):
             input_val = struct.unpack('<H', input_bytes)[0]
             inputs.append(input_val)
 
-        return inputs
+        return {'inputs': inputs, 'startX': startX, 'startY': startY}
 
-def format_as_c_array(inputs):
+def format_as_c_array(replay_data):
     """Format replay data as C array."""
+    inputs = replay_data['inputs']
+    startX = replay_data['startX']
+    startY = replay_data['startY']
+
     print("#include <tonc.h>")
     print()
     print("// Replay data extracted from save file")
@@ -67,6 +78,8 @@ def format_as_c_array(inputs):
 
     print("};")
     print(f"const int embeddedReplayFrameCount = {len(inputs)};")
+    print(f"const int embeddedReplayStartX = {startX};  // Fixed-point (256 = 1 pixel)")
+    print(f"const int embeddedReplayStartY = {startY};  // Fixed-point (256 = 1 pixel)")
 
 def main():
     if len(sys.argv) < 2:
@@ -79,17 +92,17 @@ def main():
     sav_file = sys.argv[1]
 
     try:
-        inputs = extract_replay(sav_file)
+        replay_data = extract_replay(sav_file)
 
-        if inputs is None:
+        if replay_data is None:
             sys.exit(1)
 
-        if len(inputs) == 0:
+        if len(replay_data['inputs']) == 0:
             print("Error: No replay frames found", file=sys.stderr)
             sys.exit(1)
 
-        format_as_c_array(inputs)
-        print(f"// Successfully extracted {len(inputs)} frames", file=sys.stderr)
+        format_as_c_array(replay_data)
+        print(f"// Successfully extracted {len(replay_data['inputs'])} frames", file=sys.stderr)
 
     except FileNotFoundError:
         print(f"Error: File not found: {sav_file}", file=sys.stderr)

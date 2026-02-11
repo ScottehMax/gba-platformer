@@ -26,6 +26,14 @@ void runMechanicsTest(const MechanicsTest* test, const Level* defaultLevel, Test
     Player player;
     initPlayer(&player, level);
 
+    // Override starting position if test specifies one
+    if (test->startX != 0 || test->startY != 0) {
+        player.x = test->startX;
+        player.y = test->startY;
+        player.vx = 0;
+        player.vy = 0;
+    }
+
     // Run replay
     int testFailed = 0;
     for (int frame = 0; frame < test->frameCount; frame++) {

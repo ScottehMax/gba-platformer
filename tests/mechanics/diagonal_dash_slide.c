@@ -48,6 +48,8 @@ const MechanicsTest test_diagonal_dash_slide = {
     .inputs = diagonal_dash_inputs,
     .frameCount = sizeof(diagonal_dash_inputs) / sizeof(diagonal_dash_inputs[0]),
     .level = &Tutorial_Level,
+    .startX = 6144,
+    .startY = 28672,
     .verifyFrame = verifyNoDashBug,
     .expectFinalX = 77 << FIXED_SHIFT,  // Should stop around X=77
     .expectFinalY = 112 << FIXED_SHIFT, // Should be on ground at Y=112
