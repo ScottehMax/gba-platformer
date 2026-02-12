@@ -135,7 +135,8 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Super Jump (horizontal dash only) - Celeste line 3495-3508
-    if (player->dashDirY == 0) {
+    // Only allow after dash direction is initialized (dashDirX != 0)
+    if (player->dashDirX != 0 && player->dashDirY == 0) {
         if ((pressed & BTN_JUMP) && (player->onGround || player->coyoteTime > 0)) {
             superJump(player);
             return ST_NORMAL;
@@ -143,7 +144,7 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Super Wall Jump (upward dash only) - Celeste line 3510-3525
-    if (player->dashDirX == 0 && player->dashDirY == -1) {
+    else if (player->dashDirX == 0 && player->dashDirY == -1) {
         if (pressed & BTN_JUMP) {
             if (checkWall(player, level, 1)) {
                 superWallJump(player, -1);
@@ -155,7 +156,8 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
         }
     }
     // All other dash directions: wall jump only - Celeste line 3526-3541
-    else {
+    // Only check after dash direction is initialized (dashDirX or dashDirY non-zero)
+    else if (player->dashDirX != 0 || player->dashDirY != 0) {
         if (pressed & BTN_JUMP) {
             if (checkWall(player, level, 1)) {
                 wallJump(player, -1);

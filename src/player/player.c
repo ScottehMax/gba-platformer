@@ -126,6 +126,14 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->forceMoveXTimer--;
     }
 
+    // Update facing based on input (Celeste line 786-794)
+    // This allows reverse hypers: dash one direction, hold opposite direction, jump
+    // NOTE: Does NOT update during climb, pickup, or similar states
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    if (moveX != 0 && player->stateMachine.state != ST_CLIMB) {
+        player->facingRight = moveX > 0 ? 1 : 0;
+    }
+
     // === STATE MACHINE UPDATE ===
     // This is where the state-specific logic runs (Celeste line 632: StateMachine.Update())
     updateStateMachine(&player->stateMachine, player, keys, level);
