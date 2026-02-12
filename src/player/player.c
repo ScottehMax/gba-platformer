@@ -110,6 +110,15 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Wall boost timer
     if (player->wallBoostTimer > 0) {
         player->wallBoostTimer--;
+        // Wall Boost (Celeste line 689-698)
+        // After climb jump with no horizontal input, pressing away from wall converts to wall jump
+        int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+        if (moveX == player->wallBoostDir) {
+            // Convert climb jump to wall jump and refund stamina
+            player->vx = player->wallBoostDir * WALL_JUMP_H_SPEED;
+            player->stamina += CLIMB_JUMP_COST;
+            player->wallBoostTimer = 0;
+        }
     }
 
     // Force move X timer (Celeste line 762)
