@@ -2,6 +2,7 @@
 #include "util/calc.h"
 #include "collision/collision.h"
 #include "core/game_math.h"
+#include "core/input.h"
 
 // Forward declarations
 static void superJump(Player* player);
@@ -65,10 +66,10 @@ void dashCoroutineResume(Player* player, u16 keys) {
 
     // Get dash direction from current input (matches lastAim)
     int dashX = 0, dashY = 0;
-    if (keys & KEY_LEFT) dashX = -1;
-    if (keys & KEY_RIGHT) dashX = 1;
-    if (keys & KEY_UP) dashY = -1;
-    if (keys & KEY_DOWN) dashY = 1;
+    if (keys & BTN_LEFT) dashX = -1;
+    if (keys & BTN_RIGHT) dashX = 1;
+    if (keys & BTN_UP) dashY = -1;
+    if (keys & BTN_DOWN) dashY = 1;
 
     // If no direction held, dash forward based on facing
     if (dashX == 0 && dashY == 0) {
@@ -135,7 +136,7 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
 
     // Super Jump (horizontal dash only) - Celeste line 3495-3508
     if (player->dashDirY == 0) {
-        if ((pressed & KEY_A) && (player->onGround || player->coyoteTime > 0)) {
+        if ((pressed & BTN_JUMP) && (player->onGround || player->coyoteTime > 0)) {
             superJump(player);
             return ST_NORMAL;
         }
@@ -143,7 +144,7 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
 
     // Super Wall Jump (upward dash only) - Celeste line 3510-3525
     if (player->dashDirX == 0 && player->dashDirY == -1) {
-        if (pressed & KEY_A) {
+        if (pressed & BTN_JUMP) {
             if (checkWall(player, level, 1)) {
                 superWallJump(player, -1);
                 return ST_NORMAL;
@@ -155,7 +156,7 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
     }
     // All other dash directions: wall jump only - Celeste line 3526-3541
     else {
-        if (pressed & KEY_A) {
+        if (pressed & BTN_JUMP) {
             if (checkWall(player, level, 1)) {
                 wallJump(player, -1);
                 return ST_NORMAL;

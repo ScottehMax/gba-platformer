@@ -9,6 +9,7 @@
 #include "core/game_math.h"
 #include "core/game_types.h"
 #include "core/debug_utils.h"
+#include "core/input.h"
 #include "level/level.h"
 #include "camera/camera.h"
 #include "collision/collision.h"
@@ -217,13 +218,13 @@ int main() {
         u16 keys = realKeys;
 
         // Replay controls (SELECT + L/R/B)
-        if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_L)) {
+        if ((realKeys & BTN_SELECT) && (realKeys & ~prevKeys & BTN_REPLAY_START)) {
             // SELECT+L: Start recording and save current position and level
             startRecording(&replay);
             setReplayStartPosition(&replay, player.x, player.y);
             setReplayLevel(&replay, getCurrentLevelIndex());
             profilingInitialized = 0;  // Force redraw to show replay status
-        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_R)) {
+        } else if ((realKeys & BTN_SELECT) && (realKeys & ~prevKeys & BTN_REPLAY_PLAY)) {
             // SELECT+R: Start playback and restore position
             int startX, startY;
             getReplayStartPosition(&replay, &startX, &startY);
@@ -233,7 +234,7 @@ int main() {
             player.vy = 0;
             startPlayback(&replay);
             profilingInitialized = 0;  // Force redraw to show replay status
-        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_B)) {
+        } else if ((realKeys & BTN_SELECT) && (realKeys & ~prevKeys & BTN_REPLAY_SAVE)) {
             // SELECT+B: Stop and save replay to SRAM
             if (replay.mode != REPLAY_MODE_OFF) {
                 stopReplay(&replay);
@@ -243,7 +244,7 @@ int main() {
                 draw_bg_text_slot(replayStr, 1, 7, 14);
                 profilingInitialized = 0;  // Force redraw later
             }
-        } else if ((realKeys & KEY_SELECT) && (realKeys & ~prevKeys & KEY_DOWN)) {
+        } else if ((realKeys & BTN_SELECT) && (realKeys & ~prevKeys & BTN_REPLAY_LOAD)) {
             // SELECT+DOWN: Load replay from SRAM, switch level if needed, and restore position
             loadReplayFromSRAM(&replay);
             if (replay.frameCount > 0) {
@@ -327,7 +328,7 @@ int main() {
             }
 
             // Check for START to return to menu
-            if (pressed & KEY_START) {
+            if (pressed & BTN_MENU) {
                 returnToMenu();
                 profilingInitialized = 0;  // Reset profiling display for next time
                 oldCameraTileX = -1;       // Reset tilemap state

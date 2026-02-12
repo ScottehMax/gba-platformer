@@ -1,6 +1,7 @@
 #include "player.h"
 #include "state.h"
 #include "util/calc.h"
+#include "core/input.h"
 
 void initPlayer(Player* player, const Level* level) {
     player->x = level->playerSpawnX << FIXED_SHIFT;
@@ -152,7 +153,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Variable jump height: cut upward velocity on release (Celeste line 1090)
     // This is shared across states
-    if (player->stateMachine.state != ST_DASH && player->jumpHeld && !(keys & KEY_A) && player->vy < 0) {
+    if (player->stateMachine.state != ST_DASH && player->jumpHeld && !(keys & BTN_JUMP) && player->vy < 0) {
         player->vy /= JUMP_RELEASE_MULTIPLIER;
         player->jumpHeld = 0;
     }

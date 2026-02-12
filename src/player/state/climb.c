@@ -2,6 +2,7 @@
 #include "util/calc.h"
 #include "collision/collision.h"
 #include "core/game_math.h"
+#include "core/input.h"
 
 // Forward declarations
 static void climbJump(Player* player, u16 keys);
@@ -46,8 +47,8 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
 
     // Detect button presses
     u16 pressed = keys & ~player->prevKeys;
-    int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
-    int moveY = keys & KEY_DOWN ? 1 : (keys & KEY_UP ? -1 : 0);
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    int moveY = keys & BTN_DOWN ? 1 : (keys & BTN_UP ? -1 : 0);
     int facingDir = player->facingRight ? 1 : -1;
 
     // Refill stamina on ground (Celeste line 3107-3108)
@@ -56,7 +57,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Wall Jump or Climb Jump (Celeste line 3111-3119)
-    if (pressed & KEY_A) {
+    if (pressed & BTN_JUMP) {
         if (moveX == -facingDir) {
             // Jump away from wall
             wallJump(player, -facingDir);
@@ -68,13 +69,13 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Dashing (Celeste line 3121-3126)
-    if ((pressed & KEY_R) && player->dashCooldownTimer == 0 && player->dashes > 0) {
+    if ((pressed & BTN_DASH) && player->dashCooldownTimer == 0 && player->dashes > 0) {
         player->dashes = player->dashes > 0 ? player->dashes - 1 : 0;
         return ST_DASH;
     }
 
     // Let go of wall (Celeste line 3128-3134)
-    if (!(keys & KEY_L)) {
+    if (!(keys & BTN_GRAB)) {
         return ST_NORMAL;
     }
 
@@ -172,7 +173,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
 
 // Helper: Climb Jump (Celeste line 1813-1842)
 static void climbJump(Player* player, u16 keys) {
-    int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
 
     // Consume stamina (Celeste line 1817)
     if (!player->onGround) {

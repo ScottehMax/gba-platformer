@@ -1,5 +1,6 @@
 #include "menu.h"
 #include "core/text.h"
+#include "core/input.h"
 #include "level/level.h"
 #include "collision/collision.h"
 #include "generated/celeste1.h"
@@ -92,12 +93,12 @@ void renderMenu(void) {
 int updateAndRenderMenu(u16 keys, u16 pressed, Player* player, Camera* camera) {
     int oldSelection = menuSelection;
 
-    if (pressed & KEY_UP) {
+    if (pressed & BTN_UP) {
         menuSelection--;
         if (menuSelection < 0) {
             menuSelection = LEVEL_COUNT - 1;  // Wrap to bottom
         }
-    } else if (pressed & KEY_DOWN) {
+    } else if (pressed & BTN_DOWN) {
         menuSelection++;
         if (menuSelection >= LEVEL_COUNT) {
             menuSelection = 0;  // Wrap to top
@@ -110,7 +111,7 @@ int updateAndRenderMenu(u16 keys, u16 pressed, Player* player, Camera* camera) {
     }
 
     // Start selected level
-    if (pressed & KEY_A) {
+    if (pressed & BTN_CONFIRM) {
         initGameplayForLevel(menuSelection, player, camera);
         return 0;  // Transitioning to gameplay
     }

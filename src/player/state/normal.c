@@ -2,6 +2,7 @@
 #include "util/calc.h"
 #include "collision/collision.h"
 #include "core/game_math.h"
+#include "core/input.h"
 
 // Forward declarations for helper functions
 static void jump(Player* player, u16 keys);
@@ -24,7 +25,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     u16 pressed = keys & ~player->prevKeys;
 
     // moveX for input direction (Celeste uses Input.MoveX)
-    int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
 
     // Force Move X - overrides input after climb hop (Celeste line 760-764)
     if (player->forceMoveXTimer > 0) {
@@ -38,7 +39,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
     // Dashing (Celeste line 2824-2828)
     // Check if can dash and dash button pressed
-    if ((pressed & KEY_R) && player->dashCooldownTimer == 0 && player->dashes > 0) {
+    if ((pressed & BTN_DASH) && player->dashCooldownTimer == 0 && player->dashes > 0) {
         // Consume dash (Celeste StartDash() line 3408)
         player->dashes = player->dashes > 0 ? player->dashes - 1 : 0;
         // Return to dash state (will trigger dashBegin via state machine)
@@ -47,7 +48,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
     // Ducking (Celeste line 2831-2862)
     if (player->ducking) {
-        if (player->onGround && !(keys & KEY_DOWN)) {
+        if (player->onGround && !(keys & BTN_DOWN)) {
             // Try to unduck (Celeste line 2835-2855)
             if (!checkCeiling(player, level)) {
                 player->ducking = 0;
@@ -74,7 +75,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
                 }
             }
         }
-    } else if (player->onGround && (keys & KEY_DOWN) && player->vy >= 0) {
+    } else if (player->onGround && (keys & BTN_DOWN) && player->vy >= 0) {
         player->ducking = 1;
     }
 
@@ -99,7 +100,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
         // Wall Slide (Celeste line 2932-2950)
         int facingDir = player->facingRight ? 1 : -1;
-        if ((moveX == facingDir || (moveX == 0 && (keys & KEY_L))) && !(keys & KEY_DOWN)) {
+        if ((moveX == facingDir || (moveX == 0 && (keys & BTN_GRAB))) && !(keys & BTN_DOWN)) {
             if (player->vy >= 0 && player->wallSlideTimer > 0 && checkWall(player, level, facingDir)) {
                 player->ducking = 0;
                 player->wallSlideDir = facingDir;
@@ -113,7 +114,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
         // Fast fall (Celeste line 2910-2924)
         if (player->wallSlideDir == 0) {
-            if ((keys & KEY_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
+            if ((keys & BTN_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
                 max = FAST_MAX_FALL_SPEED;
             }
         }
@@ -123,13 +124,13 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
         // Gravity (Celeste line 2952-2957)
         int absVy = player->vy < 0 ? -player->vy : player->vy;
-        float mult = (absVy < HALF_GRAV_THRESHOLD && (keys & KEY_A)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
+        float mult = (absVy < HALF_GRAV_THRESHOLD && (keys & BTN_JUMP)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
         player->vy = approach(player->vy, player->maxFall, mult / 60.0f);
     }
 
     // Variable Jumping (Celeste line 2960-2967)
     if (player->varJumpTimer > 0) {
-        if (keys & KEY_A) {
+        if (keys & BTN_JUMP) {
             player->vy = player->vy < player->varJumpSpeed ? player->vy : player->varJumpSpeed;
         } else {
             player->varJumpTimer = 0;
@@ -155,7 +156,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Climb grab - but not during forceMoveXTimer or hopWaitX (after climb hop)
-    if ((keys & KEY_L) && checkStamina > CLIMB_TIRED_THRESHOLD && !player->ducking &&
+    if ((keys & BTN_GRAB) && checkStamina > CLIMB_TIRED_THRESHOLD && !player->ducking &&
         player->forceMoveXTimer <= 0 && player->hopWaitX == 0) {
         int facingDir = player->facingRight ? 1 : -1;
 
@@ -167,7 +168,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
                 return ST_CLIMB;
             }
 
-            if (!(keys & KEY_DOWN)) {
+            if (!(keys & BTN_DOWN)) {
                 for (int i = 1; i <= CLIMB_UP_CHECK_DIST; i++) {
                     if (!isPositionCollidingAt(level, player->x >> FIXED_SHIFT, (player->y >> FIXED_SHIFT) - i) &&
                         checkWallAt(player, level, facingDir, -i, CLIMB_CHECK_DIST)) {
@@ -181,7 +182,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Jumping (Celeste line 2969-3004)
-    if (pressed & KEY_A) {
+    if (pressed & BTN_JUMP) {
         if (player->coyoteTime > 0) {
             // Normal jump
             jump(player, keys);
@@ -209,7 +210,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
 // Helper function: Normal Jump (Celeste Jump() method around line 1900+)
 static void jump(Player* player, u16 keys) {
-    int moveX = keys & KEY_RIGHT ? 1 : (keys & KEY_LEFT ? -1 : 0);
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
 
     player->ducking = 0;
     player->vx += moveX * JUMP_HORIZONTAL_BOOST;
