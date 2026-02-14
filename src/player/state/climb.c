@@ -12,6 +12,7 @@ static int slipCheck(const Player* player, const Level* level, int addY);
 
 void climbBegin(Player* player, const Level* level) {
     // Celeste ClimbBegin (line 3056-3078)
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 3058)
     player->vx = 0;
     player->vy *= CLIMB_GRAB_Y_MULT;
     player->wallSlideTimer = WALL_SLIDE_TIME;
@@ -183,8 +184,14 @@ static void climbJump(Player* player, u16 keys) {
     // Normal jump
     player->ducking = 0;
     player->vy = JUMP_STRENGTH;
+
+    // Apply lift boost from moving platforms (Celeste line 1825)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1818)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->onGround = 0;
     player->coyoteTime = 0;
@@ -195,7 +202,7 @@ static void climbJump(Player* player, u16 keys) {
     // Also set up wall boost timer to allow converting to wall jump
     if (moveX == 0) {
         int facingDir = player->facingRight ? 1 : -1;
-        player->vx = -facingDir * JUMP_HORIZONTAL_BOOST;
+        player->vx += -facingDir * JUMP_HORIZONTAL_BOOST;
 
         // Wall boost setup (Celeste line 1828-1829)
         player->wallBoostDir = -facingDir;  // Direction opposite to facing
@@ -272,8 +279,14 @@ static void wallJump(Player* player, int dir) {
     player->ducking = 0;
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
+
+    // Apply lift boost from moving platforms (Celeste line 1762)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;

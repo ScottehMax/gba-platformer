@@ -10,9 +10,14 @@ void initPlayer(Player* player, const Level* level) {
     player->vy = 0;
     player->maxFall = MAX_FALL_SPEED;
     player->onGround = 0;
+    player->wasOnGround = 0;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 0;
+    player->autoJump = 0;
+    player->autoJumpTimer = 0;
+    player->liftBoostX = 0;
+    player->liftBoostY = 0;
     player->varJumpSpeed = 0;
     player->varJumpTimer = 0;
     player->dashing = 0;
@@ -67,6 +72,19 @@ void initPlayer(Player* player, const Level* level) {
 void updatePlayer(Player* player, u16 keys, const Level* level) {
     // === PRE-STATE UPDATE LOGIC ===
     // Timers that tick down every frame regardless of state
+
+    // AutoJump timer (Celeste line 747-757)
+    // Dash sets AutoJump=true and AutoJumpTimer=0, which stays active until landing
+    if (player->autoJumpTimer > 0) {
+        if (player->autoJump) {
+            player->autoJumpTimer--;
+            if (player->autoJumpTimer <= 0) {
+                player->autoJump = 0;
+            }
+        } else {
+            player->autoJumpTimer = 0;
+        }
+    }
 
     // Dash cooldowns (Celeste ticks these in engine update)
     if (player->dashCooldownTimer > 0) {
@@ -162,6 +180,12 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         }
     }
 
+    // LiftBoost application on walk-off (Celeste line 2787-2788)
+    // When walking off a platform with upward velocity from moving platform
+    if (player->liftBoostY < 0 && player->wasOnGround && !player->onGround && player->vy >= 0) {
+        player->vy = player->liftBoostY;
+    }
+
     // Dash coroutine resume (emulates Celeste's yield return null)
     // This sets the dash velocity AFTER collision has updated onGround
     if (player->stateMachine.state == ST_DASH) {
@@ -175,25 +199,33 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->jumpHeld = 0;
     }
 
-    // Execute buffered jump on landing (Celeste AutoJump system)
+    // Execute buffered jump on landing (Celeste uses Input.Jump.Pressed logic)
     if (player->jumpBuffer > 0 && player->onGround) {
-        player->vy = JUMP_STRENGTH;
+        player->vy = JUMP_STRENGTH + player->liftBoostY;  // Apply lift boost
+        player->vx += player->liftBoostX;  // Apply horizontal lift boost
         player->varJumpSpeed = JUMP_STRENGTH;
         player->varJumpTimer = VAR_JUMP_TIME;
         player->onGround = 0;
         player->coyoteTime = 0;
         player->jumpBuffer = 0;
         player->jumpHeld = 1;
+        player->autoJump = 0;  // Clear AutoJump when manually jumping
     }
 
-    // Update coyote time (Celeste calls this jumpGraceTimer)
-    if (player->onGround) {
-        player->coyoteTime = COYOTE_TIME;  // Reset when grounded
-        player->jumpHeld = 0;
+    // After Dash / On Ground (Celeste line 702-707, 714-720)
+    // Clear AutoJump when landing (not during climb)
+    if (player->onGround && player->stateMachine.state != ST_CLIMB) {
+        player->autoJump = 0;
         player->wallSlideTimer = WALL_SLIDE_TIME;  // Reset wall slide timer on landing
         player->stamina = CLIMB_MAX_STAMINA;  // Refill stamina on ground (Celeste line 3107-3108)
+    }
+
+    // Coyote time / Jump Grace (Celeste line 714-720)
+    if (player->onGround) {
+        player->coyoteTime = COYOTE_TIME;
+        player->jumpHeld = 0;
     } else if (player->coyoteTime > 0) {
-        player->coyoteTime--;  // Count down when airborne
+        player->coyoteTime--;
     }
 
     // Dash slide check (Celeste DashCoroutine after collision)
@@ -211,5 +243,9 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Update previous keys for next frame
     player->prevKeys = keys;
+
+    // Track wasOnGround for next frame's walk-off detection (Celeste line 1082)
+    // MUST be at the end after all processing, so it captures this frame's final onGround state
+    player->wasOnGround = player->onGround;
 }
 

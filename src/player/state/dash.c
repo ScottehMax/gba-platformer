@@ -183,6 +183,10 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
                 player->trailFacing[player->trailIndex] = player->facingRight;
             }
 
+            // Set AutoJump for landing after dash (Celeste line 3623-3624)
+            player->autoJump = 1;
+            player->autoJumpTimer = 0;  // 0 means infinite, stays until landing
+
             // Set end dash speed (Celeste line 3625-3632)
             if (player->dashDirY <= 0) {
                 player->vx = player->dashDirX * END_DASH_SPEED;
@@ -208,6 +212,10 @@ static void superJump(Player* player) {
     player->vx = facingDir * SUPER_JUMP_H;
     player->vy = SUPER_JUMP_SPEED;
 
+    // Apply lift boost from moving platforms (Celeste line 1707)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     // Duck multipliers (Celeste line 2229+)
     if (player->ducking) {
         player->ducking = 0;
@@ -217,6 +225,7 @@ static void superJump(Player* player) {
 
     player->varJumpSpeed = player->vy;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1700)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
     player->dashing = 0;  // End dash so trail can fade
@@ -231,8 +240,14 @@ static void superWallJump(Player* player, int dir) {
     player->ducking = 0;
     player->vx = dir * SUPER_WALL_JUMP_H;
     player->vy = SUPER_WALL_JUMP_SPEED;
+
+    // Apply lift boost from moving platforms (Celeste line 1797)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = SUPER_WALL_JUMP_SPEED;
     player->varJumpTimer = SUPER_WALL_JUMP_VAR_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1790)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
     player->dashing = 0;  // End dash so trail can fade
@@ -247,8 +262,14 @@ static void wallJump(Player* player, int dir) {
     player->ducking = 0;
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
+
+    // Apply lift boost from moving platforms (Celeste line 1762)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->dashAttackTimer = 0;
     player->dashing = 0;  // End dash so trail can fade

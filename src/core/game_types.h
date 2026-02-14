@@ -34,9 +34,14 @@ struct Player {
     float vy; // Floating-point
     float maxFall; // Current max fall speed (ramps for fast fall)
     int onGround;
+    int wasOnGround;  // Previous frame onGround (for lift boost detection)
     int coyoteTime;   // Frames remaining for coyote time jump
     int jumpBuffer;   // Frames remaining in jump buffer
     int jumpHeld;     // 1 if jump was initiated this aerial phase
+    int autoJump;     // 1 if AutoJump is active (simulates holding jump button for maintained jump height)
+    float autoJumpTimer;  // Frames remaining for AutoJump window
+    float liftBoostX; // Velocity from moving platforms (X component)
+    float liftBoostY; // Velocity from moving platforms (Y component)
     float varJumpSpeed; // Initial jump velocity for var jump clamping
     int varJumpTimer;   // Frames remaining for variable jump window
     int dashing;

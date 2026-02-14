@@ -122,14 +122,16 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
         player->maxFall = approach(player->maxFall, max, FAST_MAX_ACCEL / 60.0f);
 
         // Gravity (Celeste line 2952-2957)
+        // AutoJump simulates holding jump button for reduced gravity
         int absVy = player->vy < 0 ? -player->vy : player->vy;
-        float mult = (absVy < HALF_GRAV_THRESHOLD && (keys & BTN_JUMP)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
+        float mult = (absVy < HALF_GRAV_THRESHOLD && ((keys & BTN_JUMP) || player->autoJump)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
         player->vy = approach(player->vy, player->maxFall, mult / 60.0f);
     }
 
     // Variable Jumping (Celeste line 2960-2967)
+    // AutoJump simulates holding jump button for maintained jump height
     if (player->varJumpTimer > 0) {
-        if (keys & BTN_JUMP) {
+        if ((keys & BTN_JUMP) || player->autoJump) {
             player->vy = player->vy < player->varJumpSpeed ? player->vy : player->varJumpSpeed;
         } else {
             player->varJumpTimer = 0;
@@ -202,8 +204,14 @@ static void jump(Player* player, u16 keys) {
     player->ducking = 0;
     player->vx += moveX * JUMP_HORIZONTAL_BOOST;
     player->vy = JUMP_STRENGTH;
+
+    // Apply lift boost from moving platforms (Celeste line 1672)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = player->vy;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1665)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->onGround = 0;
     player->coyoteTime = 0;
@@ -216,8 +224,14 @@ static void wallJump(Player* player, int dir) {
     player->ducking = 0;
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
+
+    // Apply lift boost from moving platforms (Celeste line 1762)
+    player->vx += player->liftBoostX;
+    player->vy += player->liftBoostY;
+
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
+    player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
