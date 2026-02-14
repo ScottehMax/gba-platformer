@@ -68,7 +68,7 @@
   <object id="1" name="PlayerSpawn" type="PlayerSpawn" x="24" y="96">
    <point/>
   </object>
-  <object id="2" name="Spring1" type="Spring" x="256" y="144">
+  <object id="2" name="Spring1" type="spring_super" x="256" y="144">
    <point/>
   </object>
  </objectgroup>

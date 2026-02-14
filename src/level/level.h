@@ -7,8 +7,18 @@
 #include <tonc.h>
 #endif
 
+// Object types enum - add new types here
+typedef enum {
+    OBJ_NONE = 0,
+    OBJ_SPRING = 1,
+    OBJ_SPRING_SUPER = 2,
+    OBJ_SPRING_WALL_LEFT = 3,
+    OBJ_SPRING_WALL_RIGHT = 4,
+    // Add more object types here as needed
+} ObjectType;
+
 typedef struct {
-    const char* type;
+    ObjectType type;
     u16 x;
     u16 y;
 } LevelObject;

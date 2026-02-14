@@ -1,7 +1,7 @@
 #include "spring.h"
 #include "player/player.h"
 #include "core/game_math.h"
-#include <string.h>
+#include <string.h>  // For memset
 
 void initSpringManager(SpringManager* manager) {
     manager->count = 0;
@@ -15,12 +15,31 @@ void loadSpringsFromLevel(SpringManager* manager, const Level* level) {
     for (int i = 0; i < level->objectCount && manager->count < MAX_SPRINGS; i++) {
         const LevelObject* obj = &level->objects[i];
 
-        // Check if this is a Spring object
-        if (strcmp(obj->type, "Spring") == 0) {
+        // Check if this is a Spring object (compile-time enum check, no strcmp!)
+        if (obj->type == OBJ_SPRING || obj->type == OBJ_SPRING_SUPER ||
+            obj->type == OBJ_SPRING_WALL_LEFT || obj->type == OBJ_SPRING_WALL_RIGHT) {
+
             Spring* spring = &manager->springs[manager->count];
 
-            // Default to normal upward spring
-            spring->type = SPRING_SUPER;
+            // Map object type to spring type
+            switch (obj->type) {
+                case OBJ_SPRING:
+                    spring->type = SPRING_NORMAL;
+                    break;
+                case OBJ_SPRING_SUPER:
+                    spring->type = SPRING_SUPER;
+                    break;
+                case OBJ_SPRING_WALL_LEFT:
+                    spring->type = SPRING_WALL_LEFT;
+                    break;
+                case OBJ_SPRING_WALL_RIGHT:
+                    spring->type = SPRING_WALL_RIGHT;
+                    break;
+                default:
+                    spring->type = SPRING_NORMAL;
+                    break;
+            }
+
             spring->x = obj->x;
             spring->y = obj->y;
             spring->width = 8;   // Default 8x8 hitbox

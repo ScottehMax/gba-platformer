@@ -327,6 +327,21 @@ def generate_collision_bitmap(collision_tiles: List[int]) -> List[int]:
     return bitmap
 
 
+def object_type_to_enum(obj_type: str) -> str:
+    """Convert object type string to enum value."""
+    # Map object type strings to enum values
+    type_map = {
+        'spring': 'OBJ_SPRING',
+        'spring_super': 'OBJ_SPRING_SUPER',
+        'spring_wall_left': 'OBJ_SPRING_WALL_LEFT',
+        'spring_wall_right': 'OBJ_SPRING_WALL_RIGHT',
+    }
+
+    # Case-insensitive lookup
+    obj_type_lower = obj_type.lower()
+    return type_map.get(obj_type_lower, 'OBJ_NONE')
+
+
 def generate_header(data: Dict[str, Any], output_name: str) -> str:
     """Generate C header file content from level data."""
     level_name = sanitize_identifier(data['name'])
@@ -488,15 +503,16 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     if objects:
         lines.append(f"static const LevelObject {level_name}_objects[{len(objects)}] = {{")
         for i, obj in enumerate(objects):
-            obj_type = obj.get('type', 'unknown')
+            obj_type_str = obj.get('type', 'unknown')
+            obj_type_enum = object_type_to_enum(obj_type_str)
             obj_x = obj.get('x', 0)
             obj_y = obj.get('y', 0)
             comma = "," if i < len(objects) - 1 else ""
-            lines.append(f'    {{"{obj_type}", {obj_x}, {obj_y}}}{comma}')
+            lines.append(f'    {{{obj_type_enum}, {obj_x}, {obj_y}}}{comma}')
         lines.append("};")
     else:
         # Empty array for no objects
-        lines.append(f"static const LevelObject {level_name}_objects[1] = {{{{\"none\", 0, 0}}}};")
+        lines.append(f"static const LevelObject {level_name}_objects[1] = {{{{OBJ_NONE, 0, 0}}}};")
     lines.append("")
 
     # Level instance
