@@ -123,7 +123,11 @@ fi
 ## Example Tests
 
 - `mechanics/diagonal_dash_slide.c` - Prevents infinite dash bug regression
-- (Add more as created)
+- `mechanics/dash_height_replay.c` - Validates dash height consistency
+- `mechanics/climb_stamina_glitch.c` - Prevents stamina system exploits
+- `mechanics/wall_grab_slide.c` - Tests wall grab physics
+- `mechanics/climb_hop_ledge.c` - Validates climb hop mechanic
+- `mechanics/spring_bounce_superjump.c` - Tests spring bounce resource refill, dash trail fade, super jump boost, and ducking super jump multipliers
 
 ## Tips
 

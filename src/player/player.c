@@ -249,3 +249,133 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     player->wasOnGround = player->onGround;
 }
 
+// === HELPER FUNCTIONS ===
+
+// Celeste Player.cs line 2002-2011
+int refillDash(Player* player) {
+    if (player->dashes < player->maxDashes) {
+        player->dashes = player->maxDashes;
+        return 1;
+    }
+    return 0;
+}
+
+// Celeste Player.cs line 2025-2028
+void refillStamina(Player* player) {
+    player->stamina = CLIMB_MAX_STAMINA;
+}
+
+// === BOUNCE FUNCTIONS ===
+
+// Celeste Player.cs line 1844-1876
+void playerBounce(Player* player, float fromY) {
+    // Move player to spring top (Celeste line 1855)
+    // fromY is the spring top Y position in pixels
+    // player->y is fixed-point (8 bits fractional)
+    int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
+    int offsetY = (int)(fromY - playerBottom);
+    player->y += offsetY << FIXED_SHIFT;
+
+    // Refill resources (Celeste line 1856-1858)
+    refillDash(player);
+    refillStamina(player);
+
+    // Clear dashing flag so trails can fade (dash trail fade fix)
+    player->dashing = 0;
+
+    // Force to normal state (Celeste line 1859)
+    setState(&player->stateMachine, ST_NORMAL, player, 0);
+
+    // Reset timers (Celeste line 1861-1867)
+    player->coyoteTime = 0;  // jumpGraceTimer
+    player->varJumpTimer = BOUNCE_VAR_JUMP_TIME;
+    player->autoJump = 1;
+    player->autoJumpTimer = BOUNCE_AUTO_JUMP_TIME;
+    player->dashAttackTimer = 0;
+    player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->wallBoostTimer = 0;
+
+    // Set velocity (Celeste line 1869)
+    player->varJumpSpeed = player->vy = BOUNCE_SPEED;
+    // NOTE: Does NOT cancel horizontal velocity (Speed.X unchanged in Celeste)
+}
+
+// Celeste Player.cs line 1878-1914
+void playerSuperBounce(Player* player, float fromY) {
+    // Move player to spring top (Celeste line 1890)
+    int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
+    int offsetY = (int)(fromY - playerBottom);
+    player->y += offsetY << FIXED_SHIFT;
+
+    // Refill resources (Celeste line 1891-1893)
+    refillDash(player);
+    refillStamina(player);
+
+    // Clear dashing flag so trails can fade (dash trail fade fix)
+    player->dashing = 0;
+
+    // Force to normal state (Celeste line 1894)
+    setState(&player->stateMachine, ST_NORMAL, player, 0);
+
+    // Reset timers (Celeste line 1896-1902)
+    player->coyoteTime = 0;  // jumpGraceTimer
+    player->varJumpTimer = SUPER_BOUNCE_VAR_JUMP_TIME;
+    player->autoJump = 1;
+    player->autoJumpTimer = 0;  // AutoJumpTimer = 0 (infinite until landing)
+    player->dashAttackTimer = 0;
+    player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->wallBoostTimer = 0;
+
+    // Set velocity (Celeste line 1904-1905)
+    player->vx = 0;  // CANCEL horizontal momentum
+    player->varJumpSpeed = player->vy = SUPER_BOUNCE_SPEED;
+}
+
+// Celeste Player.cs line 1919-1953
+void playerSideBounce(Player* player, int dir, float fromX, float fromY) {
+    // Move player to spring position (Celeste line 1924-1928)
+    // Vertical: clamp offset to ±4 pixels (Celeste line 1924)
+    int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
+    int offsetY = (int)(fromY - playerBottom);
+    if (offsetY > 4) offsetY = 4;
+    if (offsetY < -4) offsetY = -4;
+    player->y += offsetY << FIXED_SHIFT;
+
+    // Horizontal: align to spring edge based on direction
+    int playerX = player->x >> FIXED_SHIFT;
+    int offsetX = 0;
+    if (dir > 0) {
+        // Push from left side (Celeste line 1926)
+        offsetX = (int)(fromX - (playerX - PLAYER_RADIUS_X));
+    } else if (dir < 0) {
+        // Push from right side (Celeste line 1928)
+        offsetX = (int)(fromX - (playerX + PLAYER_RADIUS_X));
+    }
+    player->x += offsetX << FIXED_SHIFT;
+
+    // Refill resources (Celeste line 1929-1931)
+    refillDash(player);
+    refillStamina(player);
+
+    // Clear dashing flag so trails can fade (dash trail fade fix)
+    player->dashing = 0;
+
+    // Force to normal state (Celeste line 1932)
+    setState(&player->stateMachine, ST_NORMAL, player, 0);
+
+    // Reset timers (Celeste line 1934-1942)
+    player->coyoteTime = 0;  // jumpGraceTimer
+    player->varJumpTimer = BOUNCE_VAR_JUMP_TIME;
+    player->autoJump = 1;
+    player->autoJumpTimer = 0;  // AutoJumpTimer = 0 (infinite until landing)
+    player->dashAttackTimer = 0;
+    player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->forceMoveX = dir;
+    player->forceMoveXTimer = SIDE_BOUNCE_FORCE_MOVE_TIME;
+    player->wallBoostTimer = 0;
+
+    // Set velocity (Celeste line 1945-1946)
+    player->vx = SIDE_BOUNCE_SPEED * dir;
+    player->varJumpSpeed = player->vy = BOUNCE_SPEED;
+}
+

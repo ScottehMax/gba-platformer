@@ -18,6 +18,7 @@
 #include "util/calc.h"
 #include "menu/menu.h"
 #include "core/replay.h"
+#include "entities/spring.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -146,6 +147,20 @@ int main() {
         spriteTiles[i] = skellyTiles[i];
     }
 
+    // Create red square sprite for springs (tile 4 = 8x8 red square)
+    // Tile 4 is at index 4 * 8 = 32 u32s offset (each tile is 8 u32s in 4bpp mode)
+    volatile u32* redSquareTile = &spriteTiles[32];
+    for (int i = 0; i < 8; i++) {  // 8 u32s per tile in 4bpp mode
+        // Each u32 contains 8 pixels (4 bits each)
+        // Pixel value 1 = use palette color 1 in spring palette bank (11)
+        redSquareTile[i] = 0x11111111;  // All pixels = color 1
+    }
+
+    // Create dedicated palette bank 11 for springs (colors 176-191)
+    // This avoids interfering with player palette (bank 0) or trail palettes (banks 1-10)
+    spritePalette[11 * 16 + 0] = 0;  // Transparent
+    spritePalette[11 * 16 + 1] = RGB15(31, 0, 0);  // Bright red
+
     // Set up sprite 0 as 16x16, 16-color mode, priority 1
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 0;
@@ -157,11 +172,14 @@ int main() {
         oam[i * 4] = 160;
     }
 
-    // Initialize player and camera (will be set properly when level loads)
+    // Initialize player, camera, and spring manager (will be set properly when level loads)
     Player player;
     Camera camera;
     camera.x = 0;
     camera.y = 0;
+
+    SpringManager springManager;
+    initSpringManager(&springManager);
 
     // Hide player sprite initially (we're in menu mode)
     oam[0] = 160;  // Y coordinate offscreen (reuse oam pointer from above)
@@ -208,6 +226,9 @@ int main() {
     ReplayState replay;
     initReplay(&replay);
     char replayStr[32] = "";
+
+    // Track current level for spring reloading
+    int lastLevelIndex = -1;
 
     // Game loop
     while (1) {
@@ -339,9 +360,17 @@ int main() {
             // Get current level
             const Level* currentLevel = getCurrentLevel();
 
+            // Reload springs if level changed
+            int currentLevelIndex = getCurrentLevelIndex();
+            if (currentLevelIndex != lastLevelIndex) {
+                loadSpringsFromLevel(&springManager, currentLevel);
+                lastLevelIndex = currentLevelIndex;
+            }
+
             // Profile: Player update
             u16 t0 = REG_TM0CNT_L;
             updatePlayer(&player, keys, currentLevel);
+            updateSprings(&springManager, &player);
             u16 t1 = REG_TM0CNT_L;
             u16 dtPlayer = t1 - t0;
             if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
@@ -428,6 +457,7 @@ int main() {
 
             // Profile: Rendering
             drawPlayer(&player, &camera);
+            renderSprings(&springManager, camera.x, camera.y);
             u16 t4 = REG_TM0CNT_L;
             u16 dtRender = t4 - t3;
             if (dtRender > maxRender) maxRender = dtRender;

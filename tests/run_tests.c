@@ -11,6 +11,7 @@ extern const MechanicsTest test_dash_height;
 extern const MechanicsTest test_climb_stamina_glitch;
 extern const MechanicsTest test_wall_grab_slide;
 extern const MechanicsTest test_climb_hop_ledge;
+extern const MechanicsTest test_spring_bounce_superjump;
 
 // Test registry
 static const MechanicsTest* all_tests[] = {
@@ -19,6 +20,7 @@ static const MechanicsTest* all_tests[] = {
     &test_climb_stamina_glitch,
     &test_wall_grab_slide,
     &test_climb_hop_ledge,
+    &test_spring_bounce_superjump,
     // Add more tests here as they're created
 };
 

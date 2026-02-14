@@ -13,7 +13,8 @@ CORE_SRCS = \
 	src/player/state/dash.c \
 	src/player/state/climb.c \
 	src/collision/collision.c \
-	src/core/replay.c
+	src/core/replay.c \
+	src/entities/spring.c
 
 # Test framework
 TEST_FRAMEWORK_SRCS = \
@@ -26,7 +27,8 @@ TEST_CASE_SRCS = \
 	tests/mechanics/dash_height_replay.c \
 	tests/mechanics/climb_stamina_glitch.c \
 	tests/mechanics/wall_grab_slide.c \
-	tests/mechanics/climb_hop_ledge.c
+	tests/mechanics/climb_hop_ledge.c \
+	tests/mechanics/spring_bounce_superjump.c
 
 # Desktop stubs
 DESKTOP_SRCS = \

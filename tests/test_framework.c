@@ -6,6 +6,7 @@
 #include "test_framework.h"
 #include "player/player.h"
 #include "core/game_math.h"
+#include "entities/spring.h"
 
 void initTestResults(TestResults* results) {
     results->passed = 0;
@@ -34,6 +35,17 @@ void runMechanicsTest(const MechanicsTest* test, const Level* defaultLevel, Test
         player.vy = 0;
     }
 
+    // Initialize springs from level
+    SpringManager springManager;
+    initSpringManager(&springManager);
+    loadSpringsFromLevel(&springManager, level);
+
+    printf("  INFO: Loaded %d springs from level\n", springManager.count);
+    for (int i = 0; i < springManager.count; i++) {
+        printf("  INFO: Spring %d at (%d, %d)\n", i, springManager.springs[i].x, springManager.springs[i].y);
+    }
+    printf("  INFO: Player starts at (%d, %d) pixels\n", test->startX >> FIXED_SHIFT, test->startY >> FIXED_SHIFT);
+
     // Run replay
     int testFailed = 0;
     for (int frame = 0; frame < test->frameCount; frame++) {
@@ -50,6 +62,9 @@ void runMechanicsTest(const MechanicsTest* test, const Level* defaultLevel, Test
 
         // Update player
         updatePlayer(&player, keys, level);
+
+        // Update springs (check collisions and trigger bounces)
+        updateSprings(&springManager, &player);
     }
 
     if (testFailed) {

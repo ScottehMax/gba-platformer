@@ -74,6 +74,15 @@
 #define CLIMB_HOP_FORCE_TIME 12  // 0.2s at 60fps - Force no horizontal input after climb hop (Celeste line 117)
 #define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps - Window to convert climb jump to wall jump
 
+// Bounce/Spring mechanics (Celeste Player.cs line 38, 63-66, 1916-1917)
+#define BOUNCE_SPEED TO_GBA(-140.0f)  // -597.33 - Normal spring vertical speed
+#define SUPER_BOUNCE_SPEED TO_GBA(-185.0f)  // -789.33 - Super spring vertical speed
+#define SIDE_BOUNCE_SPEED TO_GBA(240.0f)  // 1024 - Wall spring horizontal speed
+#define BOUNCE_VAR_JUMP_TIME 12  // 0.2s at 60fps - Can control height after bounce
+#define SUPER_BOUNCE_VAR_JUMP_TIME 12  // 0.2s at 60fps - Can control height after super bounce
+#define BOUNCE_AUTO_JUMP_TIME 6  // 0.1s at 60fps - Maintains float after bounce
+#define SIDE_BOUNCE_FORCE_MOVE_TIME 18  // 0.3s at 60fps - Force movement after side bounce
+
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge
 #define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop
