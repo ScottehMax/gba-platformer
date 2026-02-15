@@ -178,7 +178,7 @@ static void climbJump(Player* player, u16 keys) {
 
     // Consume stamina (Celeste line 1817)
     if (!player->onGround) {
-        player->stamina -= (int)(CLIMB_JUMP_COST * FIXED_ONE);
+        player->stamina -= CLIMB_JUMP_COST;
     }
 
     // Normal jump

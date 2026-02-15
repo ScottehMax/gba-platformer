@@ -134,7 +134,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         if (moveX == player->wallBoostDir) {
             // Convert climb jump to wall jump and refund stamina
             player->vx = player->wallBoostDir * WALL_JUMP_H_SPEED;
-            player->stamina += (int)(CLIMB_JUMP_COST * FIXED_ONE);
+            player->stamina += CLIMB_JUMP_COST;
             player->wallBoostTimer = 0;
         }
     }

@@ -143,7 +143,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     // CheckStamina logic (Celeste line 3035-3042): account for wallBoostTimer
     int checkStamina = player->stamina;
     if (player->wallBoostTimer > 0) {
-        checkStamina += (int)(CLIMB_JUMP_COST * FIXED_ONE);
+        checkStamina += CLIMB_JUMP_COST;
     }
 
     // Climb grab

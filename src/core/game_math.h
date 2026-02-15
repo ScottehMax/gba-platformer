@@ -5,7 +5,7 @@
 #define FIXED_SHIFT 8
 #define FIXED_ONE (1 << FIXED_SHIFT)
 
-#define TO_GBA(x) ((int)((x) * 256.0f / 60.0f))
+#define TO_GBA(x) ((x) * 256.0f / 60.0f)
 
 // Fixed-point multipliers (FIXED_ONE = 256 = 1.0)
 #define FP_AIR_MULT 166           // 0.65f * 256
@@ -68,16 +68,16 @@
 #define GRAVITY_PF (GRAVITY / 60)                   // ~64 per frame
 #define CLIMB_ACCEL_PF (CLIMB_ACCEL / 60)          // ~64 per frame
 
-// Stamina costs per frame (convert from float to fixed-point)
-#define CLIMB_UP_COST_PF ((int)(CLIMB_UP_COST / 60.0f * 256))     // ~194
-#define CLIMB_STILL_COST_PF ((int)(CLIMB_STILL_COST / 60.0f * 256)) // ~42
+// Stamina costs per frame (pre-computed as fixed-point integers)
+#define CLIMB_UP_COST_PF 194     // 100/2.2/60*256 = 193.94
+#define CLIMB_STILL_COST_PF 43   // 100/10/60*256 = 42.67
 
 
 // Climbing
 #define CLIMB_MAX_STAMINA (110 * FIXED_ONE)  // 28160 in fixed-point
-#define CLIMB_UP_COST (100.0f / 2.2f)  // 45.45 per second
-#define CLIMB_STILL_COST (100.0f / 10.0f)  // 10 per second
-#define CLIMB_JUMP_COST (110.0f / 4.0f)  // 27.5 per jump
+#define CLIMB_UP_COST (100.0f / 2.2f)  // 45.45 per second (used for reference)
+#define CLIMB_STILL_COST (100.0f / 10.0f)  // 10 per second (used for reference)
+#define CLIMB_JUMP_COST ((110 * FIXED_ONE) / 4)  // 7040 = 27.5 in fixed-point
 #define CLIMB_TIRED_THRESHOLD (20 * FIXED_ONE)  // 5120 in fixed-point
 #define CLIMB_UP_SPEED TO_GBA(-45.0f)  // -192
 #define CLIMB_DOWN_SPEED TO_GBA(80.0f)  // 341.33
