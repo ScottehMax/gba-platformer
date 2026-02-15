@@ -73,20 +73,20 @@ static void verifySpringBounce(const Player* player, int frame, TestResults* res
     // Frame-by-frame validation of spring mechanics
 
     // Track state changes to detect spring bounce
-    static float prevVY = 0;
+    static int prevVY = 0;
     static int springBounceDetected = 0;
 
     // Detect spring bounce: sudden upward velocity change + state=0 + dash refilled
     // This happens when player dashes into the spring (around frame 75)
     if (frame >= 2 && frame <= 100 && !springBounceDetected) {
         // Spring bounce signature:
-        // - VY changes to strongly negative (SUPER_BOUNCE_SPEED = -789)
+        // - VY changes to strongly negative (SUPER_BOUNCE_SPEED = -789 in fixed-point)
         // - Was moving down or neutral, now moving up
         // - AutoJump enabled
         // - Dashes refilled
-        if (player->vy < -700.0f && prevVY >= -100.0f && player->autoJump) {
+        if (player->vy < -700 && prevVY >= -100 && player->autoJump) {
             springBounceDetected = 1;
-            printf("  INFO: Spring bounce detected at frame %d (vy=%.1f, autoJump=%d)\n",
+            printf("  INFO: Spring bounce detected at frame %d (vy=%d, autoJump=%d)\n",
                    frame, player->vy, player->autoJump);
 
             // Validate spring bounce effects
@@ -117,23 +117,25 @@ static void verifySpringBounce(const Player* player, int frame, TestResults* res
     // Ducking super jump validation (frame 118)
     // Dash starts frame 111, jump pressed frame 117, super jump executes frame 118
     if (frame == 118) {
-        // Expected: SUPER_JUMP_H * DUCK_SUPER_JUMP_X_MULT = 1109.33 * 1.25 = 1386.66
-        float expectedVX = SUPER_JUMP_H * DUCK_SUPER_JUMP_X_MULT;
-        float expectedVY = JUMP_STRENGTH * DUCK_SUPER_JUMP_Y_MULT;
-        float tolerance = 10.0f;  // ±10 units tolerance
+        // Expected: SUPER_JUMP_H * FP_DUCK_JUMP_X_MULT (fixed-point multiply)
+        // SUPER_JUMP_H = 1109, FP_DUCK_JUMP_X_MULT = 320 (1.25 * 256)
+        // Result: (1109 * 320) >> 8 = 1386
+        int expectedVX = (SUPER_JUMP_H * FP_DUCK_JUMP_X_MULT) >> FIXED_SHIFT;
+        int expectedVY = (JUMP_STRENGTH * FP_DUCK_JUMP_Y_MULT) >> FIXED_SHIFT;
+        int tolerance = 10;  // ±10 units tolerance
 
-        float vxDiff = player->vx - expectedVX;
+        int vxDiff = player->vx - expectedVX;
         if (vxDiff < 0) vxDiff = -vxDiff;  // abs
         if (vxDiff > tolerance) {
-            printf("  FAIL frame %d: Duck super jump vx incorrect (vx=%.1f, expected%.1f±%.1f)\n",
+            printf("  FAIL frame %d: Duck super jump vx incorrect (vx=%d, expected %d±%d)\n",
                    frame, player->vx, expectedVX, tolerance);
             results->failed++;
         }
 
-        float vyDiff = player->vy - expectedVY;
+        int vyDiff = player->vy - expectedVY;
         if (vyDiff < 0) vyDiff = -vyDiff;  // abs
         if (vyDiff > tolerance) {
-            printf("  FAIL frame %d: Duck super jump vy incorrect (vy=%.1f, expected%.1f±%.1f)\n",
+            printf("  FAIL frame %d: Duck super jump vy incorrect (vy=%d, expected %d±%d)\n",
                    frame, player->vy, expectedVY, tolerance);
             results->failed++;
         }
@@ -159,8 +161,8 @@ const MechanicsTest test_spring_bounce_superjump = {
     // Player should have moved significantly right after the super jumps
     .expectFinalX = -1,  // Skip - position depends on exact spring placement
     .expectFinalY = -1,  // Skip - may be in air or on ground
-    .expectFinalVX = -999.0f,  // Skip - velocity varies
-    .expectFinalVY = -999.0f,  // Skip - velocity varies
+    .expectFinalVX = -999,  // Skip - velocity varies
+    .expectFinalVY = -999,  // Skip - velocity varies
     .expectFinalState = -1,  // Skip - state varies (could be normal or in air)
     // Dash count verified in frame 50 callback
 };
