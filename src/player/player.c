@@ -134,7 +134,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         if (moveX == player->wallBoostDir) {
             // Convert climb jump to wall jump and refund stamina
             player->vx = player->wallBoostDir * WALL_JUMP_H_SPEED;
-            player->stamina += CLIMB_JUMP_COST;
+            player->stamina += (int)(CLIMB_JUMP_COST * FIXED_ONE);
             player->wallBoostTimer = 0;
         }
     }
@@ -268,12 +268,12 @@ void refillStamina(Player* player) {
 // === BOUNCE FUNCTIONS ===
 
 // Celeste Player.cs line 1844-1876
-void playerBounce(Player* player, float fromY) {
+void playerBounce(Player* player, int fromY) {
     // Move player to spring top (Celeste line 1855)
     // fromY is the spring top Y position in pixels
     // player->y is fixed-point (8 bits fractional)
     int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
-    int offsetY = (int)(fromY - playerBottom);
+    int offsetY = fromY - playerBottom;
     player->y += offsetY << FIXED_SHIFT;
 
     // Refill resources (Celeste line 1856-1858)
@@ -301,10 +301,10 @@ void playerBounce(Player* player, float fromY) {
 }
 
 // Celeste Player.cs line 1878-1914
-void playerSuperBounce(Player* player, float fromY) {
+void playerSuperBounce(Player* player, int fromY) {
     // Move player to spring top (Celeste line 1890)
     int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
-    int offsetY = (int)(fromY - playerBottom);
+    int offsetY = fromY - playerBottom;
     player->y += offsetY << FIXED_SHIFT;
 
     // Refill resources (Celeste line 1891-1893)
@@ -332,11 +332,11 @@ void playerSuperBounce(Player* player, float fromY) {
 }
 
 // Celeste Player.cs line 1919-1953
-void playerSideBounce(Player* player, int dir, float fromX, float fromY) {
+void playerSideBounce(Player* player, int dir, int fromX, int fromY) {
     // Move player to spring position (Celeste line 1924-1928)
     // Vertical: clamp offset to ±4 pixels (Celeste line 1924)
     int playerBottom = (player->y >> FIXED_SHIFT) + PLAYER_RADIUS_Y;
-    int offsetY = (int)(fromY - playerBottom);
+    int offsetY = fromY - playerBottom;
     if (offsetY > 4) offsetY = 4;
     if (offsetY < -4) offsetY = -4;
     player->y += offsetY << FIXED_SHIFT;
@@ -346,10 +346,10 @@ void playerSideBounce(Player* player, int dir, float fromX, float fromY) {
     int offsetX = 0;
     if (dir > 0) {
         // Push from left side (Celeste line 1926)
-        offsetX = (int)(fromX - (playerX - PLAYER_RADIUS_X));
+        offsetX = fromX - (playerX - PLAYER_RADIUS_X);
     } else if (dir < 0) {
         // Push from right side (Celeste line 1928)
-        offsetX = (int)(fromX - (playerX + PLAYER_RADIUS_X));
+        offsetX = fromX - (playerX + PLAYER_RADIUS_X);
     }
     player->x += offsetX << FIXED_SHIFT;
 

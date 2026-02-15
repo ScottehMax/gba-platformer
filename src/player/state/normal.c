@@ -81,21 +81,21 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
     // Running and Friction (Celeste line 2879-2895)
     if (player->ducking && player->onGround) {
         // Duck friction (Celeste line 2881)
-        player->vx = approach(player->vx, 0, DUCK_FRICTION / 60.0f);
+        player->vx = approachInt(player->vx, 0, DUCK_FRICTION_PF);
     } else {
-        float mult = player->onGround ? 1.0f : AIR_MULT;
+        int mult = player->onGround ? FIXED_ONE : FP_AIR_MULT;
 
         // Reduce speed if moving faster than max in same direction
         if (ABS(player->vx) > MAX_SPEED && ((moveX > 0 && player->vx > 0) || (moveX < 0 && player->vx < 0))) {
-            player->vx = approach(player->vx, MAX_SPEED * moveX, RUN_REDUCE * mult / 60.0f);
+            player->vx = approachInt(player->vx, MAX_SPEED * moveX, fpMul(RUN_REDUCE_PF, mult));
         } else {
-            player->vx = approach(player->vx, MAX_SPEED * moveX, ACCELERATION * mult / 60.0f);
+            player->vx = approachInt(player->vx, MAX_SPEED * moveX, fpMul(ACCELERATION_PF, mult));
         }
     }
 
     // Vertical physics (Celeste line 2897-2958)
     if (!player->onGround) {
-        float max = MAX_FALL_SPEED;
+        int max = MAX_FALL_SPEED;
 
         // Wall Slide (Celeste line 2932-2950)
         int facingDir = player->facingRight ? 1 : -1;
@@ -107,25 +107,26 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
             if (player->wallSlideDir != 0) {
                 // Lerp from WallSlideStartMax to MaxFall over WallSlideTime (Celeste line 2946)
-                max = WALL_SLIDE_START_MAX + (MAX_FALL_SPEED - WALL_SLIDE_START_MAX) * (1.0f - player->wallSlideTimer / (float)WALL_SLIDE_TIME);
+                int lerpFactor = ((WALL_SLIDE_TIME - player->wallSlideTimer) * FIXED_ONE) / WALL_SLIDE_TIME;
+                max = WALL_SLIDE_START_MAX + fpMul(MAX_FALL_SPEED - WALL_SLIDE_START_MAX, lerpFactor);
             }
         }
 
         // Fast fall (Celeste line 2910-2924)
         if (player->wallSlideDir == 0) {
-            if ((keys & BTN_DOWN) && player->vy >= MAX_FALL_SPEED * 0.95f) {
+            if ((keys & BTN_DOWN) && player->vy >= fpMul(MAX_FALL_SPEED, FP_FAST_FALL_THRESHOLD)) {
                 max = FAST_MAX_FALL_SPEED;
             }
         }
 
         // Approach max fall speed
-        player->maxFall = approach(player->maxFall, max, FAST_MAX_ACCEL / 60.0f);
+        player->maxFall = approachInt(player->maxFall, max, FAST_MAX_ACCEL_PF);
 
         // Gravity (Celeste line 2952-2957)
         // AutoJump simulates holding jump button for reduced gravity
         int absVy = player->vy < 0 ? -player->vy : player->vy;
-        float mult = (absVy < HALF_GRAV_THRESHOLD && ((keys & BTN_JUMP) || player->autoJump)) ? (GRAVITY / PEAK_GRAVITY_MULTIPLIER) : GRAVITY;
-        player->vy = approach(player->vy, player->maxFall, mult / 60.0f);
+        int gravMult = (absVy < HALF_GRAV_THRESHOLD && ((keys & BTN_JUMP) || player->autoJump)) ? FIXED_ONE / PEAK_GRAVITY_MULTIPLIER : FIXED_ONE;
+        player->vy = approachInt(player->vy, player->maxFall, fpMul(GRAVITY_PF, gravMult));
     }
 
     // Variable Jumping (Celeste line 2960-2967)
@@ -140,9 +141,9 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
     // Climbing (Celeste line 2800-2819)
     // CheckStamina logic (Celeste line 3035-3042): account for wallBoostTimer
-    float checkStamina = player->stamina;
+    int checkStamina = player->stamina;
     if (player->wallBoostTimer > 0) {
-        checkStamina += CLIMB_JUMP_COST;
+        checkStamina += (int)(CLIMB_JUMP_COST * FIXED_ONE);
     }
 
     // Climb grab

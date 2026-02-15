@@ -47,7 +47,7 @@ static void verifyClimbHopLedge(const Player* player, int frame, TestResults* re
     // Monitor position for a few frames after hop
     if (climbHopFrame >= 0 && frame >= climbHopFrame && frame <= climbHopFrame + 15) {
         if ((frame - climbHopFrame) % 3 == 0) {
-            printf("  DEBUG: Frame %d (+%d): x=%.1fpx, y=%.1fpx, vx=%.1f, vy=%.1f, state=%d\n",
+            printf("  DEBUG: Frame %d (+%d): x=%.1fpx, y=%.1fpx, vx=%d, vy=%d, state=%d\n",
                    frame, frame - climbHopFrame,
                    player->x / 256.0f, player->y / 256.0f,
                    player->vx, player->vy, currentState);
@@ -58,7 +58,7 @@ static void verifyClimbHopLedge(const Player* player, int frame, TestResults* re
     if (climbHopFrame >= 0 && prevState == ST_NORMAL && currentState == ST_CLIMB) {
         if (!hasReportedFailure) {
             printf("  FAIL: Player re-entered climb state at frame %d!\n", frame);
-            printf("        Frame %d after hop, vy=%.1f, hopWaitX=%d, forceMoveXTimer=%.1f\n",
+            printf("        Frame %d after hop, vy=%d, hopWaitX=%d, forceMoveXTimer=%d\n",
                    frame - climbHopFrame, player->vy, player->hopWaitX, player->forceMoveXTimer);
             printf("        Player should stay in normal state after hop\n");
             results->failed++;
@@ -111,8 +111,8 @@ const MechanicsTest test_climb_hop_ledge = {
     .verifyFrame = verifyClimbHopLedge,
     .expectFinalX = -1,
     .expectFinalY = -1,
-    .expectFinalVX = -999.0f,
-    .expectFinalVY = -999.0f,
+    .expectFinalVX = -999,
+    .expectFinalVY = -999,
     .expectFinalState = -1,
 };
 

@@ -38,8 +38,8 @@ static const u16 dash_height_inputs[] = {
 
 static int dashStartFrame = -1;
 static int dashPressFrame = -1;
-static float expectedVx = 0.0f;
-static float expectedVy = 0.0f;
+static int expectedVx = 0;
+static int expectedVy = 0;
 static int checkedDash = 0;
 
 static void verifyDashHeight(const Player* player, int frame, TestResults* results) {
@@ -63,8 +63,8 @@ static void verifyDashHeight(const Player* player, int frame, TestResults* resul
         expectedVx = dashX * DASH_SPEED;
         expectedVy = dashY * DASH_SPEED;
         if (dashX != 0 && dashY != 0) {
-            expectedVx *= 0.707f;
-            expectedVy *= 0.707f;
+            expectedVx = (expectedVx * FP_DIAG_NORMALIZE) >> FIXED_SHIFT;
+            expectedVy = (expectedVy * FP_DIAG_NORMALIZE) >> FIXED_SHIFT;
         }
     }
 
@@ -73,9 +73,13 @@ static void verifyDashHeight(const Player* player, int frame, TestResults* resul
     }
 
     if (dashStartFrame >= 0 && player->stateMachine.state == ST_DASH) {
-        float tolerance = 5.0f;
-        if (fabs(player->vx - expectedVx) > tolerance || fabs(player->vy - expectedVy) > tolerance) {
-            printf("  FAIL: Dash speed drifted (vx=%.1f vy=%.1f expected %.1f/%.1f)\n",
+        int tolerance = 5;
+        int vxDiff = player->vx - expectedVx;
+        int vyDiff = player->vy - expectedVy;
+        if (vxDiff < 0) vxDiff = -vxDiff;
+        if (vyDiff < 0) vyDiff = -vyDiff;
+        if (vxDiff > tolerance || vyDiff > tolerance) {
+            printf("  FAIL: Dash speed drifted (vx=%d vy=%d expected %d/%d)\n",
                    player->vx, player->vy, expectedVx, expectedVy);
             results->failed++;
             checkedDash = 1;
@@ -98,8 +102,8 @@ const MechanicsTest test_dash_height = {
     .verifyFrame = verifyDashHeight,
     .expectFinalX = -1,
     .expectFinalY = -1,
-    .expectFinalVX = -999.0f,
-    .expectFinalVY = -999.0f,
+    .expectFinalVX = -999,
+    .expectFinalVY = -999,
     .expectFinalState = -1,
 };
 

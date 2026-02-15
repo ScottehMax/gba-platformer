@@ -92,7 +92,7 @@ static void verifyWallGrab(const Player* player, int frame, TestResults* results
         climbGrabFrame = frame;
         startY = player->y / 256.0f;
         printf("  INFO: Grabbed wall at frame %d, y=%.1fpx\n", frame, startY);
-        printf("  INFO: Initial state: %d, vy: %.1f\n", player->stateMachine.state, player->vy);
+        printf("  INFO: Initial state: %d, vy: %d\n", player->stateMachine.state, player->vy);
     }
 
     // Monitor for losing wall grab and track full extent of sliding
@@ -106,7 +106,7 @@ static void verifyWallGrab(const Player* player, int frame, TestResults* results
 
         // Print status every 10 frames for visibility
         if ((frame - climbGrabFrame) % 10 == 0 && frame <= 400) {
-            printf("  INFO: Frame %d (+%d): y=%.1fpx (Δ%.1f), state=%d, vy=%.1f\n",
+            printf("  INFO: Frame %d (+%d): y=%.1fpx (Δ%.1f), state=%d, vy=%d\n",
                    frame, frame - climbGrabFrame, currentY, slideAmount,
                    player->stateMachine.state, player->vy);
         }
@@ -150,8 +150,8 @@ const MechanicsTest test_wall_grab_slide = {
     .verifyFrame = verifyWallGrab,
     .expectFinalX = -1,
     .expectFinalY = -1,
-    .expectFinalVX = -999.0f,
-    .expectFinalVY = -999.0f,
+    .expectFinalVX = -999,
+    .expectFinalVY = -999,
     .expectFinalState = -1,
 };
 

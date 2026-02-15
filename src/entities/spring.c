@@ -79,22 +79,22 @@ void updateSprings(SpringManager* manager, Player* player) {
             switch (spring->type) {
                 case SPRING_NORMAL:
                     // Normal spring bounces from top
-                    playerBounce(player, (float)springTop);
+                    playerBounce(player, springTop);
                     break;
 
                 case SPRING_SUPER:
                     // Super spring bounces from top
-                    playerSuperBounce(player, (float)springTop);
+                    playerSuperBounce(player, springTop);
                     break;
 
                 case SPRING_WALL_LEFT:
                     // Left wall spring (pushes player left)
-                    playerSideBounce(player, -1, (float)springLeft, (float)(springTop + spring->height / 2));
+                    playerSideBounce(player, -1, springLeft, springTop + spring->height / 2);
                     break;
 
                 case SPRING_WALL_RIGHT:
                     // Right wall spring (pushes player right)
-                    playerSideBounce(player, 1, (float)springRight, (float)(springTop + spring->height / 2));
+                    playerSideBounce(player, 1, springRight, springTop + spring->height / 2);
                     break;
             }
 

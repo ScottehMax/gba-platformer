@@ -92,19 +92,23 @@ void runMechanicsTest(const MechanicsTest* test, const Level* defaultLevel, Test
         }
     }
 
-    if (test->expectFinalVX != -999.0f) {
-        float tolerance = 5.0f;
-        if (fabs(player.vx - test->expectFinalVX) > tolerance) {
-            printf("  FAIL: Final VX (expected %.1f, got %.1f)\n",
+    if (test->expectFinalVX != -999) {
+        int tolerance = 5;
+        int diff = player.vx - test->expectFinalVX;
+        if (diff < 0) diff = -diff;
+        if (diff > tolerance) {
+            printf("  FAIL: Final VX (expected %d, got %d)\n",
                    test->expectFinalVX, player.vx);
             finalFailed = 1;
         }
     }
 
-    if (test->expectFinalVY != -999.0f) {
-        float tolerance = 5.0f;
-        if (fabs(player.vy - test->expectFinalVY) > tolerance) {
-            printf("  FAIL: Final VY (expected %.1f, got %.1f)\n",
+    if (test->expectFinalVY != -999) {
+        int tolerance = 5;
+        int diff = player.vy - test->expectFinalVY;
+        if (diff < 0) diff = -diff;
+        if (diff > tolerance) {
+            printf("  FAIL: Final VY (expected %d, got %d)\n",
                    test->expectFinalVY, player.vy);
             finalFailed = 1;
         }

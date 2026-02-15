@@ -49,7 +49,7 @@ void dashSlideCheck(Player* player) {
         player->dashDirX = (player->dashDirX > 0) ? 1 : -1;
         player->dashDirY = 0;
         player->vy = 0;
-        player->vx *= DODGE_SLIDE_SPEED_MULT;
+        player->vx = fpMul(player->vx, FP_DODGE_SLIDE_MULT);
         player->ducking = 1;
     }
 }
@@ -81,13 +81,13 @@ void dashCoroutineResume(Player* player, u16 keys) {
     player->dashDirY = dashY;
 
     // Calculate dash velocity (Celeste line 3556-3559)
-    float newSpeedX = dashX * DASH_SPEED;
-    float newSpeedY = dashY * DASH_SPEED;
+    int newSpeedX = dashX * DASH_SPEED;
+    int newSpeedY = dashY * DASH_SPEED;
 
     // Normalize diagonal dashes
     if (dashX != 0 && dashY != 0) {
-        newSpeedX *= 0.707f;
-        newSpeedY *= 0.707f;
+        newSpeedX = fpMul(newSpeedX, FP_DIAG_NORMALIZE);
+        newSpeedY = fpMul(newSpeedY, FP_DIAG_NORMALIZE);
     }
 
     // Preserve higher speed if moving faster in same direction (Celeste line 3557-3558)
@@ -193,7 +193,7 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
                 player->vy = player->dashDirY * END_DASH_SPEED;
 
                 if (player->vy < 0) {
-                    player->vy *= 0.75f;  // EndDashUpMult
+                    player->vy = fpMul(player->vy, FP_END_DASH_UP_MULT);
                 }
             }
 
@@ -219,8 +219,8 @@ static void superJump(Player* player) {
     // Duck multipliers (Celeste line 2229+)
     if (player->ducking) {
         player->ducking = 0;
-        player->vx *= DUCK_SUPER_JUMP_X_MULT;
-        player->vy *= DUCK_SUPER_JUMP_Y_MULT;
+        player->vx = fpMul(player->vx, FP_DUCK_JUMP_X_MULT);
+        player->vy = fpMul(player->vy, FP_DUCK_JUMP_Y_MULT);
     }
 
     player->varJumpSpeed = player->vy;

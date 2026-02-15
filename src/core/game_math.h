@@ -5,7 +5,17 @@
 #define FIXED_SHIFT 8
 #define FIXED_ONE (1 << FIXED_SHIFT)
 
-#define TO_GBA(x) ((x) * 256.0f / 60.0f)
+#define TO_GBA(x) ((int)((x) * 256.0f / 60.0f))
+
+// Fixed-point multipliers (FIXED_ONE = 256 = 1.0)
+#define FP_AIR_MULT 166           // 0.65f * 256
+#define FP_DODGE_SLIDE_MULT 307   // 1.2f * 256
+#define FP_DUCK_JUMP_X_MULT 320   // 1.25f * 256
+#define FP_DUCK_JUMP_Y_MULT 128   // 0.5f * 256
+#define FP_CLIMB_GRAB_Y_MULT 51   // 0.2f * 256
+#define FP_DIAG_NORMALIZE 181     // 0.707f * 256 (sqrt(2)/2)
+#define FP_END_DASH_UP_MULT 192   // 0.75f * 256
+#define FP_FAST_FALL_THRESHOLD 243 // 0.95f * 256
 
 // Physics constants
 #define GRAVITY TO_GBA(900.0f)        // 3840
@@ -13,7 +23,6 @@
 #define MAX_SPEED TO_GBA(90.0f)       // 384
 #define ACCELERATION TO_GBA(1000.0f)  // 4266.67
 #define RUN_REDUCE TO_GBA(400.0f)     // 1706.67
-#define AIR_MULT 0.65f
 #define DASH_SPEED TO_GBA(240.0f)     // 1024
 #define DASH_LENGTH 9 // Frames of dash duration (0.15s at 60fps)
 #define END_DASH_SPEED TO_GBA(160.0f) // 682.67
@@ -45,27 +54,35 @@
 #define SUPER_WALL_JUMP_SPEED TO_GBA(-160.0f)  // -682.67 - Stronger than normal jump
 #define SUPER_WALL_JUMP_VAR_TIME 15  // 0.25s at 60fps - Longer var jump time
 #define DASH_ATTACK_TIME 18  // 0.3s at 60fps - Window for super jumps after dash
-#define DODGE_SLIDE_SPEED_MULT 1.2f  // Speed multiplier for diagonal down dash on ground
-#define DUCK_SUPER_JUMP_X_MULT 1.25f  // Horizontal boost for ducking super jump
-#define DUCK_SUPER_JUMP_Y_MULT 0.5f   // Vertical reduction for ducking super jump (makes it shorter)
 
 // Ducking
 #define DUCK_FRICTION TO_GBA(500.0f)  // 2133.33 - Friction when ducking on ground
 #define DUCK_CORRECT_CHECK 4  // Pixels to check for duck slide
 #define DUCK_CORRECT_SLIDE TO_GBA(50.0f)  // 213.33 - Speed when sliding to unduck
 
+// Per-frame physics rates (pre-divided by 60 for performance)
+#define DUCK_FRICTION_PF (DUCK_FRICTION / 60)      // ~35 per frame
+#define RUN_REDUCE_PF (RUN_REDUCE / 60)            // ~28 per frame
+#define ACCELERATION_PF (ACCELERATION / 60)         // ~71 per frame
+#define FAST_MAX_ACCEL_PF (FAST_MAX_ACCEL / 60)    // ~21 per frame
+#define GRAVITY_PF (GRAVITY / 60)                   // ~64 per frame
+#define CLIMB_ACCEL_PF (CLIMB_ACCEL / 60)          // ~64 per frame
+
+// Stamina costs per frame (convert from float to fixed-point)
+#define CLIMB_UP_COST_PF ((int)(CLIMB_UP_COST / 60.0f * 256))     // ~194
+#define CLIMB_STILL_COST_PF ((int)(CLIMB_STILL_COST / 60.0f * 256)) // ~42
+
 
 // Climbing
-#define CLIMB_MAX_STAMINA 110.0f
+#define CLIMB_MAX_STAMINA (110 * FIXED_ONE)  // 28160 in fixed-point
 #define CLIMB_UP_COST (100.0f / 2.2f)  // 45.45 per second
 #define CLIMB_STILL_COST (100.0f / 10.0f)  // 10 per second
 #define CLIMB_JUMP_COST (110.0f / 4.0f)  // 27.5 per jump
-#define CLIMB_TIRED_THRESHOLD 20.0f
+#define CLIMB_TIRED_THRESHOLD (20 * FIXED_ONE)  // 5120 in fixed-point
 #define CLIMB_UP_SPEED TO_GBA(-45.0f)  // -192
 #define CLIMB_DOWN_SPEED TO_GBA(80.0f)  // 341.33
 #define CLIMB_SLIP_SPEED TO_GBA(30.0f)  // 128
 #define CLIMB_ACCEL TO_GBA(900.0f)  // 3840
-#define CLIMB_GRAB_Y_MULT 0.2f
 #define CLIMB_NO_MOVE_TIME 6  // 0.1s at 60fps
 #define CLIMB_CHECK_DIST 2  // Pixels to check for wall
 #define CLIMB_UP_CHECK_DIST 2  // Pixels to check for climb up

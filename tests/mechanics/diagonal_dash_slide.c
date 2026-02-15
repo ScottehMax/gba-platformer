@@ -35,8 +35,8 @@ static void verifyNoDashBug(const Player* player, int frame, TestResults* result
 
     // After frame 100, player should have stopped or nearly stopped (VX < 100)
     if (frame > 100) {
-        if (player->vx > 100.0f) {
-            printf("  FAIL: Player still moving too fast at frame %d (vx=%.1f)\n", frame, player->vx);
+        if (player->vx > 100) {
+            printf("  FAIL: Player still moving too fast at frame %d (vx=%d)\n", frame, player->vx);
             results->failed++;
         }
     }
@@ -53,8 +53,8 @@ const MechanicsTest test_diagonal_dash_slide = {
     .verifyFrame = verifyNoDashBug,
     .expectFinalX = 77 << FIXED_SHIFT,  // Should stop around X=77
     .expectFinalY = 112 << FIXED_SHIFT, // Should be on ground at Y=112 (adjusted for 11px hitbox + Y shift)
-    .expectFinalVX = 0.0f,              // Should have stopped
-    .expectFinalVY = 0.0f,              // Should be on ground
+    .expectFinalVX = 0,              // Should have stopped
+    .expectFinalVY = 0,              // Should be on ground
     .expectFinalState = ST_NORMAL,      // Should be in Normal state, not stuck in Dash
 };
 

@@ -14,7 +14,7 @@ void climbBegin(Player* player, const Level* level) {
     // Celeste ClimbBegin (line 3056-3078)
     player->autoJump = 0;  // Clear AutoJump (Celeste line 3058)
     player->vx = 0;
-    player->vy *= CLIMB_GRAB_Y_MULT;
+    player->vy = fpMul(player->vy, FP_CLIMB_GRAB_Y_MULT);
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->climbNoMoveTimer = CLIMB_NO_MOVE_TIME;
     player->lastClimbMove = 0;
@@ -90,7 +90,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Climbing movement (Celeste line 3179-3230)
-    float target = 0;
+    int target = 0;
     int trySlip = 0;
 
     if (player->climbNoMoveTimer <= 0) {
@@ -143,7 +143,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Set speed (Celeste line 3230)
-    player->vy = approach(player->vy, target, CLIMB_ACCEL / 60.0f);
+    player->vy = approachInt(player->vy, target, CLIMB_ACCEL_PF);
 
     // Down limit: don't fall off bottom of wall (Celeste line 3233-3235)
     if (moveY != 1 && player->vy > 0) {
@@ -156,10 +156,10 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     if (player->climbNoMoveTimer <= 0) {
         if (player->lastClimbMove == -1) {
             // Climbing up costs stamina
-            player->stamina -= CLIMB_UP_COST / 60.0f;
+            player->stamina -= CLIMB_UP_COST_PF;
         } else if (player->lastClimbMove == 0) {
             // Hanging still costs stamina
-            player->stamina -= CLIMB_STILL_COST / 60.0f;
+            player->stamina -= CLIMB_STILL_COST_PF;
         }
         // Climbing down is free
     }
@@ -178,7 +178,7 @@ static void climbJump(Player* player, u16 keys) {
 
     // Consume stamina (Celeste line 1817)
     if (!player->onGround) {
-        player->stamina -= CLIMB_JUMP_COST;
+        player->stamina -= (int)(CLIMB_JUMP_COST * FIXED_ONE);
     }
 
     // Normal jump

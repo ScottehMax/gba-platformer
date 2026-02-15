@@ -33,8 +33,8 @@ typedef struct {
     // Expected final state
     int expectFinalX;      // Fixed-point expected X position (or -1 to skip)
     int expectFinalY;      // Fixed-point expected Y position (or -1 to skip)
-    float expectFinalVX;   // Expected final VX (or use -999.0f to skip)
-    float expectFinalVY;   // Expected final VY (or use -999.0f to skip)
+    int expectFinalVX;     // Expected final VX in fixed-point (or use -999 to skip)
+    int expectFinalVY;     // Expected final VY in fixed-point (or use -999 to skip)
     int expectFinalState;  // Expected final state (or -1 to skip)
 } MechanicsTest;
 

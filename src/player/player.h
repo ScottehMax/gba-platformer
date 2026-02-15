@@ -46,26 +46,26 @@ void refillStamina(Player* player);
  * Normal spring bounce - launches player upward (Celeste Player.cs line 1844)
  *
  * @param player The player to bounce
- * @param fromY The Y position to snap player to (spring top)
+ * @param fromY The Y position to snap player to (spring top) in pixels
  */
-void playerBounce(Player* player, float fromY);
+void playerBounce(Player* player, int fromY);
 
 /**
  * Super spring bounce - launches player higher and cancels horizontal momentum (Celeste Player.cs line 1878)
  *
  * @param player The player to bounce
- * @param fromY The Y position to snap player to (spring top)
+ * @param fromY The Y position to snap player to (spring top) in pixels
  */
-void playerSuperBounce(Player* player, float fromY);
+void playerSuperBounce(Player* player, int fromY);
 
 /**
  * Side spring bounce - launches player horizontally (Celeste Player.cs line 1919)
  *
  * @param player The player to bounce
  * @param dir Direction to launch: 1=right, -1=left
- * @param fromX The X position to snap player to (spring side)
- * @param fromY The Y position to snap player to (spring vertical center)
+ * @param fromX The X position to snap player to (spring side) in pixels
+ * @param fromY The Y position to snap player to (spring vertical center) in pixels
  */
-void playerSideBounce(Player* player, int dir, float fromX, float fromY);
+void playerSideBounce(Player* player, int dir, int fromX, int fromY);
 
 #endif

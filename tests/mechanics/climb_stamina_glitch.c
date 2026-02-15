@@ -76,25 +76,25 @@ static void verifyClimbStamina(const Player* player, int frame, TestResults* res
     if (climbStartFrame < 0 && player->stateMachine.state == ST_CLIMB) {
         climbStartFrame = frame;
         printf("  INFO: Entered climb state at frame %d\n", frame);
-        printf("  INFO: Initial stamina: %.1f\n", player->stamina);
+        printf("  INFO: Initial stamina: %.1f\n", player->stamina / 256.0);
     }
 
     // Print stamina every 30 frames during climb, and last 5 frames
     if (climbStartFrame >= 0 && player->stateMachine.state == ST_CLIMB) {
         if ((frame - climbStartFrame) % 30 == 0 || frame >= 426) {
-            printf("  INFO: Frame %d (+%d): stamina=%.1f, state=%d, y=%.1fpx, vy=%.1f\n",
-                   frame, frame - climbStartFrame, player->stamina,
-                   player->stateMachine.state, player->y / 256.0f, player->vy);
+            printf("  INFO: Frame %d (+%d): stamina=%.1f, state=%d, y=%.1fpx, vy=%d\n",
+                   frame, frame - climbStartFrame, player->stamina / 256.0,
+                   player->stateMachine.state, player->y / 256.0, player->vy);
         }
     }
 
     // Detect when stamina is depleted
-    if (climbStartFrame >= 0 && staminaDepletedFrame < 0 && player->stamina <= 0.0f) {
+    if (climbStartFrame >= 0 && staminaDepletedFrame < 0 && player->stamina <= 0) {
         staminaDepletedFrame = frame;
         printf("  INFO: Stamina depleted at frame %d\n", frame);
         printf("  INFO: State at depletion: %d (0=NORMAL, 1=CLIMB)\n", player->stateMachine.state);
-        printf("  INFO: Position at depletion: y=%d (%.1fpx)\n", player->y, player->y / 256.0f);
-        printf("  INFO: Velocity at depletion: vy=%.1f\n", player->vy);
+        printf("  INFO: Position at depletion: y=%d (%.1fpx)\n", player->y, player->y / 256.0);
+        printf("  INFO: Velocity at depletion: vy=%d\n", player->vy);
     }
 
     // Monitor for jittering behavior after stamina is depleted
@@ -117,7 +117,7 @@ static void verifyClimbStamina(const Player* player, int frame, TestResults* res
                            frame, (frame - staminaDepletedFrame) / 60.0f);
                     printf("        Y position oscillating: %d -> %d (delta: %d)\n",
                            prevY >> FIXED_SHIFT, currentY >> FIXED_SHIFT, deltaY >> FIXED_SHIFT);
-                    printf("        Current state: %d, vy: %.1f\n",
+                    printf("        Current state: %d, vy: %d\n",
                            player->stateMachine.state, player->vy);
                     results->failed++;
                     hasReportedGlitch = 1;
@@ -132,7 +132,7 @@ static void verifyClimbStamina(const Player* player, int frame, TestResults* res
     }
 
     // Also check if player is stuck in climb state with 0 stamina
-    if (frame > 300 && player->stateMachine.state == ST_CLIMB && player->stamina <= 0.0f) {
+    if (frame > 300 && player->stateMachine.state == ST_CLIMB && player->stamina <= 0) {
         if (!hasReportedGlitch) {
             printf("  FAIL: Player stuck in CLIMB state with 0 stamina at frame %d!\n", frame);
             results->failed++;
@@ -152,8 +152,8 @@ const MechanicsTest test_climb_stamina_glitch = {
     .verifyFrame = verifyClimbStamina,
     .expectFinalX = -1,
     .expectFinalY = -1,
-    .expectFinalVX = -999.0f,
-    .expectFinalVY = -999.0f,
+    .expectFinalVX = -999,
+    .expectFinalVY = -999,
     .expectFinalState = -1,  // Don't check state - replay doesn't run long enough to deplete
 };
 
