@@ -5,7 +5,9 @@
 #define FIXED_SHIFT 8
 #define FIXED_ONE (1 << FIXED_SHIFT)
 
-#define TO_GBA(x) ((x) * 256.0f / 60.0f)
+// Convert Celeste velocity (pixels/second) to GBA fixed-point (units per frame)
+// Formula: value * 256 / 60 (pure integer arithmetic)
+#define TO_GBA(x) ((x) * 256 / 60)
 
 // Fixed-point multipliers (FIXED_ONE = 256 = 1.0)
 #define FP_AIR_MULT 166           // 0.65f * 256
@@ -17,48 +19,48 @@
 #define FP_END_DASH_UP_MULT 192   // 0.75f * 256
 #define FP_FAST_FALL_THRESHOLD 243 // 0.95f * 256
 
-// Physics constants
-#define GRAVITY TO_GBA(900.0f)        // 3840
-#define JUMP_STRENGTH TO_GBA(-105.0f) // -448
-#define MAX_SPEED TO_GBA(90.0f)       // 384
-#define ACCELERATION TO_GBA(1000.0f)  // 4266.67
-#define RUN_REDUCE TO_GBA(400.0f)     // 1706.67
-#define DASH_SPEED TO_GBA(240.0f)     // 1024
+// Physics constants (integer arithmetic)
+#define GRAVITY TO_GBA(900)        // 3840
+#define JUMP_STRENGTH TO_GBA(-105) // -448
+#define MAX_SPEED TO_GBA(90)       // 384
+#define ACCELERATION TO_GBA(1000)  // 4266
+#define RUN_REDUCE TO_GBA(400)     // 1706
+#define DASH_SPEED TO_GBA(240)     // 1024
 #define DASH_LENGTH 9 // Frames of dash duration (0.15s at 60fps)
-#define END_DASH_SPEED TO_GBA(160.0f) // 682.67
+#define END_DASH_SPEED TO_GBA(160) // 682
 #define DASH_COOLDOWN_TIME 12  // 0.2s at 60fps - cooldown before can dash again
 #define DASH_REFILL_COOLDOWN_TIME 6  // 0.1s at 60fps - cooldown before dash refills on ground
 #define COYOTE_TIME 6  // Frames of grace period after walking off edge, 0.1 seconds at 60fps
-#define MAX_FALL_SPEED TO_GBA(160.0f)     // 682.67
-#define FAST_MAX_FALL_SPEED TO_GBA(240.0f) // 1024
-#define FAST_MAX_ACCEL TO_GBA(300.0f)     // 1280
+#define MAX_FALL_SPEED TO_GBA(160)     // 682
+#define FAST_MAX_FALL_SPEED TO_GBA(240) // 1024
+#define FAST_MAX_ACCEL TO_GBA(300)     // 1280
 
 // Jump feel
-#define JUMP_HORIZONTAL_BOOST TO_GBA(40.0f) // 170.67
+#define JUMP_HORIZONTAL_BOOST TO_GBA(40) // 170
 #define JUMP_BUFFER_TIME 5  // Frames to remember jump press
 #define JUMP_RELEASE_MULTIPLIER 2  // Divide vy by this when jump released
 #define VAR_JUMP_TIME 12  // Frames to maintain jump velocity (0.2s at 60fps)
 #define PEAK_GRAVITY_MULTIPLIER 2  // Divide gravity by this at peak
-#define HALF_GRAV_THRESHOLD TO_GBA(40.0f) // 170.67 - When abs(vy) is below this, apply reduced gravity for floaty feel
+#define HALF_GRAV_THRESHOLD TO_GBA(40) // 170 - When abs(vy) is below this, apply reduced gravity for floaty feel
 
 // Wall slide/jump
-#define WALL_SLIDE_START_MAX TO_GBA(20.0f)  // 85.33 - Very slow initial wall slide speed
+#define WALL_SLIDE_START_MAX TO_GBA(20)  // 85 - Very slow initial wall slide speed
 #define WALL_SLIDE_TIME 72  // Frames before wall slide reaches normal fall speed (1.2s at 60fps)
-#define WALL_JUMP_H_SPEED TO_GBA(130.0f)  // 554.67 - Horizontal speed for wall jump (MaxRun + JumpHBoost)
+#define WALL_JUMP_H_SPEED TO_GBA(130)  // 554 - Horizontal speed for wall jump (MaxRun + JumpHBoost)
 #define WALL_JUMP_CHECK_DIST 3  // Pixels to check for wall
 
 // Super jump (hyper dash) mechanics
-#define SUPER_JUMP_H TO_GBA(260.0f)  // 1109.33 - Horizontal speed for super jump from dash
+#define SUPER_JUMP_H TO_GBA(260)  // 1109 - Horizontal speed for super jump from dash
 #define SUPER_JUMP_SPEED JUMP_STRENGTH  // Same vertical as normal jump
-#define SUPER_WALL_JUMP_H TO_GBA(170.0f)  // 725.33 - MaxRun + JumpHBoost * 2
-#define SUPER_WALL_JUMP_SPEED TO_GBA(-160.0f)  // -682.67 - Stronger than normal jump
+#define SUPER_WALL_JUMP_H TO_GBA(170)  // 725 - MaxRun + JumpHBoost * 2
+#define SUPER_WALL_JUMP_SPEED TO_GBA(-160)  // -682 - Stronger than normal jump
 #define SUPER_WALL_JUMP_VAR_TIME 15  // 0.25s at 60fps - Longer var jump time
 #define DASH_ATTACK_TIME 18  // 0.3s at 60fps - Window for super jumps after dash
 
 // Ducking
-#define DUCK_FRICTION TO_GBA(500.0f)  // 2133.33 - Friction when ducking on ground
+#define DUCK_FRICTION TO_GBA(500)  // 2133 - Friction when ducking on ground
 #define DUCK_CORRECT_CHECK 4  // Pixels to check for duck slide
-#define DUCK_CORRECT_SLIDE TO_GBA(50.0f)  // 213.33 - Speed when sliding to unduck
+#define DUCK_CORRECT_SLIDE TO_GBA(50)  // 213 - Speed when sliding to unduck
 
 // Per-frame physics rates (pre-divided by 60 for performance)
 #define DUCK_FRICTION_PF (DUCK_FRICTION / 60)      // ~35 per frame
@@ -75,26 +77,26 @@
 
 // Climbing
 #define CLIMB_MAX_STAMINA (110 * FIXED_ONE)  // 28160 in fixed-point
-#define CLIMB_UP_COST (100.0f / 2.2f)  // 45.45 per second (used for reference)
-#define CLIMB_STILL_COST (100.0f / 10.0f)  // 10 per second (used for reference)
+#define CLIMB_UP_COST 45  // 45.45 per second (approximated to 45)
+#define CLIMB_STILL_COST 10  // 10 per second
 #define CLIMB_JUMP_COST ((110 * FIXED_ONE) / 4)  // 7040 = 27.5 in fixed-point
 #define CLIMB_TIRED_THRESHOLD (20 * FIXED_ONE)  // 5120 in fixed-point
-#define CLIMB_UP_SPEED TO_GBA(-45.0f)  // -192
-#define CLIMB_DOWN_SPEED TO_GBA(80.0f)  // 341.33
-#define CLIMB_SLIP_SPEED TO_GBA(30.0f)  // 128
-#define CLIMB_ACCEL TO_GBA(900.0f)  // 3840
+#define CLIMB_UP_SPEED TO_GBA(-45)  // -192
+#define CLIMB_DOWN_SPEED TO_GBA(80)  // 341
+#define CLIMB_SLIP_SPEED TO_GBA(30)  // 128
+#define CLIMB_ACCEL TO_GBA(900)  // 3840
 #define CLIMB_NO_MOVE_TIME 6  // 0.1s at 60fps
 #define CLIMB_CHECK_DIST 2  // Pixels to check for wall
 #define CLIMB_UP_CHECK_DIST 2  // Pixels to check for climb up
-#define CLIMB_HOP_Y TO_GBA(-120.0f)  // -512
-#define CLIMB_HOP_X TO_GBA(100.0f)  // 426.67
+#define CLIMB_HOP_Y TO_GBA(-120)  // -512
+#define CLIMB_HOP_X TO_GBA(100)  // 426
 #define CLIMB_HOP_FORCE_TIME 12  // 0.2s at 60fps - Force no horizontal input after climb hop (Celeste line 117)
 #define CLIMB_JUMP_BOOST_TIME 12  // 0.2s at 60fps - Window to convert climb jump to wall jump
 
 // Bounce/Spring mechanics (Celeste Player.cs line 38, 63-66, 1916-1917)
-#define BOUNCE_SPEED TO_GBA(-140.0f)  // -597.33 - Normal spring vertical speed
-#define SUPER_BOUNCE_SPEED TO_GBA(-185.0f)  // -789.33 - Super spring vertical speed
-#define SIDE_BOUNCE_SPEED TO_GBA(240.0f)  // 1024 - Wall spring horizontal speed
+#define BOUNCE_SPEED TO_GBA(-140)  // -597 - Normal spring vertical speed
+#define SUPER_BOUNCE_SPEED TO_GBA(-185)  // -789 - Super spring vertical speed
+#define SIDE_BOUNCE_SPEED TO_GBA(240)  // 1024 - Wall spring horizontal speed
 #define BOUNCE_VAR_JUMP_TIME 12  // 0.2s at 60fps - Can control height after bounce
 #define SUPER_BOUNCE_VAR_JUMP_TIME 12  // 0.2s at 60fps - Can control height after super bounce
 #define BOUNCE_AUTO_JUMP_TIME 6  // 0.1s at 60fps - Maintains float after bounce

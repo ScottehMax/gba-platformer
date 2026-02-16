@@ -199,20 +199,8 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->jumpHeld = 0;
     }
 
-    // Execute buffered jump on landing (Celeste uses Input.Jump.Pressed logic)
-    if (player->jumpBuffer > 0 && player->onGround) {
-        player->vy = JUMP_STRENGTH + player->liftBoostY;  // Apply lift boost
-        player->vx += player->liftBoostX;  // Apply horizontal lift boost
-        player->varJumpSpeed = JUMP_STRENGTH;
-        player->varJumpTimer = VAR_JUMP_TIME;
-        player->onGround = 0;
-        player->coyoteTime = 0;
-        player->jumpBuffer = 0;
-        player->jumpHeld = 1;
-        player->autoJump = 0;  // Clear AutoJump when manually jumping
-    }
-
     // After Dash / On Ground (Celeste line 702-707, 714-720)
+    // These checks MUST happen before buffered jump execution, so they see the correct onGround state
     // Clear AutoJump when landing (not during climb)
     if (player->onGround && player->stateMachine.state != ST_CLIMB) {
         player->autoJump = 0;
@@ -228,14 +216,29 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->coyoteTime--;
     }
 
+    // Refill dash when on ground (Celeste line 735-738)
+    // MUST happen before buffered jump execution!
+    if (player->dashRefillCooldownTimer == 0 && player->onGround && player->dashes < player->maxDashes) {
+        player->dashes = player->maxDashes;
+    }
+
+    // Execute buffered jump on landing (Celeste uses Input.Jump.Pressed logic)
+    // This happens AFTER all onGround checks, because it will set onGround = 0
+    if (player->jumpBuffer > 0 && player->onGround) {
+        player->vy = JUMP_STRENGTH + player->liftBoostY;  // Apply lift boost
+        player->vx += player->liftBoostX;  // Apply horizontal lift boost
+        player->varJumpSpeed = JUMP_STRENGTH;
+        player->varJumpTimer = VAR_JUMP_TIME;
+        player->onGround = 0;
+        player->coyoteTime = 0;
+        player->jumpBuffer = 0;
+        player->jumpHeld = 1;
+        player->autoJump = 0;  // Clear AutoJump when manually jumping
+    }
+
     // Dash slide check (Celeste DashCoroutine after collision)
     if (player->stateMachine.state == ST_DASH) {
         dashSlideCheck(player);
-    }
-
-    // Refill dash when on ground (Celeste line 1047-1050)
-    if (player->dashRefillCooldownTimer == 0 && player->onGround && player->dashes < player->maxDashes) {
-        player->dashes = player->maxDashes;
     }
 
     // Consume dash when dash is triggered (handled by Normal state returning ST_DASH)
