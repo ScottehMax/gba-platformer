@@ -229,10 +229,11 @@ def validate_level(data: Dict[str, Any], filename: str) -> None:
     width = data['width']
     height = data['height']
 
-    if not isinstance(width, int) or width <= 0 or width > 256:
-        errors.append(f"Invalid width: {width} (must be 1-256)")
-    if not isinstance(height, int) or height <= 0 or height > 256:
-        errors.append(f"Invalid height: {height} (must be 1-256)")
+    # u16 can hold up to 65535
+    if not isinstance(width, int) or width <= 0 or width > 65535:
+        errors.append(f"Invalid width: {width} (must be 1-65535)")
+    if not isinstance(height, int) or height <= 0 or height > 65535:
+        errors.append(f"Invalid height: {height} (must be 1-65535)")
 
     # Validate layers
     layers = data['layers']
