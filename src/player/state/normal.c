@@ -6,7 +6,7 @@
 
 // Forward declarations for helper functions
 static void jump(Player* player, u16 keys);
-static void wallJump(Player* player, int dir);
+static void wallJump(Player* player, int dir, int moveX);
 
 void normalBegin(Player* player, const Level* level) {
     // Reset max fall to normal (Celeste line 2762)
@@ -181,10 +181,10 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
             // Note: Super wall jumps during dash attack are handled in dash state
             if (checkWall(player, level, 1)) {
                 // Wall on right
-                wallJump(player, -1);
+                wallJump(player, -1, moveX);
             } else if (checkWall(player, level, -1)) {
                 // Wall on left
-                wallJump(player, 1);
+                wallJump(player, 1, moveX);
             } else {
                 // Buffer jump for later (not in shown Celeste code, but in Jump() method)
                 player->jumpBuffer = JUMP_BUFFER_TIME;
@@ -220,9 +220,16 @@ static void jump(Player* player, u16 keys) {
     player->jumpHeld = 1;
 }
 
-// Helper function: Wall Jump (Celeste WallJump() method around line 2100+)
-static void wallJump(Player* player, int dir) {
+// Helper function: Wall Jump (Celeste WallJump() method line 1736-1782)
+static void wallJump(Player* player, int dir, int moveX) {
     player->ducking = 0;
+
+    // Force movement away from wall if holding any direction (Celeste line 1746-1750)
+    if (moveX != 0) {
+        player->forceMoveX = dir;
+        player->forceMoveXTimer = WALL_JUMP_FORCE_TIME;
+    }
+
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
 
@@ -233,7 +240,9 @@ static void wallJump(Player* player, int dir) {
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
     player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
+    player->dashAttackTimer = 0;  // Clear dash attack window (Celeste line 1743)
     player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->wallBoostTimer = 0;  // Clear wall boost (Celeste line 1745)
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 1;

@@ -7,7 +7,7 @@
 // Forward declarations
 static void climbJump(Player* player, u16 keys);
 static void climbHop(Player* player, const Level* level);
-static void wallJump(Player* player, int dir);
+static void wallJump(Player* player, int dir, int moveX);
 static int slipCheck(const Player* player, const Level* level, int addY);
 
 void climbBegin(Player* player, const Level* level) {
@@ -61,7 +61,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
     if (pressed & BTN_JUMP) {
         if (moveX == -facingDir) {
             // Jump away from wall
-            wallJump(player, -facingDir);
+            wallJump(player, -facingDir, moveX);
         } else {
             // Climb jump (jump up while staying on wall)
             climbJump(player, keys);
@@ -274,9 +274,16 @@ static int slipCheck(const Player* player, const Level* level, int addY) {
     return !isTileSolid(level, tile1) && !isTileSolid(level, tile2);
 }
 
-// Helper: Wall Jump from climb (already defined in normal.c, but need local version)
-static void wallJump(Player* player, int dir) {
+// Helper: Wall Jump from climb (Celeste WallJump() line 1736-1782)
+static void wallJump(Player* player, int dir, int moveX) {
     player->ducking = 0;
+
+    // Force movement away from wall if holding any direction (Celeste line 1746-1750)
+    if (moveX != 0) {
+        player->forceMoveX = dir;
+        player->forceMoveXTimer = WALL_JUMP_FORCE_TIME;
+    }
+
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
 
@@ -287,7 +294,9 @@ static void wallJump(Player* player, int dir) {
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
     player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
+    player->dashAttackTimer = 0;  // Clear dash attack window (Celeste line 1743)
     player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->wallBoostTimer = 0;  // Clear wall boost (Celeste line 1745)
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 1;

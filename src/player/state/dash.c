@@ -7,7 +7,7 @@
 // Forward declarations
 static void superJump(Player* player);
 static void superWallJump(Player* player, int dir);
-static void wallJump(Player* player, int dir);
+static void wallJump(Player* player, int dir, int moveX);
 
 void dashBegin(Player* player, const Level* level) {
     // Celeste DashBegin (line 3442-3467)
@@ -122,6 +122,7 @@ void dashEnd(Player* player) {
 int dashUpdate(Player* player, u16 keys, const Level* level) {
     // Detect button presses
     u16 pressed = keys & ~player->prevKeys;
+    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
 
     // Trail timer (Celeste line 3478-3484)
     if (player->trailTimer > 0) {
@@ -160,10 +161,10 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
     else if (player->dashDirX != 0 || player->dashDirY != 0) {
         if (pressed & BTN_JUMP) {
             if (checkWall(player, level, 1)) {
-                wallJump(player, -1);
+                wallJump(player, -1, moveX);
                 return ST_NORMAL;
             } else if (checkWall(player, level, -1)) {
-                wallJump(player, 1);
+                wallJump(player, 1, moveX);
                 return ST_NORMAL;
             }
         }
@@ -257,9 +258,16 @@ static void superWallJump(Player* player, int dir) {
     player->facingRight = dir > 0 ? 1 : 0;
 }
 
-// Helper: Wall Jump (Celeste WallJump() around line 2100+)
-static void wallJump(Player* player, int dir) {
+// Helper: Wall Jump (Celeste WallJump() line 1736-1782)
+static void wallJump(Player* player, int dir, int moveX) {
     player->ducking = 0;
+
+    // Force movement away from wall if holding any direction (Celeste line 1746-1750)
+    if (moveX != 0) {
+        player->forceMoveX = dir;
+        player->forceMoveXTimer = WALL_JUMP_FORCE_TIME;
+    }
+
     player->vx = dir * WALL_JUMP_H_SPEED;
     player->vy = JUMP_STRENGTH;
 
@@ -270,8 +278,9 @@ static void wallJump(Player* player, int dir) {
     player->varJumpSpeed = JUMP_STRENGTH;
     player->varJumpTimer = VAR_JUMP_TIME;
     player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
+    player->dashAttackTimer = 0;  // Clear dash attack window (Celeste line 1743)
     player->wallSlideTimer = WALL_SLIDE_TIME;
-    player->dashAttackTimer = 0;
+    player->wallBoostTimer = 0;  // Clear wall boost (Celeste line 1745)
     player->dashing = 0;  // End dash so trail can fade
     player->coyoteTime = 0;
     player->jumpBuffer = 0;

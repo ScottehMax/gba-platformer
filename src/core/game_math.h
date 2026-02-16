@@ -48,6 +48,7 @@
 #define WALL_SLIDE_TIME 72  // Frames before wall slide reaches normal fall speed (1.2s at 60fps)
 #define WALL_JUMP_H_SPEED TO_GBA(130)  // 554 - Horizontal speed for wall jump (MaxRun + JumpHBoost)
 #define WALL_JUMP_CHECK_DIST 3  // Pixels to check for wall
+#define WALL_JUMP_FORCE_TIME 10  // 0.16s at 60fps - Force movement away from wall (Celeste line 57)
 
 // Super jump (hyper dash) mechanics
 #define SUPER_JUMP_H TO_GBA(260)  // 1109 - Horizontal speed for super jump from dash
