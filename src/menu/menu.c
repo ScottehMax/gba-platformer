@@ -14,10 +14,10 @@ typedef struct {
 } LevelEntry;
 
 static const LevelEntry levels[] = {
-    {"Tutorial", &Tutorial_Level},
-    {"Celeste 1", &Celeste1},
-    {"Test Level", &Test_Level_1},
-    {"SMB 1-1", &smb11}
+    {"Test Level 1", &Tutorial_Level},
+    {"Test Level 2", &Celeste1},
+    {"Test Level 3", &Test_Level_1},
+    {"Test Level 4", &smb11}
 };
 #define LEVEL_COUNT (sizeof(levels) / sizeof(levels[0]))
 
@@ -125,6 +125,11 @@ void returnToMenu(void) {
     // Hide player sprite (move offscreen)
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 160;  // Y coordinate offscreen
+
+    // Hide spring sprites (sprites 16-47)
+    for (int i = 16; i < 48; i++) {
+        oam[i * 4] = 160;  // Y coordinate offscreen
+    }
 
     // Clear BG1 and BG2 tilemaps (hide level tiles)
     volatile u16* bg1Map = (volatile u16*)(0x06000000 + (25 << 11));
