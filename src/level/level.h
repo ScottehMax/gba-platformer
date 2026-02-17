@@ -7,6 +7,13 @@
 #include <tonc.h>
 #endif
 
+// Collision type for each tile position
+typedef enum {
+    COL_NONE     = 0,  // No collision (passable)
+    COL_SOLID    = 1,  // Fully solid (blocks all directions)
+    COL_JUMPTHRU = 2,  // One-way platform (blocks only from above when falling)
+} CollisionType;
+
 // Object types enum - add new types here
 typedef enum {
     OBJ_NONE = 0,
@@ -52,7 +59,7 @@ typedef struct {
     u16 playerSpawnY;
     u8 tilesetCount;
     const TilesetInfo* tilesets;
-    const u32* collisionBitmap;
+    const u8* collisionMap;  // Per-tile collision: collisionMap[ty*width + tx] = CollisionType
     u16 uniqueTileCount;
     const u16* uniqueTileIds;
     const u8* tilePaletteBanks;
@@ -82,26 +89,18 @@ static inline u16 getTileAt(const Level* level, u8 layerIndex, int tileX, int ti
 }
 
 /**
- * Check if a tile ID is solid (collideable)
+ * Get the collision type for a tile at the given tile coordinates.
  *
- * @param level The level to query (for collision bitmap lookup)
- * @param tileId The tile ID to check
- * @return 1 if solid, 0 if not
+ * @param level The level to query
+ * @param tileX The tile X coordinate
+ * @param tileY The tile Y coordinate
+ * @return CollisionType (COL_NONE, COL_SOLID, or COL_JUMPTHRU)
  */
-static inline int isTileSolid(const Level* level, u16 tileId) {
-    // Tile 0 is empty/air
-    if (tileId == 0) return 0;
-    
-    // If level has a collision bitmap, use it
-    if (level->collisionBitmap) {
-        u32 byteIndex = tileId / 8;
-        u8 bitIndex = tileId % 8;
-        u8 byte = (level->collisionBitmap[byteIndex / 4] >> ((byteIndex % 4) * 8)) & 0xFF;
-        return (byte & (1 << bitIndex)) != 0;
+static inline CollisionType getTileCollision(const Level* level, int tileX, int tileY) {
+    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
+        return COL_NONE;
     }
-    
-    // Backward compatibility: tiles 1-55 (grassy_stone) are solid
-    return tileId >= 1 && tileId <= 55;
+    return (CollisionType)level->collisionMap[tileY * level->width + tileX];
 }
 
 /**

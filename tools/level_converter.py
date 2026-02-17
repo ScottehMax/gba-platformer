@@ -3,7 +3,7 @@
 Level Converter - Converts Tiled TMX level files to C header files for GBA
 Usage: python level_converter.py input.tmx output.h
 
-Supports multi-tileset levels with collision bitmap.
+Supports multi-tileset levels with a dedicated Collision layer.
 Parses Tiled TMX format and external TSX tileset files.
 """
 
@@ -13,8 +13,10 @@ import os
 from typing import Dict, List, Any, Set, Tuple
 from pathlib import Path
 
-# Default collision tiles (grassy_stone tiles 1-55 are solid)
-DEFAULT_COLLISION_TILES = list(range(1, 56))
+# Collision type values (must match CollisionType enum in level.h)
+COL_NONE     = 0
+COL_SOLID    = 1
+COL_JUMPTHRU = 2
 
 
 def parse_tsx_tileset(tsx_path: str) -> Dict[str, Any]:
@@ -59,7 +61,6 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
         'objects': [],
         'playerSpawn': {'x': 0, 'y': 0},
         'tilesets': [],
-        'collisionTiles': DEFAULT_COLLISION_TILES.copy()
     }
 
     # Expected tileset ranges for the game
@@ -73,6 +74,9 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
     tmx_dir = os.path.dirname(os.path.abspath(tmx_path))
     gid_to_game_id = {0: 0}  # 0 always maps to 0 (empty tile)
 
+    # GID -> CollisionType mapping for the collision_types tileset
+    gid_to_col_type = {0: COL_NONE}
+
     for tileset_elem in root.findall('tileset'):
         firstgid = int(tileset_elem.get('firstgid'))
         source = tileset_elem.get('source')
@@ -84,6 +88,17 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
 
             tileset_name = tsx_info['name']
             tile_count = tsx_info['tileCount']
+
+            if tileset_name == 'collision_types':
+                # Build GID -> CollisionType mapping
+                # Tile index 0 = COL_SOLID, tile index 1 = COL_JUMPTHRU
+                col_type_map = [COL_SOLID, COL_JUMPTHRU]
+                for i in range(tile_count):
+                    tmx_gid = firstgid + i
+                    col_type = col_type_map[i] if i < len(col_type_map) else COL_NONE
+                    gid_to_col_type[tmx_gid] = col_type
+                # Don't add to game tilesets - collision tiles aren't rendered
+                continue
 
             # Get expected firstId for this tileset
             expected_first_id = EXPECTED_RANGES.get(tileset_name, firstgid)
@@ -109,6 +124,8 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
 
     # Parse tile layers
     layer_index = 0
+    collision_layer_tiles = None  # Raw collision type grid [height][width] if Collision layer found
+
     for layer in root.findall('layer'):
         layer_name = layer.get('name', f'Layer {layer_index}')
         layer_data = layer.find('data')
@@ -117,6 +134,22 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
             encoding = layer_data.get('encoding')
 
             if encoding == 'csv':
+                # Parse CSV data
+                csv_text = layer_data.text.strip()
+                rows = csv_text.split('\n')
+
+                # Check if this is the Collision layer (by name)
+                if layer_name.lower() == 'collision':
+                    col_tiles = []
+                    for row in rows:
+                        tmx_gids = [int(tile_id) for tile_id in row.strip().rstrip(',').split(',') if tile_id.strip()]
+                        if tmx_gids:
+                            col_row = [gid_to_col_type.get(gid, COL_NONE) for gid in tmx_gids]
+                            col_tiles.append(col_row)
+                    collision_layer_tiles = col_tiles
+                    # Don't add to visual layers
+                    continue
+
                 # Parse layer properties for BG layer and priority
                 bg_layer = 2  # Default to BG2
                 priority = 1  # Default priority
@@ -140,10 +173,6 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
                         elif prop_name == 'priority':
                             priority = int(prop_value)
 
-                # Parse CSV data
-                csv_text = layer_data.text.strip()
-                rows = csv_text.split('\n')
-
                 tiles = []
                 for row in rows:
                     # Parse TMX GIDs and remap to game tile IDs
@@ -163,6 +192,11 @@ def parse_tmx_file(tmx_path: str) -> Dict[str, Any]:
                 layer_index += 1
             else:
                 raise ValueError(f"Unsupported encoding: {encoding}. Only CSV encoding is supported.")
+
+    if collision_layer_tiles is None:
+        raise ValueError("No 'Collision' layer found. Add a Collision layer using the collision_types tileset.")
+
+    data['collisionLayerTiles'] = collision_layer_tiles
 
     # Parse object layers
     for objectgroup in root.findall('objectgroup'):
@@ -307,27 +341,6 @@ def sanitize_identifier(name: str) -> str:
     return result or 'unnamed'
 
 
-def generate_collision_bitmap(collision_tiles: List[int]) -> List[int]:
-    """Generate a collision bitmap as an array of u32 values.
-
-    Each bit represents whether a tile ID is solid.
-    Supports up to 2048 tile IDs (256 bytes = 64 u32 values).
-    """
-    # Initialize 256 bytes (2048 bits) as 64 u32 values
-    bitmap = [0] * 64
-
-    for tile_id in collision_tiles:
-        if tile_id < 0 or tile_id >= 2048:
-            continue
-        byte_index = tile_id // 8
-        bit_index = tile_id % 8
-        u32_index = byte_index // 4
-        byte_offset = byte_index % 4
-        bitmap[u32_index] |= (1 << bit_index) << (byte_offset * 8)
-
-    return bitmap
-
-
 def object_type_to_enum(obj_type: str) -> str:
     """Convert object type string to enum value."""
     # Map object type strings to enum values
@@ -357,8 +370,8 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     # Get tilesets
     tilesets = data.get('tilesets', [])
 
-    # Get collision tiles
-    collision_tiles = data.get('collisionTiles', DEFAULT_COLLISION_TILES)
+    # Get collision map (per-tile collision type grid)
+    collision_layer_tiles = data['collisionLayerTiles']
 
     # Collect all unique tiles used across ALL layers
     all_tiles = []
@@ -412,16 +425,8 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
             'tiles': remapped_tiles
         })
 
-    # Remap collision bitmap from original tile IDs to VRAM indices
-    # Build new collision set based on which VRAM indices are solid
-    remapped_collision_tiles = []
-    for original_tile_id in collision_tiles:
-        if original_tile_id in tile_id_to_vram:
-            vram_index = tile_id_to_vram[original_tile_id]
-            remapped_collision_tiles.append(vram_index)
-
-    # Generate collision bitmap with remapped VRAM indices
-    collision_bitmap = generate_collision_bitmap(remapped_collision_tiles)
+    # Flatten collision layer to a 1D array (row-major)
+    collision_map_flat = [col_type for row in collision_layer_tiles for col_type in row]
 
     lines = []
     lines.append(f"#ifndef {guard_name}")
@@ -481,12 +486,13 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
         lines.append("};")
         lines.append("")
 
-    # Collision bitmap
-    lines.append(f"static const u32 {level_name}_collision[64] = {{")
-    for i in range(0, 64, 8):
-        chunk = collision_bitmap[i:i+8]
-        line = "    " + ", ".join(f"0x{val:08X}" for val in chunk)
-        if i + 8 < 64:
+    # Collision map (u8 per tile, COL_NONE=0, COL_SOLID=1, COL_JUMPTHRU=2)
+    map_size = len(collision_map_flat)
+    lines.append(f"static const u8 {level_name}_collision_map[{map_size}] = {{")
+    for i in range(0, map_size, 32):
+        chunk = collision_map_flat[i:i+32]
+        line = "    " + ", ".join(str(v) for v in chunk)
+        if i + 32 < map_size:
             line += ","
         lines.append(line)
     lines.append("};")
@@ -529,7 +535,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append(f"    {spawn['y']},")
     lines.append(f"    0,  // tilesetCount (set at runtime)")
     lines.append(f"    0,  // tilesets (set at runtime)")
-    lines.append(f"    {level_name}_collision,")
+    lines.append(f"    {level_name}_collision_map,  // collisionMap")
     lines.append(f"    {len(unique_tiles)},  // uniqueTileCount")
     lines.append(f"    {level_name}_unique_tile_ids,  // uniqueTileIds")
     lines.append(f"    {level_name}_tile_palette_banks  // tilePaletteBanks")

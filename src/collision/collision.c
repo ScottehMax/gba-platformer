@@ -14,8 +14,7 @@ static int isPositionColliding(const Level* level, int screenX, int screenY) {
 
     for (int ty = tileMinY; ty <= tileMaxY; ty++) {
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u16 tile = getTileAt(level, 0, tx, ty);
-            if (!isTileSolid(level, tile)) continue;
+            if (getTileCollision(level, tx, ty) != COL_SOLID) continue;
 
             int tileLeft = tx * 8;
             int tileRight = (tx + 1) * 8;
@@ -63,8 +62,8 @@ void collideHorizontal(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u16 tile = getTileAt(level, 0, tx, ty);
-                if (!isTileSolid(level, tile)) continue;
+                // JumpThru platforms don't block horizontal movement
+                if (getTileCollision(level, tx, ty) != COL_SOLID) continue;
 
                 int tileLeft = tx * 8;
                 int tileRight = (tx + 1) * 8;
@@ -133,8 +132,14 @@ void collideVertical(Player* player, const Level* level) {
 
         for (int ty = tileMinY; ty <= tileMaxY; ty++) {
             for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-                u16 tile = getTileAt(level, 0, tx, ty);
-                if (!isTileSolid(level, tile)) continue;
+                CollisionType col = getTileCollision(level, tx, ty);
+
+                // JumpThru: only block when falling (vy > 0), not when moving up
+                if (col == COL_JUMPTHRU) {
+                    if (player->vy <= 0) continue;  // Don't block upward movement
+                } else if (col != COL_SOLID) {
+                    continue;
+                }
 
                 int tileLeft = tx * 8;
                 int tileRight = (tx + 1) * 8;
@@ -143,15 +148,19 @@ void collideVertical(Player* player, const Level* level) {
 
                 if (playerRight > tileLeft && playerLeft < tileRight &&
                     playerBottom > tileTop && playerTop < tileBottom) {
-                    // Collision - snap to tile edge
+
                     if (player->vy > 0) {
-                        // Moving down, snap to top of tile (player bottom at tileTop)
-                        // PLAYER_BOTTOM(Y) = tileTop, so solve for Y
+                        // Moving down - snap to top of tile
+                        // JumpThru: only snap if player was above the platform top before this frame
+                        if (col == COL_JUMPTHRU) {
+                            int prevBottom = playerBottom - (player->vy >> FIXED_SHIFT);
+                            if (prevBottom > tileTop) continue;  // Was already below top, skip
+                        }
                         player->y = (tileTop - PLAYER_HEIGHT / 2 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
                         player->vy = 0;
                         player->onGround = 1;
                     } else {
-                        // Moving up, try corner correction before snapping
+                        // Moving up - only solid tiles block upward (JumpThru already filtered above)
                         int originalX = player->x;
                         int nudged = 0;
 
@@ -200,8 +209,8 @@ void collideVertical(Player* player, const Level* level) {
         int tileMaxX = playerRight / 8;
 
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-            u16 tile = getTileAt(level, 0, tx, feetY);
-            if (isTileSolid(level, tile)) {
+            CollisionType col = getTileCollision(level, tx, feetY);
+            if (col == COL_SOLID || col == COL_JUMPTHRU) {
                 int tileTop = feetY * 8;
                 int tileLeft = tx * 8;
                 int tileRight = (tx + 1) * 8;
@@ -254,8 +263,8 @@ int checkCeiling(const Player* player, const Level* level) {
     int tileY = standingTop / 8;
 
     for (int tx = tileMinX; tx <= tileMaxX; tx++) {
-        u16 tile = getTileAt(level, 0, tx, tileY);
-        if (isTileSolid(level, tile)) {
+        // Only solid tiles block unducking (JumpThru doesn't)
+        if (getTileCollision(level, tx, tileY) == COL_SOLID) {
             return 1;  // Ceiling blocking
         }
     }
