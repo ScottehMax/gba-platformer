@@ -103,9 +103,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
             int tileY = checkY / 8;
             int screenX = player->x >> FIXED_SHIFT;
             int tileX = screenX / 8;
-            u16 tile = getTileAt(level, 0, tileX, tileY);
-
-            if (isTileSolid(level, tile)) {
+            if (getTileCollision(level, tileX, tileY) == COL_SOLID) {
                 // Blocked by ceiling
                 if (player->vy < 0) {
                     player->vy = 0;
@@ -263,15 +261,13 @@ static int slipCheck(const Player* player, const Level* level, int addY) {
 
     int tileX = checkX / 8;
     int tileY = checkY / 8;
-    u16 tile1 = getTileAt(level, 0, tileX, tileY);
 
     // Also check 4 pixels above that
     int checkY2 = checkY - 4 + addY;
     int tileY2 = checkY2 / 8;
-    u16 tile2 = getTileAt(level, 0, tileX, tileY2);
 
     // If both positions are NOT solid, player is above the ledge
-    return !isTileSolid(level, tile1) && !isTileSolid(level, tile2);
+    return getTileCollision(level, tileX, tileY) != COL_SOLID && getTileCollision(level, tileX, tileY2) != COL_SOLID;
 }
 
 // Helper: Wall Jump from climb (Celeste WallJump() line 1736-1782)

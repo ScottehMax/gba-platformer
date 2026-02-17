@@ -138,6 +138,32 @@ int dashUpdate(Player* player, u16 keys, const Level* level) {
     // Super Jump (horizontal dash only) - Celeste line 3495-3508
     // Only allow after dash direction is initialized (dashDirX != 0)
     if (player->dashDirX != 0 && player->dashDirY == 0) {
+        // JumpThru Correction (Celeste line 3497-3500)
+        // If player is slightly overlapping a jump-thru from above, snap them up onto it
+        {
+            int screenX = player->x >> FIXED_SHIFT;
+            int screenY = player->y >> FIXED_SHIFT;
+            int playerLeft = screenX - PLAYER_WIDTH / 2;
+            int playerRight = screenX + PLAYER_WIDTH / 2;
+            int playerBottom = PLAYER_BOTTOM(screenY);
+            int tileMinX = playerLeft / 8;
+            int tileMaxX = playerRight / 8;
+            int tileMinY = PLAYER_TOP(screenY) / 8;
+            int tileMaxY = playerBottom / 8;
+            for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+                for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+                    if (getTileCollision(level, tx, ty) != COL_JUMPTHRU) continue;
+                    int tileTop = ty * 8;
+                    int tileLeft = tx * 8;
+                    int tileRight = (tx + 1) * 8;
+                    if (playerRight > tileLeft && playerLeft < tileRight &&
+                        playerBottom > tileTop && playerBottom - tileTop <= DASH_H_JUMPTHRU_NUDGE) {
+                        player->y = (tileTop - PLAYER_HEIGHT / 2 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
+                    }
+                }
+            }
+        }
+
         if ((pressed & BTN_JUMP) && (player->onGround || player->coyoteTime > 0)) {
             superJump(player);
             return ST_NORMAL;

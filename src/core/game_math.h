@@ -107,6 +107,7 @@
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge
 #define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop
 #define BONK_NUDGE_RANGE (FIXED_ONE * 6)  // Max pixels for ceiling corner nudge
+#define DASH_H_JUMPTHRU_NUDGE 6  // Max pixels to nudge player onto jump-thru during horizontal dash
 
 // Player constants (exactly matching Celeste's 8x11 hitbox)
 #define PLAYER_WIDTH 8
