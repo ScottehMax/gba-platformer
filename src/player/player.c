@@ -161,6 +161,41 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Apply collision (Celeste does this in Actor.Update via MoveH/MoveV)
     collideHorizontal(player, level);
+
+    // Dash Floor Snapping (Celeste line 920-925)
+    // During horizontal dash-attack, snap down up to 3px to stay grounded.
+    // TIMING: Runs pre-vertical-physics to match Celeste (snap at line 920, MoveV at 935).
+    // Uses previous frame's onGround (collideVertical hasn't reset it yet).
+    // vy >= 0 guard: prevents snap from cancelling a jump set this frame by the state machine.
+    if (!player->onGround && player->dashAttackTimer > 0 && player->dashDirY == 0 && player->vy >= 0) {
+        int screenX = player->x >> FIXED_SHIFT;
+        int screenY = player->y >> FIXED_SHIFT;
+        int playerLeft = screenX - PLAYER_WIDTH / 2;
+        int playerRight = screenX + PLAYER_WIDTH / 2;
+        int playerBottom = PLAYER_BOTTOM(screenY);
+        int tileMinX = playerLeft / 8;
+        int tileMaxX = playerRight / 8;
+        int tileMinY = (playerBottom + 1) / 8;
+        int tileMaxY = (playerBottom + DASH_V_FLOOR_SNAP_DIST) / 8;
+        int snapped = 0;
+        for (int ty = tileMinY; ty <= tileMaxY && !snapped; ty++) {
+            int tileTop = ty * 8;
+            if (tileTop <= playerBottom) continue;  // Must be strictly below player bottom
+            for (int tx = tileMinX; tx <= tileMaxX && !snapped; tx++) {
+                CollisionType col = getTileCollision(level, tx, ty);
+                if (col != COL_SOLID && col != COL_JUMPTHRU) continue;
+                int tileLeft = tx * 8;
+                int tileRight = (tx + 1) * 8;
+                if (playerRight <= tileLeft || playerLeft >= tileRight) continue;
+                // Snap to floor (matches MoveVExact(DashVFloorSnapDist) stopping at tile)
+                player->y = (tileTop - PLAYER_HEIGHT / 2 - PLAYER_HITBOX_Y_SHIFT) << FIXED_SHIFT;
+                player->vy = 0;
+                player->onGround = 1;
+                snapped = 1;
+            }
+        }
+    }
+
     collideVertical(player, level);
 
     // Hop Wait X - delays horizontal movement after climb hop until above ledge (Celeste line 814-823)
