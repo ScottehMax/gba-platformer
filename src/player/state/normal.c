@@ -211,6 +211,8 @@ void jump(Player* player, u16 keys) {
     player->varJumpTimer = VAR_JUMP_TIME;
     player->autoJump = 0;  // Clear AutoJump (Celeste line 1665)
     player->wallSlideTimer = WALL_SLIDE_TIME;
+    player->dashAttackTimer = 0;  // Clear dash attack window
+    player->dashing = 0;  // End dash so trail can fade
     player->onGround = 0;
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
@@ -240,6 +242,7 @@ void wallJump(Player* player, int dir, int moveX) {
     player->dashAttackTimer = 0;  // Clear dash attack window (Celeste line 1743)
     player->wallSlideTimer = WALL_SLIDE_TIME;
     player->wallBoostTimer = 0;  // Clear wall boost (Celeste line 1745)
+    player->dashing = 0;  // End dash so trail can fade
     player->coyoteTime = 0;
     player->jumpBuffer = 0;
     player->jumpHeld = 1;

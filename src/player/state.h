@@ -50,6 +50,10 @@ int hitSquashUpdate(Player* player, u16 keys, const Level* level);
 void hitSquashBegin(Player* player, const Level* level);
 void hitSquashEnd(Player* player);
 
+int boostUpdate(Player* player, u16 keys, const Level* level);
+void boostBegin(Player* player, const Level* level);
+void boostEnd(Player* player);
+
 // Shared helper functions (used by multiple states)
 void jump(Player* player, u16 keys);
 void wallJump(Player* player, int dir, int moveX);

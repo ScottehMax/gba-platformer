@@ -108,6 +108,11 @@
 #define HIT_SQUASH_FRICTION TO_GBA(800)  // 3413 - Friction to slow down
 #define HIT_SQUASH_FRICTION_PF (HIT_SQUASH_FRICTION / 60)  // ~57 per frame
 
+// Boost state (Celeste Player.cs line 86, 3788-3828)
+#define BOOST_TIME 15  // 0.25s at 60fps - Duration before auto-dash
+#define BOOST_MOVE_SPEED TO_GBA(80)  // 341 - Speed moving to bubble center
+#define BOOST_MOVE_SPEED_PF (BOOST_MOVE_SPEED / 60)  // ~5 per frame
+
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge
 #define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop

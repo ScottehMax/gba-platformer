@@ -63,11 +63,18 @@ void initPlayer(Player* player, const Level* level) {
     // Initialize HitSquash state
     player->hitSquashNoMoveTimer = 0;
 
+    // Initialize Boost state
+    player->boostTargetX = 0;
+    player->boostTargetY = 0;
+    player->boostRed = 0;
+    player->boostTimer = 0;
+
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
     setStateCallbacks(&player->stateMachine, ST_NORMAL, normalUpdate, normalBegin, normalEnd);
     setStateCallbacks(&player->stateMachine, ST_DASH, dashUpdate, dashBegin, dashEnd);
     setStateCallbacks(&player->stateMachine, ST_CLIMB, climbUpdate, climbBegin, climbEnd);
+    setStateCallbacks(&player->stateMachine, ST_BOOST, boostUpdate, boostBegin, boostEnd);
     setStateCallbacks(&player->stateMachine, ST_RED_DASH, redDashUpdate, redDashBegin, redDashEnd);
     setStateCallbacks(&player->stateMachine, ST_HIT_SQUASH, hitSquashUpdate, hitSquashBegin, hitSquashEnd);
     // TODO: Add more states as needed
@@ -489,5 +496,20 @@ void playerSideBounce(Player* player, int dir, int fromX, int fromY) {
     // Set velocity (Celeste line 1945-1946)
     player->vx = SIDE_BOUNCE_SPEED * dir;
     player->varJumpSpeed = player->vy = BOUNCE_SPEED;
+}
+
+void playerRedBoost(Player* player, int centerX, int centerY) {
+    // Celeste RedBoost() (line 3779-3786)
+    // Player enters Boost state, physically moves to bubble center, then starts RedDash
+
+    // Set target position where player will move to (Celeste line 3774, 3783-3784)
+    player->boostTargetX = centerX << FIXED_SHIFT;
+    player->boostTargetY = centerY << FIXED_SHIFT;
+    player->boostRed = 1;  // Red bubble triggers RedDash (not regular Dash)
+    player->boostTimer = BOOST_TIME;  // Auto-dash after 0.25s
+
+    // Transition to boost state (Celeste line 3772, 3781)
+    // During Boost state, player moves to center, then transitions to RedDash
+    setState(&player->stateMachine, ST_BOOST, player, 0);
 }
 

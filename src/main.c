@@ -19,6 +19,7 @@
 #include "menu/menu.h"
 #include "core/replay.h"
 #include "entities/spring.h"
+#include "entities/redbubble.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -161,6 +162,10 @@ int main() {
     spritePalette[11 * 16 + 0] = 0;  // Transparent
     spritePalette[11 * 16 + 1] = RGB15(31, 0, 0);  // Bright red
 
+    // Create dedicated palette bank 12 for red bubbles (colors 192-207)
+    spritePalette[12 * 16 + 0] = 0;  // Transparent
+    spritePalette[12 * 16 + 1] = RGB15(31, 16, 0);  // Orange (red + half green)
+
     // Set up sprite 0 as 16x16, 16-color mode, priority 1
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 0;
@@ -180,6 +185,9 @@ int main() {
 
     SpringManager springManager;
     initSpringManager(&springManager);
+
+    RedBubbleManager redBubbleManager;
+    initRedBubbleManager(&redBubbleManager);
 
     // Hide player sprite initially (we're in menu mode)
     oam[0] = 160;  // Y coordinate offscreen (reuse oam pointer from above)
@@ -360,10 +368,11 @@ int main() {
             // Get current level
             const Level* currentLevel = getCurrentLevel();
 
-            // Reload springs if level changed
+            // Reload springs and red bubbles if level changed
             int currentLevelIndex = getCurrentLevelIndex();
             if (currentLevelIndex != lastLevelIndex) {
                 loadSpringsFromLevel(&springManager, currentLevel);
+                loadRedBubblesFromLevel(&redBubbleManager, currentLevel);
                 lastLevelIndex = currentLevelIndex;
             }
 
@@ -371,6 +380,7 @@ int main() {
             u16 t0 = REG_TM0CNT_L;
             updatePlayer(&player, keys, currentLevel);
             updateSprings(&springManager, &player);
+            updateRedBubbles(&redBubbleManager, &player);
             u16 t1 = REG_TM0CNT_L;
             u16 dtPlayer = t1 - t0;
             if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
@@ -458,6 +468,7 @@ int main() {
             // Profile: Rendering
             drawPlayer(&player, &camera);
             renderSprings(&springManager, camera.x, camera.y);
+            renderRedBubbles(&redBubbleManager, camera.x, camera.y);
             u16 t4 = REG_TM0CNT_L;
             u16 dtRender = t4 - t3;
             if (dtRender > maxRender) maxRender = dtRender;

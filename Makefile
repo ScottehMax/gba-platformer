@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_reddash.o state_hitsquash.o replay.o spring.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -120,6 +120,10 @@ state_dash.o: $(SRCDIR)/player/state/dash.c $(SRCDIR)/player/state.h $(SRCDIR)/c
 state_climb.o: $(SRCDIR)/player/state/climb.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Player state: Boost
+state_boost.o: $(SRCDIR)/player/state/boost.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Player state: RedDash
 state_reddash.o: $(SRCDIR)/player/state/reddash.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -134,6 +138,10 @@ menu.o: $(SRCDIR)/menu/menu.c $(SRCDIR)/menu/menu.h $(SRCDIR)/core/text.h $(SRCD
 
 # Spring entity module
 spring.o: $(SRCDIR)/entities/spring.c $(SRCDIR)/entities/spring.h $(SRCDIR)/core/game_types.h $(SRCDIR)/level/level.h $(SRCDIR)/player/player.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# RedBubble entity module
+redbubble.o: $(SRCDIR)/entities/redbubble.c $(SRCDIR)/entities/redbubble.h $(SRCDIR)/core/game_types.h $(SRCDIR)/level/level.h $(SRCDIR)/player/player.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Main object depends on all headers

@@ -81,6 +81,12 @@ struct Player {
     // HitSquash state (Celeste Player.cs line 3936)
     int hitSquashNoMoveTimer;  // Frames remaining before can control movement after wall hit
 
+    // Boost state (Celeste Player.cs line 3767-3768)
+    int boostTargetX;  // Target position X in fixed-point
+    int boostTargetY;  // Target position Y in fixed-point
+    int boostRed;      // 1 if red bubble (triggers RedDash), 0 if green (triggers Dash)
+    int boostTimer;    // Frames remaining in boost (auto-dash when reaches 0)
+
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions
     int trailY[TRAIL_LENGTH];

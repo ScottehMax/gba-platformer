@@ -417,6 +417,7 @@ def object_type_to_enum(obj_type: str) -> str:
         'spring_super': 'OBJ_SPRING_SUPER',
         'spring_wall_left': 'OBJ_SPRING_WALL_LEFT',
         'spring_wall_right': 'OBJ_SPRING_WALL_RIGHT',
+        'redbubble': 'OBJ_RED_BUBBLE',
     }
 
     # Case-insensitive lookup

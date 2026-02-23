@@ -21,6 +21,7 @@ typedef enum {
     OBJ_SPRING_SUPER = 2,
     OBJ_SPRING_WALL_LEFT = 3,
     OBJ_SPRING_WALL_RIGHT = 4,
+    OBJ_RED_BUBBLE = 5,
     // Add more object types here as needed
 } ObjectType;
 

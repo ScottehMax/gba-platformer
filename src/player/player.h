@@ -68,4 +68,13 @@ void playerSuperBounce(Player* player, int fromY);
  */
 void playerSideBounce(Player* player, int dir, int fromX, int fromY);
 
+/**
+ * Red boost - enters boost state targeting red bubble center (Celeste Player.cs line 3779)
+ *
+ * @param player The player to boost
+ * @param centerX The bubble center X position in pixels
+ * @param centerY The bubble center Y position in pixels
+ */
+void playerRedBoost(Player* player, int centerX, int centerY);
+
 #endif
