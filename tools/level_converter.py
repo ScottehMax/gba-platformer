@@ -13,6 +13,74 @@ import os
 from typing import Dict, List, Any, Set, Tuple
 from pathlib import Path
 
+
+def compress_rle_bios(u16_data: List[int]) -> bytes:
+    """
+    Compress a list of u16 values using GBA BIOS RLE format (SWI 0x14).
+
+    Header (4 bytes):
+      Byte 0:   0x30 (compression type 3 = RLE)
+      Bytes 1-3: decompressed size in bytes (24-bit little-endian)
+
+    Compressed blocks:
+      Uncompressed: flag byte (bit7=0, bits0-6 = len-1), then len literal bytes
+      Compressed:   flag byte (bit7=1, bits0-6 = len-3), then 1 repeated byte
+      Max run: 130 bytes. Max literal block: 128 bytes.
+
+    Output is padded to 4-byte alignment (required by BIOS).
+    """
+    # Convert u16 array to little-endian bytes
+    raw = bytearray()
+    for val in u16_data:
+        raw.append(val & 0xFF)
+        raw.append((val >> 8) & 0xFF)
+
+    n = len(raw)
+    out = bytearray()
+    i = 0
+
+    while i < n:
+        # Measure run of identical bytes at position i
+        run_val = raw[i]
+        run_len = 1
+        while run_len < 130 and i + run_len < n and raw[i + run_len] == run_val:
+            run_len += 1
+
+        if run_len >= 3:
+            # Emit compressed block
+            out.append(0x80 | (run_len - 3))
+            out.append(run_val)
+            i += run_len
+        else:
+            # Collect literal bytes until we hit a run worth compressing
+            lit = bytearray()
+            while i < n and len(lit) < 128:
+                # Peek: how long is the run starting here?
+                rv = raw[i]
+                rl = 1
+                while rl < 130 and i + rl < n and raw[i + rl] == rv:
+                    rl += 1
+                if rl >= 3:
+                    break
+                lit.append(raw[i])
+                i += 1
+            out.append(len(lit) - 1)  # bit7 = 0
+            out.extend(lit)
+
+    # Build header + compressed data
+    result = bytearray([
+        0x30,
+        n & 0xFF,
+        (n >> 8) & 0xFF,
+        (n >> 16) & 0xFF,
+    ]) + out
+
+    # Pad to 4-byte alignment
+    while len(result) % 4:
+        result.append(0)
+
+    return bytes(result)
+
 # Collision type values (must match CollisionType enum in level.h)
 COL_NONE     = 0
 COL_SOLID    = 1
@@ -469,30 +537,45 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append("};")
     lines.append("")
 
-    # Tile data for each layer (u16 VRAM indices, not original tile IDs!)
+    # Tile data for each layer - BIOS RLE compressed
     for layer_idx, layer in enumerate(remapped_layers):
         layer_tiles = layer['tiles']
+        rle_data = compress_rle_bios(layer_tiles)
+        num_words = len(rle_data) // 4
+        raw_bytes = len(layer_tiles) * 2
         lines.append(f"// Layer {layer_idx}: {layer['name']} (BG{layer['bgLayer']}, priority {layer['priority']})")
-        lines.append(f"static const u16 {level_name}_layer{layer_idx}_tiles[{len(layer_tiles)}] = {{")
+        lines.append(f"// RLE compressed: {len(rle_data)} bytes in ROM -> {raw_bytes} bytes decompressed")
+        lines.append(f"static const u32 {level_name}_layer{layer_idx}_rle[{num_words}] __attribute__((aligned(4))) = {{")
 
-        # Format tiles in rows of 16 for readability
-        for i in range(0, len(layer_tiles), 16):
-            chunk = layer_tiles[i:i+16]
-            line = "    " + ", ".join(f"{tile:5d}" for tile in chunk)
-            if i + 16 < len(layer_tiles):
+        # Pack bytes into u32 words and emit as hex
+        words = []
+        for j in range(0, len(rle_data), 4):
+            w = rle_data[j] | (rle_data[j+1] << 8) | (rle_data[j+2] << 16) | (rle_data[j+3] << 24)
+            words.append(w)
+        for j in range(0, len(words), 8):
+            chunk = words[j:j+8]
+            line = "    " + ", ".join(f"0x{w:08X}" for w in chunk)
+            if j + 8 < len(words):
                 line += ","
             lines.append(line)
 
         lines.append("};")
         lines.append("")
 
-    # Collision map (u8 per tile, COL_NONE=0, COL_SOLID=1, COL_JUMPTHRU=2)
-    map_size = len(collision_map_flat)
-    lines.append(f"static const u8 {level_name}_collision_map[{map_size}] = {{")
-    for i in range(0, map_size, 32):
-        chunk = collision_map_flat[i:i+32]
-        line = "    " + ", ".join(str(v) for v in chunk)
-        if i + 32 < map_size:
+    # Collision map (4 bits per tile, 2 tiles per byte, low nibble first)
+    packed_collision = []
+    for i in range(0, len(collision_map_flat), 2):
+        lo = collision_map_flat[i] & 0x0F
+        hi = (collision_map_flat[i + 1] & 0x0F) if (i + 1) < len(collision_map_flat) else 0
+        packed_collision.append(lo | (hi << 4))
+    packed_size = len(packed_collision)
+    lines.append(f"// Collision map: 4 bits per tile, 2 tiles per byte (low nibble = even tile)")
+    lines.append(f"// {len(collision_map_flat)} tiles -> {packed_size} bytes")
+    lines.append(f"static const u8 {level_name}_collision_map[{packed_size}] = {{")
+    for i in range(0, packed_size, 32):
+        chunk = packed_collision[i:i+32]
+        line = "    " + ", ".join(f"0x{v:02X}" for v in chunk)
+        if i + 32 < packed_size:
             line += ","
         lines.append(line)
     lines.append("};")
@@ -502,7 +585,7 @@ def generate_header(data: Dict[str, Any], output_name: str) -> str:
     lines.append(f"static const TileLayer {level_name}_layers[{len(remapped_layers)}] = {{")
     for layer_idx, layer in enumerate(remapped_layers):
         comma = "," if layer_idx < len(remapped_layers) - 1 else ""
-        lines.append(f'    {{"{layer["name"]}", {layer["bgLayer"]}, {layer["priority"]}, {level_name}_layer{layer_idx}_tiles}}{comma}')
+        lines.append(f'    {{"{layer["name"]}", {layer["bgLayer"]}, {layer["priority"]}, {level_name}_layer{layer_idx}_rle}}{comma}')
     lines.append("};")
     lines.append("")
 
@@ -579,6 +662,8 @@ def main():
         print(f"  Dimensions: {data['width']}x{data['height']}")
         print(f"  Tilesets: {len(data['tilesets'])}")
         print(f"  Objects: {len(data['objects'])}")
+        total_raw = data['width'] * data['height'] * len(data['layers']) * 2
+        print(f"  Tile data: {total_raw} bytes raw, RLE compressed in ROM (see output for sizes)")
 
     except ET.ParseError as e:
         print(f"Error: Invalid XML in {input_file}: {e}")

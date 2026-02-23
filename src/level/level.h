@@ -44,8 +44,12 @@ typedef struct {
     const char* name;
     u8 bgLayer;      // Which BG layer (0-3)
     u8 priority;     // Priority (0-3, lower = in front)
-    const u16* tiles;
+    const u32* rleData;  // BIOS RLE compressed tile data (SWI 0x14 format)
 } TileLayer;
+
+// RAM buffers holding decompressed tile data for the current level.
+// Populated by loadLevelToVRAM(). Index matches layer index in Level.layers.
+extern u16* g_levelLayerTiles[4];
 
 typedef struct {
     const char* name;
@@ -59,7 +63,7 @@ typedef struct {
     u16 playerSpawnY;
     u8 tilesetCount;
     const TilesetInfo* tilesets;
-    const u8* collisionMap;  // Per-tile collision: collisionMap[ty*width + tx] = CollisionType
+    const u8* collisionMap;  // Packed 4-bit collision: 2 tiles per byte, low nibble first
     u16 uniqueTileCount;
     const u16* uniqueTileIds;
     const u8* tilePaletteBanks;
@@ -82,10 +86,9 @@ typedef struct {
  */
 static inline u16 getTileAt(const Level* level, u8 layerIndex, int tileX, int tileY) {
     if (layerIndex >= level->layerCount) return 0;
-    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
-        return 0; // Out of bounds
-    }
-    return level->layers[layerIndex].tiles[tileY * level->width + tileX];
+    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) return 0;
+    if (!g_levelLayerTiles[layerIndex]) return 0;
+    return g_levelLayerTiles[layerIndex][tileY * level->width + tileX];
 }
 
 /**
@@ -100,7 +103,9 @@ static inline CollisionType getTileCollision(const Level* level, int tileX, int 
     if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
         return COL_NONE;
     }
-    return (CollisionType)level->collisionMap[tileY * level->width + tileX];
+    int idx = tileY * level->width + tileX;
+    u8 packed = level->collisionMap[idx >> 1];
+    return (CollisionType)((idx & 1) ? (packed >> 4) : (packed & 0x0F));
 }
 
 /**

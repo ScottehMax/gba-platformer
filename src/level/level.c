@@ -3,6 +3,41 @@
 #include "plants.h"
 #include "decals.h"
 
+// ---------------------------------------------------------------------------
+// Decompressed tile data buffers (in EWRAM on GBA)
+// Sized for the largest possible level: 512x40 tiles, 2 layers
+// ---------------------------------------------------------------------------
+#define TILE_BUFFER_SIZE (512 * 40 * 2)  // u16s, covers 2 layers of 512x40
+
+static u16 g_tileBuffer[TILE_BUFFER_SIZE] __attribute__((section(".ewram"), aligned(4)));
+u16* g_levelLayerTiles[4] = {0, 0, 0, 0};
+
+// ---------------------------------------------------------------------------
+// Desktop stub for BIOS RLE decompression (GBA provides this via SWI 0x14)
+// ---------------------------------------------------------------------------
+#ifdef DESKTOP_BUILD
+static void RLUnCompWram(const void* src, void* dst) {
+    const u8* s = (const u8*)src;
+    u8* d = (u8*)dst;
+    u32 decompressed_size = (u32)s[1] | ((u32)s[2] << 8) | ((u32)s[3] << 16);
+    s += 4;
+    u32 written = 0;
+    while (written < decompressed_size) {
+        u8 flag = *s++;
+        if (flag & 0x80) {
+            u32 len = (flag & 0x7F) + 3;
+            u8 val = *s++;
+            for (u32 j = 0; j < len && written < decompressed_size; j++, written++)
+                *d++ = val;
+        } else {
+            u32 len = (flag & 0x7F) + 1;
+            for (u32 j = 0; j < len && written < decompressed_size; j++, written++)
+                *d++ = *s++;
+        }
+    }
+}
+#endif
+
 #define TILESET_COUNT 3
 
 // Palette bank for each tileset
@@ -25,6 +60,19 @@ static const TilesetMetadata tilesets[TILESET_COUNT] = {
 };
 
 void loadLevelToVRAM(const Level* level) {
+    // Decompress tile layers from ROM into RAM buffers
+    u16* bufPtr = g_tileBuffer;
+    u32 tilesPerLayer = (u32)level->width * level->height;
+    for (u8 i = 0; i < level->layerCount && i < 4; i++) {
+        g_levelLayerTiles[i] = bufPtr;
+        RLUnCompWram(level->layers[i].rleData, bufPtr);
+        bufPtr += tilesPerLayer;
+    }
+
+    // Clear any unused layer pointers
+    for (u8 i = level->layerCount; i < 4; i++)
+        g_levelLayerTiles[i] = 0;
+
     volatile u32* bgTiles = (volatile u32*)0x06000000;
     
     // Load tiles based on the pre-computed unique tile list
