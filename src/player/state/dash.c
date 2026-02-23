@@ -42,9 +42,9 @@ void dashBegin(Player* player, const Level* level) {
 
 // Called after collision to check for dash slide (must run after collision updates onGround)
 void dashSlideCheck(Player* player) {
-    // Celeste DashCoroutine line 3594-3603 (after first yield)
-    // Only check if dashing with diagonal down direction
-    if (player->dashing > 0 && player->onGround && player->dashDirX != 0 && player->dashDirY > 0) {
+    // Celeste OnCollideV line 2544-2552
+    // Applies to both Dash and RedDash when hitting floor with diagonal down direction
+    if (player->onGround && player->dashDirX != 0 && player->dashDirY > 0 && player->vy >= 0) {
         player->dashDirX = (player->dashDirX > 0) ? 1 : -1;
         player->dashDirY = 0;
         player->vy = 0;

@@ -262,18 +262,19 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     collideVertical(player, level);
 
     // RedDash vertical collision handling (Celeste line 2634-2638, 2719-2720)
-    // If RedDash hits ceiling → HitSquash, if hits bounds → Normal
+    // If RedDash hits ceiling or floor → HitSquash, if hits bounds → Normal
     if (player->stateMachine.state == ST_RED_DASH) {
-        int hitVertical = (prevVy != 0 && player->vy == 0 && !player->onGround);
+        int hitVertical = (prevVy != 0 && player->vy == 0);
         if (hitVertical) {
             int screenY = player->y >> FIXED_SHIFT;
             int atTopBounds = (PLAYER_TOP(screenY) <= 0);
+            int atBottomBounds = (PLAYER_BOTTOM(screenY) >= level->height * 8);
 
-            if (atTopBounds) {
-                // Hit ceiling bounds (Celeste OnBoundsV line 2719-2720)
+            if (atTopBounds || atBottomBounds) {
+                // Hit vertical bounds (Celeste OnBoundsV line 2719-2720)
                 setState(&player->stateMachine, ST_NORMAL, player, level);
             } else {
-                // Hit ceiling (Celeste OnCollideV line 2634-2638)
+                // Hit ceiling or floor (Celeste OnCollideV line 2634-2638)
                 setState(&player->stateMachine, ST_HIT_SQUASH, player, level);
             }
         }
@@ -352,8 +353,9 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->autoJump = 0;  // Clear AutoJump when manually jumping
     }
 
-    // Dash slide check (Celeste DashCoroutine after collision)
-    if (player->stateMachine.state == ST_DASH) {
+    // Dash slide check (Celeste OnCollideV line 2544-2552)
+    // Applies to both Dash and RedDash when hitting floor diagonally
+    if (player->stateMachine.state == ST_DASH || player->stateMachine.state == ST_RED_DASH) {
         dashSlideCheck(player);
     }
 
