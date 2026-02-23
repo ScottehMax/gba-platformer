@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o replay.o spring.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_reddash.o state_hitsquash.o replay.o spring.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -118,6 +118,14 @@ state_dash.o: $(SRCDIR)/player/state/dash.c $(SRCDIR)/player/state.h $(SRCDIR)/c
 
 # Player state: Climb
 state_climb.o: $(SRCDIR)/player/state/climb.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state: RedDash
+state_reddash.o: $(SRCDIR)/player/state/reddash.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Player state: HitSquash
+state_hitsquash.o: $(SRCDIR)/player/state/hitsquash.c $(SRCDIR)/player/state.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/collision/collision.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Menu module

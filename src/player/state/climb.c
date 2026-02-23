@@ -7,7 +7,6 @@
 // Forward declarations
 static void climbJump(Player* player, u16 keys);
 static void climbHop(Player* player, const Level* level);
-static void wallJump(Player* player, int dir, int moveX);
 static int slipCheck(const Player* player, const Level* level, int addY);
 
 void climbBegin(Player* player, const Level* level) {
@@ -268,33 +267,4 @@ static int slipCheck(const Player* player, const Level* level, int addY) {
 
     // If both positions are NOT solid, player is above the ledge
     return getTileCollision(level, tileX, tileY) != COL_SOLID && getTileCollision(level, tileX, tileY2) != COL_SOLID;
-}
-
-// Helper: Wall Jump from climb (Celeste WallJump() line 1736-1782)
-static void wallJump(Player* player, int dir, int moveX) {
-    player->ducking = 0;
-
-    // Force movement away from wall if holding any direction (Celeste line 1746-1750)
-    if (moveX != 0) {
-        player->forceMoveX = dir;
-        player->forceMoveXTimer = WALL_JUMP_FORCE_TIME;
-    }
-
-    player->vx = dir * WALL_JUMP_H_SPEED;
-    player->vy = JUMP_STRENGTH;
-
-    // Apply lift boost from moving platforms (Celeste line 1762)
-    player->vx += player->liftBoostX;
-    player->vy += player->liftBoostY;
-
-    player->varJumpSpeed = JUMP_STRENGTH;
-    player->varJumpTimer = VAR_JUMP_TIME;
-    player->autoJump = 0;  // Clear AutoJump (Celeste line 1742)
-    player->dashAttackTimer = 0;  // Clear dash attack window (Celeste line 1743)
-    player->wallSlideTimer = WALL_SLIDE_TIME;
-    player->wallBoostTimer = 0;  // Clear wall boost (Celeste line 1745)
-    player->coyoteTime = 0;
-    player->jumpBuffer = 0;
-    player->jumpHeld = 1;
-    player->facingRight = dir > 0 ? 1 : 0;
 }

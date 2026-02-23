@@ -12,6 +12,8 @@ CORE_SRCS = \
 	src/player/state/normal.c \
 	src/player/state/dash.c \
 	src/player/state/climb.c \
+	src/player/state/reddash.c \
+	src/player/state/hitsquash.c \
 	src/collision/collision.c \
 	src/core/replay.c \
 	src/entities/spring.c

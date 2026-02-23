@@ -103,6 +103,11 @@
 #define BOUNCE_AUTO_JUMP_TIME 6  // 0.1s at 60fps - Maintains float after bounce
 #define SIDE_BOUNCE_FORCE_MOVE_TIME 18  // 0.3s at 60fps - Force movement after side bounce
 
+// HitSquash state (Celeste Player.cs line 3933-3934)
+#define HIT_SQUASH_NO_MOVE_TIME 6  // 0.1s at 60fps - No control briefly after hitting wall
+#define HIT_SQUASH_FRICTION TO_GBA(800)  // 3413 - Friction to slow down
+#define HIT_SQUASH_FRICTION_PF (HIT_SQUASH_FRICTION / 60)  // ~57 per frame
+
 // Corner correction
 #define CORNER_CORRECTION_DISTANCE (FIXED_ONE * 6)  // Max pixels nudge
 #define DASH_LEDGE_POP_HEIGHT (FIXED_ONE * 6)  // Max pixels upward pop

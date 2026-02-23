@@ -4,9 +4,6 @@
 #include "core/game_math.h"
 #include "core/input.h"
 
-// Forward declarations for helper functions
-static void jump(Player* player, u16 keys);
-static void wallJump(Player* player, int dir, int moveX);
 
 void normalBegin(Player* player, const Level* level) {
     // Reset max fall to normal (Celeste line 2762)
@@ -199,7 +196,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 }
 
 // Helper function: Normal Jump (Celeste Jump() method around line 1900+)
-static void jump(Player* player, u16 keys) {
+void jump(Player* player, u16 keys) {
     int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
 
     player->ducking = 0;
@@ -221,7 +218,7 @@ static void jump(Player* player, u16 keys) {
 }
 
 // Helper function: Wall Jump (Celeste WallJump() method line 1736-1782)
-static void wallJump(Player* player, int dir, int moveX) {
+void wallJump(Player* player, int dir, int moveX) {
     player->ducking = 0;
 
     // Force movement away from wall if holding any direction (Celeste line 1746-1750)

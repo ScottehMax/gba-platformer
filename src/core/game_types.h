@@ -62,6 +62,8 @@ struct Player {
     int dashDirY;          // Dash direction Y: -1=up, 0=none, 1=down
     int beforeDashSpeedX;  // Horizontal speed before dash (for preserving higher speeds)
     int ducking;           // 1 if player is ducking (affects super jump height)
+    int lastAimX;          // Last aim direction X: -256=left, 0=none, 256=right (fixed-point)
+    int lastAimY;          // Last aim direction Y: -256=up, 0=none, 256=down (fixed-point)
 
     // Climbing
     int stamina;         // Current stamina (0-28160 in fixed-point, 0-110 logical)
@@ -75,6 +77,9 @@ struct Player {
     int hopWaitXSpeed;   // Horizontal speed to apply when hopWaitX releases
     int forceMoveX;        // Force horizontal input to this value
     int forceMoveXTimer; // Frames remaining to force horizontal input
+
+    // HitSquash state (Celeste Player.cs line 3936)
+    int hitSquashNoMoveTimer;  // Frames remaining before can control movement after wall hit
 
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions

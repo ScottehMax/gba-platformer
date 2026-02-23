@@ -34,6 +34,8 @@ void initPlayer(Player* player, const Level* level) {
     player->dashDirY = 0;
     player->beforeDashSpeedX = 0;
     player->ducking = 0;
+    player->lastAimX = 1 << FIXED_SHIFT;  // Default to right (Celeste line 350)
+    player->lastAimY = 0;
     player->trailIndex = 0;
     player->trailTimer = 0;  // Counts down, when reaches 0 creates next trail sprite
     player->trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
@@ -58,11 +60,16 @@ void initPlayer(Player* player, const Level* level) {
     player->forceMoveX = 0;
     player->forceMoveXTimer = 0;
 
+    // Initialize HitSquash state
+    player->hitSquashNoMoveTimer = 0;
+
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
     setStateCallbacks(&player->stateMachine, ST_NORMAL, normalUpdate, normalBegin, normalEnd);
     setStateCallbacks(&player->stateMachine, ST_DASH, dashUpdate, dashBegin, dashEnd);
     setStateCallbacks(&player->stateMachine, ST_CLIMB, climbUpdate, climbBegin, climbEnd);
+    setStateCallbacks(&player->stateMachine, ST_RED_DASH, redDashUpdate, redDashBegin, redDashEnd);
+    setStateCallbacks(&player->stateMachine, ST_HIT_SQUASH, hitSquashUpdate, hitSquashBegin, hitSquashEnd);
     // TODO: Add more states as needed
 
     // Set initial state to Normal
@@ -146,10 +153,35 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
 
     // Update facing based on input (Celeste line 786-794)
     // This allows reverse hypers: dash one direction, hold opposite direction, jump
-    // NOTE: Does NOT update during climb, pickup, or similar states
+    // NOTE: Does NOT update during climb, RedDash, HitSquash, or pickup
     int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
-    if (moveX != 0 && player->stateMachine.state != ST_CLIMB) {
+    if (moveX != 0 &&
+        player->stateMachine.state != ST_CLIMB &&
+        player->stateMachine.state != ST_RED_DASH &&
+        player->stateMachine.state != ST_HIT_SQUASH) {
         player->facingRight = moveX > 0 ? 1 : 0;
+    }
+
+    // Update lastAim (Celeste line 797)
+    // Get aim direction from input, or default to facing direction
+    int aimX = 0, aimY = 0;
+    if (keys & BTN_LEFT) aimX = -1;
+    if (keys & BTN_RIGHT) aimX = 1;
+    if (keys & BTN_UP) aimY = -1;
+    if (keys & BTN_DOWN) aimY = 1;
+
+    // If no direction held, aim in facing direction
+    if (aimX == 0 && aimY == 0) {
+        aimX = player->facingRight ? 1 : -1;
+    }
+
+    // Normalize diagonal aim (same as dash diagonal normalization)
+    if (aimX != 0 && aimY != 0) {
+        player->lastAimX = aimX * FP_DIAG_NORMALIZE;
+        player->lastAimY = aimY * FP_DIAG_NORMALIZE;
+    } else {
+        player->lastAimX = aimX << FIXED_SHIFT;
+        player->lastAimY = aimY << FIXED_SHIFT;
     }
 
     // === STATE MACHINE UPDATE ===
@@ -160,7 +192,31 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Physics and collision that happens after state logic
 
     // Apply collision (Celeste does this in Actor.Update via MoveH/MoveV)
+    // Save velocity before collision to detect wall/ceiling hits
+    int prevVx = player->vx;
+    int prevVy = player->vy;
+
     collideHorizontal(player, level);
+
+    // RedDash horizontal collision handling (Celeste line 2445-2449, 2711-2712)
+    // If RedDash hits a wall → HitSquash, if hits bounds → Normal
+    if (player->stateMachine.state == ST_RED_DASH) {
+        int hitHorizontal = (prevVx != 0 && player->vx == 0);
+        if (hitHorizontal) {
+            int screenX = player->x >> FIXED_SHIFT;
+            int halfWidth = PLAYER_WIDTH / 2;
+            int levelWidthPx = level->width * 8;
+            int atBounds = (screenX <= halfWidth || screenX >= levelWidthPx - halfWidth);
+
+            if (atBounds) {
+                // Hit level bounds (Celeste OnBoundsH line 2711-2712)
+                setState(&player->stateMachine, ST_NORMAL, player, level);
+            } else {
+                // Hit wall (Celeste OnCollideH line 2445-2449)
+                setState(&player->stateMachine, ST_HIT_SQUASH, player, level);
+            }
+        }
+    }
 
     // Dash Floor Snapping (Celeste line 920-925)
     // During horizontal dash-attack, snap down up to 3px to stay grounded.
@@ -197,6 +253,24 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     }
 
     collideVertical(player, level);
+
+    // RedDash vertical collision handling (Celeste line 2634-2638, 2719-2720)
+    // If RedDash hits ceiling → HitSquash, if hits bounds → Normal
+    if (player->stateMachine.state == ST_RED_DASH) {
+        int hitVertical = (prevVy != 0 && player->vy == 0 && !player->onGround);
+        if (hitVertical) {
+            int screenY = player->y >> FIXED_SHIFT;
+            int atTopBounds = (PLAYER_TOP(screenY) <= 0);
+
+            if (atTopBounds) {
+                // Hit ceiling bounds (Celeste OnBoundsV line 2719-2720)
+                setState(&player->stateMachine, ST_NORMAL, player, level);
+            } else {
+                // Hit ceiling (Celeste OnCollideV line 2634-2638)
+                setState(&player->stateMachine, ST_HIT_SQUASH, player, level);
+            }
+        }
+    }
 
     // Hop Wait X - delays horizontal movement after climb hop until above ledge (Celeste line 814-823)
     if (player->hopWaitX != 0) {
