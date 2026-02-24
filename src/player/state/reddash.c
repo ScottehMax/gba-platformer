@@ -77,8 +77,13 @@ int redDashUpdate(Player* player, u16 keys, const Level* level) {
     }
 
     // Check for new dash (Celeste line 3865-3866)
-    // NOTE: CanDash check would go here, but we need to implement dash consumption first
-    // For now, RedDash continues indefinitely
+    // CanDash = has dashes available and cooldown expired
+    if ((pressed & BTN_DASH) && player->dashCooldownTimer == 0 && player->dashes > 0) {
+        // Consume dash (Celeste StartDash() line 3408)
+        player->dashes = player->dashes > 0 ? player->dashes - 1 : 0;
+        // Return to regular dash state
+        return ST_DASH;
+    }
 
     // Super Jump (horizontal dash only) - Celeste line 3868-3880
     if (player->dashDirY == 0) {
