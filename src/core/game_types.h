@@ -86,6 +86,8 @@ struct Player {
     int boostTargetY;  // Target position Y in fixed-point
     int boostRed;      // 1 if red bubble (triggers RedDash), 0 if green (triggers Dash)
     int boostTimer;    // Frames remaining in boost (auto-dash when reaches 0)
+    int currentBubbleX;  // X position of bubble player is using (in pixels, for CurrentBooster check)
+    int currentBubbleY;  // Y position of bubble player is using (in pixels, for CurrentBooster check)
 
     // Dash trail
     int trailX[TRAIL_LENGTH];  // Fixed-point positions

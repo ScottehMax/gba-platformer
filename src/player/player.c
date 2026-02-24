@@ -68,6 +68,8 @@ void initPlayer(Player* player, const Level* level) {
     player->boostTargetY = 0;
     player->boostRed = 0;
     player->boostTimer = 0;
+    player->currentBubbleX = -1000;  // Sentinel value for no current bubble
+    player->currentBubbleY = -1000;
 
     // Initialize state machine (Celeste line 322-332)
     initStateMachine(&player->stateMachine);
@@ -509,6 +511,10 @@ void playerRedBoost(Player* player, int centerX, int centerY) {
     player->boostTargetY = centerY << FIXED_SHIFT;
     player->boostRed = 1;  // Red bubble triggers RedDash (not regular Dash)
     player->boostTimer = BOOST_TIME;  // Auto-dash after 0.25s
+
+    // Track which bubble player is using (Celeste CurrentBooster line 3776/3785)
+    player->currentBubbleX = centerX;
+    player->currentBubbleY = centerY;
 
     // Transition to boost state (Celeste line 3772, 3781)
     // During Boost state, player moves to center, then transitions to RedDash

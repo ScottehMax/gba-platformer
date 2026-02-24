@@ -32,15 +32,6 @@ void loadRedBubblesFromLevel(RedBubbleManager* manager, const Level* level) {
 }
 
 void updateRedBubbles(RedBubbleManager* manager, Player* player) {
-    // Only check collision when player is not boosting or dashing from a bubble
-    // In Celeste, CurrentBooster tracks the active bubble and prevents re-trigger
-    // We simplify by skipping collision during boost and dash states
-    if (player->stateMachine.state == ST_BOOST ||
-        player->stateMachine.state == ST_DASH ||
-        player->stateMachine.state == ST_RED_DASH) {
-        return;
-    }
-
     // Get player hitbox in pixels
     int playerX = player->x >> FIXED_SHIFT;
     int playerY = player->y >> FIXED_SHIFT;
@@ -48,6 +39,11 @@ void updateRedBubbles(RedBubbleManager* manager, Player* player) {
     int playerRight = playerX + PLAYER_RADIUS_X;
     int playerTop = playerY - PLAYER_RADIUS_Y;
     int playerBottom = playerY + PLAYER_RADIUS_Y;
+
+    // Skip collision entirely while in Boost state (being moved to bubble center)
+    if (player->stateMachine.state == ST_BOOST) {
+        return;
+    }
 
     // Check collision with each bubble
     for (int i = 0; i < manager->count; i++) {
@@ -59,6 +55,21 @@ void updateRedBubbles(RedBubbleManager* manager, Player* player) {
         int bubbleRight = bubble->x + bubble->width / 2;
         int bubbleTop = bubble->y - bubble->height / 2;
         int bubbleBottom = bubble->y + bubble->height / 2;
+
+        // Check if this is the bubble player is currently using
+        if (player->currentBubbleX == bubble->x && player->currentBubbleY == bubble->y) {
+            // Check if player has moved away from this bubble
+            int overlapping = (playerRight > bubbleLeft && playerLeft < bubbleRight &&
+                             playerBottom > bubbleTop && playerTop < bubbleBottom);
+            if (!overlapping) {
+                // Player has left the bubble - clear tracking (Celeste CallDashEvents line 3437)
+                player->currentBubbleX = -1000;
+                player->currentBubbleY = -1000;
+            } else {
+                // Still overlapping current bubble - skip collision
+                continue;
+            }
+        }
 
         // AABB collision check
         if (playerRight > bubbleLeft && playerLeft < bubbleRight &&

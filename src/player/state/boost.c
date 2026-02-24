@@ -19,6 +19,9 @@ void boostBegin(Player* player, const Level* level) {
     // Zero velocity (Celeste line 3773)
     player->vx = 0;
     player->vy = 0;
+
+    // Clear dashing flag so trails can fade
+    player->dashing = 0;
 }
 
 void boostEnd(Player* player) {
