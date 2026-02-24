@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="80" height="25" tilewidth="8" tileheight="8" infinite="0" nextlayerid="7" nextobjectid="4">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="80" height="25" tilewidth="8" tileheight="8" infinite="0" nextlayerid="7" nextobjectid="5">
  <properties>
   <property name="name" value="Tutorial Level"/>
  </properties>
@@ -72,7 +72,10 @@
   <object id="2" name="Spring1" type="spring_super" x="256" y="144">
    <point/>
   </object>
-  <object id="3" name="rb" type="RedBubble" x="256" y="40">
+  <object id="3" name="rb" type="RedBubble" x="280" y="40">
+   <point/>
+  </object>
+  <object id="4" name="gb" type="GreenBubble" x="256" y="40">
    <point/>
   </object>
  </objectgroup>

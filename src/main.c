@@ -20,6 +20,7 @@
 #include "core/replay.h"
 #include "entities/spring.h"
 #include "entities/redbubble.h"
+#include "entities/greenbubble.h"
 
 // Tileset palette bank assignments
 #define PALETTE_GRASSY_STONE 0
@@ -166,6 +167,10 @@ int main() {
     spritePalette[12 * 16 + 0] = 0;  // Transparent
     spritePalette[12 * 16 + 1] = RGB15(31, 16, 0);  // Orange (red + half green)
 
+    // Create dedicated palette bank 13 for green bubbles (colors 208-223)
+    spritePalette[13 * 16 + 0] = 0;  // Transparent
+    spritePalette[13 * 16 + 1] = RGB15(0, 31, 0);  // Bright green
+
     // Set up sprite 0 as 16x16, 16-color mode, priority 1
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 0;
@@ -188,6 +193,9 @@ int main() {
 
     RedBubbleManager redBubbleManager;
     initRedBubbleManager(&redBubbleManager);
+
+    GreenBubbleManager greenBubbleManager;
+    initGreenBubbleManager(&greenBubbleManager);
 
     // Hide player sprite initially (we're in menu mode)
     oam[0] = 160;  // Y coordinate offscreen (reuse oam pointer from above)
@@ -373,6 +381,7 @@ int main() {
             if (currentLevelIndex != lastLevelIndex) {
                 loadSpringsFromLevel(&springManager, currentLevel);
                 loadRedBubblesFromLevel(&redBubbleManager, currentLevel);
+                loadGreenBubblesFromLevel(&greenBubbleManager, currentLevel);
                 lastLevelIndex = currentLevelIndex;
             }
 
@@ -381,6 +390,7 @@ int main() {
             updatePlayer(&player, keys, currentLevel);
             updateSprings(&springManager, &player);
             updateRedBubbles(&redBubbleManager, &player);
+            updateGreenBubbles(&greenBubbleManager, &player);
             u16 t1 = REG_TM0CNT_L;
             u16 dtPlayer = t1 - t0;
             if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
@@ -469,6 +479,7 @@ int main() {
             drawPlayer(&player, &camera);
             renderSprings(&springManager, camera.x, camera.y);
             renderRedBubbles(&redBubbleManager, camera.x, camera.y);
+            renderGreenBubbles(&greenBubbleManager, camera.x, camera.y);
             u16 t4 = REG_TM0CNT_L;
             u16 dtRender = t4 - t3;
             if (dtRender > maxRender) maxRender = dtRender;

@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o greenbubble.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
@@ -142,6 +142,9 @@ spring.o: $(SRCDIR)/entities/spring.c $(SRCDIR)/entities/spring.h $(SRCDIR)/core
 
 # RedBubble entity module
 redbubble.o: $(SRCDIR)/entities/redbubble.c $(SRCDIR)/entities/redbubble.h $(SRCDIR)/core/game_types.h $(SRCDIR)/level/level.h $(SRCDIR)/player/player.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+greenbubble.o: $(SRCDIR)/entities/greenbubble.c $(SRCDIR)/entities/greenbubble.h $(SRCDIR)/core/game_types.h $(SRCDIR)/level/level.h $(SRCDIR)/player/player.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Main object depends on all headers

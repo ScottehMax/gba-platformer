@@ -521,3 +521,22 @@ void playerRedBoost(Player* player, int centerX, int centerY) {
     setState(&player->stateMachine, ST_BOOST, player, 0);
 }
 
+void playerGreenBoost(Player* player, int centerX, int centerY) {
+    // Celeste Boost() (line 3770-3777)
+    // Player enters Boost state, physically moves to bubble center, then starts regular Dash
+
+    // Set target position where player will move to (Celeste line 3774)
+    player->boostTargetX = centerX << FIXED_SHIFT;
+    player->boostTargetY = centerY << FIXED_SHIFT;
+    player->boostRed = 0;  // Green bubble triggers regular Dash (not RedDash)
+    player->boostTimer = BOOST_TIME;  // Auto-dash after 0.25s
+
+    // Track which bubble player is using (Celeste CurrentBooster line 3776)
+    player->currentBubbleX = centerX;
+    player->currentBubbleY = centerY;
+
+    // Transition to boost state (Celeste line 3772)
+    // During Boost state, player moves to center, then transitions to regular Dash
+    setState(&player->stateMachine, ST_BOOST, player, 0);
+}
+

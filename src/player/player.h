@@ -76,5 +76,6 @@ void playerSideBounce(Player* player, int dir, int fromX, int fromY);
  * @param centerY The bubble center Y position in pixels
  */
 void playerRedBoost(Player* player, int centerX, int centerY);
+void playerGreenBoost(Player* player, int centerX, int centerY);
 
 #endif

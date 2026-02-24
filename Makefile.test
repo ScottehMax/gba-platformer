@@ -18,7 +18,8 @@ CORE_SRCS = \
 	src/collision/collision.c \
 	src/core/replay.c \
 	src/entities/spring.c \
-	src/entities/redbubble.c
+	src/entities/redbubble.c \
+	src/entities/greenbubble.c
 
 # Test framework
 TEST_FRAMEWORK_SRCS = \
