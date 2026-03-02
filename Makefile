@@ -27,6 +27,9 @@ OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
 
+# Ensure all generated headers exist before any object file is compiled
+$(OBJS): | $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS)
+
 # Create generated directory if it doesn't exist
 $(GENDIR):
 	mkdir -p $(GENDIR)
