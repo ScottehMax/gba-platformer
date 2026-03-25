@@ -1,4 +1,5 @@
 #include "collision.h"
+#include "transition/transition.h"
 
 static int isPositionColliding(const Level* level, int screenX, int screenY) {
     // 8x11 hitbox with configurable Y shift (adjust PLAYER_HITBOX_Y_SHIFT to change sprite ground position)
@@ -42,9 +43,13 @@ void collideHorizontal(Player* player, const Level* level) {
     int levelWidthPx = level->width * 8;
     int halfWidth = PLAYER_WIDTH / 2;
     if (screenX < halfWidth) {
+        // Keep player pinned to the edge even when a transition triggers so
+        // the first transition frame cannot start from an offscreen X.
+        tryTriggerTransition(level, CONN_SIDE_LEFT, screenY);
         player->x = halfWidth << FIXED_SHIFT;
         player->vx = 0;
     } else if (screenX > levelWidthPx - halfWidth) {
+        tryTriggerTransition(level, CONN_SIDE_RIGHT, screenY);
         player->x = (levelWidthPx - halfWidth) << FIXED_SHIFT;
         player->vx = 0;
     } else {
@@ -116,8 +121,10 @@ void collideVertical(Player* player, const Level* level) {
 
     // Ceiling bounds
     if (PLAYER_TOP(screenY) < 0) {
-        player->y = -PLAYER_TOP(0) << FIXED_SHIFT;
-        player->vy = 0;
+        if (!tryTriggerTransition(level, CONN_SIDE_TOP, screenX)) {
+            player->y = (-PLAYER_TOP(0)) << FIXED_SHIFT;
+            player->vy = 0;
+        }
     } else {
         // Check for tile collision at new Y position
         int playerLeft = screenX - PLAYER_WIDTH / 2;
@@ -193,6 +200,14 @@ void collideVertical(Player* player, const Level* level) {
                     }
                     return;
                 }
+            }
+        }
+
+        // Check bottom boundary (player fell off the bottom of the level)
+        if (PLAYER_BOTTOM(screenY) >= level->height * 8) {
+            if (!tryTriggerTransition(level, CONN_SIDE_BOTTOM, screenX)) {
+                player->y = ((level->height * 8) - PLAYER_BOTTOM(0) - 1) << FIXED_SHIFT;
+                player->vy = 0;
             }
         }
     }

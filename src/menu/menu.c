@@ -3,23 +3,7 @@
 #include "core/input.h"
 #include "level/level.h"
 #include "collision/collision.h"
-#include "generated/celeste1.h"
-#include "generated/level1.h"
-#include "generated/smb11.h"
-
-// Level registry for menu
-typedef struct {
-    const char* displayName;
-    const Level* level;
-} LevelEntry;
-
-static const LevelEntry levels[] = {
-    {"Test Level 1", &Tutorial_Level},
-    {"Test Level 2", &Celeste1},
-    {"Test Level 3", &Test_Level_1},
-    {"Test Level 4", &smb11}
-};
-#define LEVEL_COUNT (sizeof(levels) / sizeof(levels[0]))
+#include "generated/connections.h"
 
 // Menu state
 static int inMenu = 1;              // Start in menu mode
@@ -72,8 +56,8 @@ void renderMenu(void) {
             line[0] = '>';
             line[1] = ' ';
             int j;
-            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
-                line[j + 2] = levels[i].displayName[j];
+            for (j = 0; g_levelNames[i][j] != '\0' && j < 28; j++) {
+                line[j + 2] = g_levelNames[i][j];
             }
             line[j + 2] = '\0';
         } else {
@@ -81,8 +65,8 @@ void renderMenu(void) {
             line[0] = ' ';
             line[1] = ' ';
             int j;
-            for (j = 0; levels[i].displayName[j] != '\0' && j < 28; j++) {
-                line[j + 2] = levels[i].displayName[j];
+            for (j = 0; g_levelNames[i][j] != '\0' && j < 28; j++) {
+                line[j + 2] = g_levelNames[i][j];
             }
             line[j + 2] = '\0';
         }
@@ -163,7 +147,7 @@ void resetTilemapState(void) {
 
 // Initialize gameplay for a selected level
 static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera) {
-    currentLevel = levels[levelIndex].level;
+    currentLevel = g_levels[levelIndex];
     currentLevelIndex = levelIndex;
 
     // Clear menu text and reset menu state
@@ -241,4 +225,42 @@ void switchToLevel(int levelIndex, Player* player, Camera* camera) {
     // Reset camera position
     camera->x = 0;
     camera->y = 0;
+}
+
+void loadLevelForTransition(int levelIndex) {
+    // Validate level index
+    if (levelIndex < 0 || levelIndex >= LEVEL_COUNT) {
+        return;
+    }
+
+    currentLevel = g_levels[levelIndex];
+    currentLevelIndex = levelIndex;
+
+    // If a scroll transition just completed, level B's tile data is already
+    // decompressed in g_levelBLayerTiles. Use the fast path (pointer swap +
+    // VRAM write only) to avoid RLUnCompWram overflowing VBlank and causing
+    // VRAM writes during active display (which produces single-frame tile glitches).
+    if (g_levelBLayerTiles[0] != 0) {
+        adoptLevelBBuffer(currentLevel);
+    } else {
+        // Fade fallback: level B was never loaded into the B buffer, full load needed.
+        loadLevelToVRAM(currentLevel);
+    }
+
+    // Set up BG control registers for each layer
+    for (u8 i = 0; i < currentLevel->layerCount; i++) {
+        const TileLayer* layer = &currentLevel->layers[i];
+        u8 bgLayer = layer->bgLayer;
+        u8 priority = layer->priority;
+        u8 screenBase = 25 + bgLayer;
+
+        if (bgLayer == 1) {
+            REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        } else if (bgLayer == 2) {
+            REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
+        }
+    }
+    // NOTE: Does NOT call initPlayer, resetTilemapState, or reset camera.
+    // The transition system places the player and camera. The large camera
+    // delta on the first gameplay frame will trigger a full tilemap refresh.
 }

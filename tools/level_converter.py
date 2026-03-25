@@ -428,7 +428,10 @@ def object_type_to_enum(obj_type: str) -> str:
 
 def generate_header(data: Dict[str, Any], output_name: str) -> str:
     """Generate C header file content from level data."""
-    level_name = sanitize_identifier(data['name'])
+    # Use the output filename stem as the C variable name - guaranteed unique
+    # (display name from TMX 'name' property is used only for comments/strings)
+    stem = os.path.splitext(output_name)[0]  # e.g. "level3" from "level3.h"
+    level_name = sanitize_identifier(stem)
     guard_name = f"{output_name.upper().replace('.', '_')}_H"
 
     width = data['width']

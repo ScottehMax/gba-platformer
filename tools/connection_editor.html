@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Level Connection Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #1a1a2e;
+    --surface:  #16213e;
+    --panel:    #0f3460;
+    --accent:   #e94560;
+    --text:     #eaeaea;
+    --muted:    #8899aa;
+    --border:   #2a3a5a;
+    --hover:    #1a3a6a;
+    --selected: #e9456033;
+    --font:     'Consolas', 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ---- Header ---- */
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #header h1 { font-size: 15px; color: var(--accent); flex: 1; }
+  button {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 5px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 12px;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #c73350; }
+
+  /* ---- Body layout ---- */
+  #body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ---- Canvas area ---- */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    cursor: default;
+  }
+  #main-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    display: block;
+  }
+
+  /* ---- Sidebar ---- */
+  #sidebar {
+    width: 260px;
+    min-width: 200px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 8px 12px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Level list */
+  #level-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .level-item {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: default;
+  }
+  .level-item .name { color: var(--text); }
+  .level-item .size { color: var(--muted); font-size: 11px; }
+
+  /* Connection details */
+  #conn-details {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    flex-shrink: 0;
+  }
+  #conn-details h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  #conn-details .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  #conn-details label { color: var(--muted); font-size: 11px; flex-shrink: 0; width: 54px; }
+  #conn-details input[type=number] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 12px;
+    width: 80px;
+  }
+  #conn-details input[type=number]:focus { outline: none; border-color: var(--accent); }
+  #conn-none-msg { color: var(--muted); font-size: 11px; font-style: italic; }
+
+  /* Instructions */
+  #instructions {
+    border-top: 1px solid var(--border);
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+  #instructions h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+  #instructions p { color: var(--muted); font-size: 11px; line-height: 1.6; margin-bottom: 2px; }
+  #instructions kbd {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-family: var(--font);
+    font-size: 10px;
+    color: var(--text);
+  }
+
+  /* ---- Status bar ---- */
+  #statusbar {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 4px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  #statusbar .coords { color: var(--text); }
+  #statusbar .hint  { margin-left: auto; color: var(--accent); }
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <h1>Level Connection Editor</h1>
+  <button id="btn-load">Load JSON</button>
+  <button id="btn-save" class="primary">Save JSON</button>
+  <input id="file-input" type="file" accept=".json" style="display:none">
+</div>
+
+<!-- Body -->
+<div id="body">
+
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="main-canvas"></canvas>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="panel-title">Levels</div>
+    <div id="level-list"></div>
+
+    <div id="conn-details">
+      <h3>Connection</h3>
+      <div id="conn-none-msg">No connection selected.</div>
+      <div id="conn-fields" style="display:none">
+        <div class="row">
+          <label>From</label>
+          <span id="conn-from" style="color:var(--text);font-size:11px;"></span>
+        </div>
+        <div class="row">
+          <label>To</label>
+          <span id="conn-to" style="color:var(--text);font-size:11px;"></span>
+        </div>
+        <div class="row">
+          <label>Offset</label>
+          <input id="conn-offset" type="number" value="0" step="1">
+          <span style="color:var(--muted);font-size:11px;">px</span>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="btn-delete-conn" style="background:var(--accent);border-color:var(--accent);color:#fff;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="instructions">
+      <h3>Controls</h3>
+      <p><kbd>Click edge</kbd> Start connection</p>
+      <p><kbd>Click edge</kbd> Complete connection</p>
+      <p><kbd>Esc</kbd> Cancel connection</p>
+      <p><kbd>Del</kbd> Delete selected</p>
+      <p><kbd>Scroll</kbd> Zoom</p>
+      <p><kbd>RMB drag</kbd> Pan</p>
+    </div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div id="statusbar">
+  <span>World: <span id="coord-display" class="coords">0, 0</span></span>
+  <span id="status-hint" class="hint"></span>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// State
+// ============================================================
+const SIDE_NAMES  = ['right', 'left', 'bottom', 'top'];
+const SIDE_LABELS = ['Right', 'Left', 'Bottom', 'Top'];
+const CONN_COLORS = [
+  '#e94560','#4ecca3','#f5a623','#9b59b6',
+  '#3498db','#2ecc71','#e67e22','#1abc9c',
+];
+
+let state = {
+  metadata:     {},   // stem -> { displayName, widthPx, heightPx }
+  editorLayout: {},   // stem -> { x, y }   (game-pixel coords)
+  connections:  [],   // { from:{level,side}, to:{level,side}, offset }
+  rawData:      null, // full parsed JSON (preserved for save)
+};
+
+let view = {
+  offsetX: 0,
+  offsetY: 0,
+  scale:   1.0,
+};
+
+let interaction = {
+  isPanning:      false,
+  panStartX:      0,
+  panStartY:      0,
+  panStartOX:     0,
+  panStartOY:     0,
+  drawingFrom:    null,   // { stem, side, px, py } – world coords of edge center
+  mouseWorldX:    0,
+  mouseWorldY:    0,
+  hoveredEdge:    null,   // { stem, side }
+  selectedConnIdx: -1,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const canvas      = document.getElementById('main-canvas');
+const ctx         = canvas.getContext('2d');
+const canvasWrap  = document.getElementById('canvas-wrap');
+const levelList   = document.getElementById('level-list');
+const coordDisp   = document.getElementById('coord-display');
+const statusHint  = document.getElementById('status-hint');
+const connNoneMsg = document.getElementById('conn-none-msg');
+const connFields  = document.getElementById('conn-fields');
+const connFrom    = document.getElementById('conn-from');
+const connTo      = document.getElementById('conn-to');
+const connOffset  = document.getElementById('conn-offset');
+const btnDelete   = document.getElementById('btn-delete-conn');
+
+// ============================================================
+// Canvas resize
+// ============================================================
+function resizeCanvas() {
+  const r = canvasWrap.getBoundingClientRect();
+  canvas.width  = r.width;
+  canvas.height = r.height;
+  draw();
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ============================================================
+// Coordinate transforms
+// ============================================================
+function worldToScreen(wx, wy) {
+  return {
+    x: wx * view.scale + view.offsetX,
+    y: wy * view.scale + view.offsetY,
+  };
+}
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - view.offsetX) / view.scale,
+    y: (sy - view.offsetY) / view.scale,
+  };
+}
+
+// ============================================================
+// Edge detection helpers
+// ============================================================
+const EDGE_THRESHOLD = 12; // screen pixels
+
+function getEdgeCenterWorld(stem, side) {
+  const layout = state.editorLayout[stem];
+  const meta   = state.metadata[stem];
+  if (!layout || !meta) return null;
+  const x = layout.x, y = layout.y;
+  const w = meta.widthPx, h = meta.heightPx;
+  switch (side) {
+    case 0 /*right*/:  return { x: x + w, y: y + h / 2 };
+    case 1 /*left*/:   return { x: x,     y: y + h / 2 };
+    case 2 /*bottom*/: return { x: x + w / 2, y: y + h };
+    case 3 /*top*/:    return { x: x + w / 2, y: y     };
+    default: return null;
+  }
+}
+
+/**
+ * Given a canvas mouse position, find the closest (stem, side) edge
+ * within EDGE_THRESHOLD screen pixels. Returns null if none.
+ */
+function findHoveredEdge(cx, cy) {
+  let best = null, bestDist = Infinity;
+  for (const stem of Object.keys(state.metadata)) {
+    for (let side = 0; side < 4; side++) {
+      const wc = getEdgeCenterWorld(stem, side);
+      if (!wc) continue;
+      const sc = worldToScreen(wc.x, wc.y);
+      const d  = Math.hypot(cx - sc.x, cy - sc.y);
+      if (d < EDGE_THRESHOLD && d < bestDist) {
+        bestDist = d;
+        best = { stem, side };
+      }
+    }
+  }
+  return best;
+}
+
+// ============================================================
+// Auto-layout: arrange levels in a grid
+// ============================================================
+function autoLayout() {
+  const stems = Object.keys(state.metadata).sort();
+  const cols  = Math.max(1, Math.ceil(Math.sqrt(stems.length)));
+  const PAD   = 40; // game pixels between levels
+  let maxW = 0;
+  for (const s of stems) maxW = Math.max(maxW, state.metadata[s].widthPx || 0);
+
+  stems.forEach((stem, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const meta = state.metadata[stem];
+    state.editorLayout[stem] = {
+      x: col * (maxW + PAD),
+      y: row * ((meta.heightPx || 80) + PAD),
+    };
+  });
+}
+
+// ============================================================
+// Fit view to show all levels
+// ============================================================
+function fitView() {
+  const stems = Object.keys(state.metadata);
+  if (!stems.length) return;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const stem of stems) {
+    const layout = state.editorLayout[stem];
+    const meta   = state.metadata[stem];
+    if (!layout || !meta) continue;
+    minX = Math.min(minX, layout.x);
+    minY = Math.min(minY, layout.y);
+    maxX = Math.max(maxX, layout.x + meta.widthPx);
+    maxY = Math.max(maxY, layout.y + meta.heightPx);
+  }
+
+  const PAD  = 40;
+  const worldW = maxX - minX + PAD * 2;
+  const worldH = maxY - minY + PAD * 2;
+  const scaleX = canvas.width  / worldW;
+  const scaleY = canvas.height / worldH;
+  view.scale   = Math.min(scaleX, scaleY, 4);
+
+  view.offsetX = (canvas.width  - worldW * view.scale) / 2 - (minX - PAD) * view.scale;
+  view.offsetY = (canvas.height - worldH * view.scale) / 2 - (minY - PAD) * view.scale;
+}
+
+// ============================================================
+// Draw
+// ============================================================
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  drawGrid();
+
+  // Connections
+  for (let i = 0; i < state.connections.length; i++) {
+    drawConnection(i, i === interaction.selectedConnIdx);
+  }
+
+  // Ghost line while drawing a connection
+  if (interaction.drawingFrom) {
+    drawGhostLine();
+  }
+
+  // Levels (on top)
+  for (const stem of Object.keys(state.metadata)) {
+    drawLevel(stem);
+  }
+}
+
+function drawGrid() {
+  const GRID = 64; // world pixels
+  const sx0  = ((0 - view.offsetX) / view.scale);
+  const sy0  = ((0 - view.offsetY) / view.scale);
+  const sx1  = ((canvas.width  - view.offsetX) / view.scale);
+  const sy1  = ((canvas.height - view.offsetY) / view.scale);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  for (let gx = Math.floor(sx0 / GRID) * GRID; gx <= sx1; gx += GRID) {
+    const sx = gx * view.scale + view.offsetX;
+    ctx.moveTo(sx, 0);
+    ctx.lineTo(sx, canvas.height);
+  }
+  for (let gy = Math.floor(sy0 / GRID) * GRID; gy <= sy1; gy += GRID) {
+    const sy = gy * view.scale + view.offsetY;
+    ctx.moveTo(0, sy);
+    ctx.lineTo(canvas.width, sy);
+  }
+  ctx.stroke();
+}
+
+function drawLevel(stem) {
+  const layout = state.editorLayout[stem];
+  const meta   = state.metadata[stem];
+  if (!layout || !meta) return;
+
+  const sp = worldToScreen(layout.x, layout.y);
+  const sw = meta.widthPx  * view.scale;
+  const sh = meta.heightPx * view.scale;
+
+  // Box
+  ctx.fillStyle   = 'rgba(15, 52, 96, 0.85)';
+  ctx.strokeStyle = '#2a3a5a';
+  ctx.lineWidth   = 1.5;
+  roundRect(ctx, sp.x, sp.y, sw, sh, 4 * view.scale);
+  ctx.fill();
+  ctx.stroke();
+
+  // Level name
+  const fontSize = Math.max(9, Math.min(14, sw / 8));
+  ctx.fillStyle  = '#eaeaea';
+  ctx.font       = `${fontSize}px Consolas, monospace`;
+  ctx.textAlign  = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(meta.displayName || stem, sp.x + sw / 2, sp.y + sh / 2 - fontSize * 0.6);
+
+  // Size label
+  const sizeStr = `${meta.widthPx}×${meta.heightPx}`;
+  ctx.fillStyle  = '#8899aa';
+  ctx.font       = `${Math.max(8, fontSize * 0.8)}px Consolas, monospace`;
+  ctx.fillText(sizeStr, sp.x + sw / 2, sp.y + sh / 2 + fontSize * 0.7);
+
+  // Draw edge highlights
+  for (let side = 0; side < 4; side++) {
+    const isHov = interaction.hoveredEdge &&
+                  interaction.hoveredEdge.stem === stem &&
+                  interaction.hoveredEdge.side === side;
+    const isFrom = interaction.drawingFrom &&
+                   interaction.drawingFrom.stem === stem &&
+                   interaction.drawingFrom.side === side;
+
+    if (isHov || isFrom) {
+      drawEdgeHighlight(stem, side, isFrom ? '#e94560' : '#f5d020');
+    }
+  }
+
+  // Edge dots
+  for (let side = 0; side < 4; side++) {
+    const wc = getEdgeCenterWorld(stem, side);
+    if (!wc) continue;
+    const sc = worldToScreen(wc.x, wc.y);
+    const r  = Math.max(3, 4 * view.scale);
+
+    const isHov = interaction.hoveredEdge &&
+                  interaction.hoveredEdge.stem === stem &&
+                  interaction.hoveredEdge.side === side;
+    const isFrom = interaction.drawingFrom &&
+                   interaction.drawingFrom.stem === stem &&
+                   interaction.drawingFrom.side === side;
+
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = isFrom ? '#e94560' : isHov ? '#f5d020' : '#4a5a7a';
+    ctx.fill();
+  }
+}
+
+function drawEdgeHighlight(stem, side, color) {
+  const layout = state.editorLayout[stem];
+  const meta   = state.metadata[stem];
+  if (!layout || !meta) return;
+
+  const sp = worldToScreen(layout.x, layout.y);
+  const sw = meta.widthPx  * view.scale;
+  const sh = meta.heightPx * view.scale;
+  const t  = 3;
+
+  ctx.fillStyle = color + '55';
+  if (side === 0)      ctx.fillRect(sp.x + sw - t, sp.y, t, sh);
+  else if (side === 1) ctx.fillRect(sp.x,           sp.y, t, sh);
+  else if (side === 2) ctx.fillRect(sp.x, sp.y + sh - t, sw, t);
+  else if (side === 3) ctx.fillRect(sp.x, sp.y,           sw, t);
+}
+
+function drawConnection(idx, selected) {
+  const conn = state.connections[idx];
+  const fromEdge = getEdgeCenterWorld(conn.from.level, SIDE_NAMES.indexOf(conn.from.side));
+  const toEdge   = getEdgeCenterWorld(conn.to.level,   SIDE_NAMES.indexOf(conn.to.side));
+  if (!fromEdge || !toEdge) return;
+
+  const fs = worldToScreen(fromEdge.x, fromEdge.y);
+  const ts = worldToScreen(toEdge.x,   toEdge.y);
+
+  const color = CONN_COLORS[idx % CONN_COLORS.length];
+  const cp    = bezierControlPoints(fs, ts, conn.from.side, conn.to.side);
+
+  ctx.beginPath();
+  ctx.moveTo(fs.x, fs.y);
+  ctx.bezierCurveTo(cp.cx1, cp.cy1, cp.cx2, cp.cy2, ts.x, ts.y);
+  ctx.strokeStyle = selected ? '#ffffff' : color;
+  ctx.lineWidth   = selected ? 3 : 2;
+  ctx.setLineDash(selected ? [] : []);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Arrowhead in the middle
+  const tm = 0.5;
+  const mx = bezierPoint(fs.x, cp.cx1, cp.cx2, ts.x, tm);
+  const my = bezierPoint(fs.y, cp.cy1, cp.cy2, ts.y, tm);
+  const dx = bezierTangent(fs.x, cp.cx1, cp.cx2, ts.x, tm);
+  const dy = bezierTangent(fs.y, cp.cy1, cp.cy2, ts.y, tm);
+  drawArrowhead(mx, my, dx, dy, color, selected);
+
+  // Offset label
+  if (conn.offset !== 0) {
+    ctx.fillStyle = color;
+    ctx.font = '10px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`Δ${conn.offset}`, mx, my - 4);
+  }
+
+  // Click area: draw an invisible wider stroke for hit-testing
+  // (handled in mouse click - we test distance from cubic bezier)
+}
+
+function drawArrowhead(mx, my, dx, dy, color, selected) {
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) return;
+  const nx = dx / len, ny = dy / len;
+  const size = selected ? 9 : 7;
+
+  ctx.save();
+  ctx.translate(mx, my);
+  ctx.rotate(Math.atan2(ny, nx));
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size, -size * 0.5);
+  ctx.lineTo(-size, size * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = selected ? '#ffffff' : color;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGhostLine() {
+  const df = interaction.drawingFrom;
+  const wc = getEdgeCenterWorld(df.stem, df.side);
+  if (!wc) return;
+  const fs = worldToScreen(wc.x, wc.y);
+  const mx = interaction.mouseScreenX || canvas.width / 2;
+  const my = interaction.mouseScreenY || canvas.height / 2;
+
+  ctx.beginPath();
+  ctx.moveTo(fs.x, fs.y);
+  ctx.lineTo(mx, my);
+  ctx.strokeStyle = 'rgba(229,69,96,0.6)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ============================================================
+// Bezier helpers
+// ============================================================
+function bezierControlPoints(fs, ts, fromSide, toSide) {
+  const CTRL_LEN = Math.max(40, Math.hypot(ts.x - fs.x, ts.y - fs.y) * 0.45);
+  function sideDir(sideStr) {
+    const idx = typeof sideStr === 'string' ? SIDE_NAMES.indexOf(sideStr) : sideStr;
+    switch (idx) {
+      case 0: return [1,  0];   // right
+      case 1: return [-1, 0];   // left
+      case 2: return [0,  1];   // bottom
+      case 3: return [0, -1];   // top
+    }
+    return [1, 0];
+  }
+  const [d1x, d1y] = sideDir(fromSide);
+  const [d2x, d2y] = sideDir(toSide);
+  return {
+    cx1: fs.x + d1x * CTRL_LEN,
+    cy1: fs.y + d1y * CTRL_LEN,
+    cx2: ts.x + d2x * CTRL_LEN,
+    cy2: ts.y + d2y * CTRL_LEN,
+  };
+}
+
+function bezierPoint(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return mt*mt*mt*p0 + 3*mt*mt*t*p1 + 3*mt*t*t*p2 + t*t*t*p3;
+}
+
+function bezierTangent(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return 3*mt*mt*(p1-p0) + 6*mt*t*(p2-p1) + 3*t*t*(p3-p2);
+}
+
+// Distance from point (px,py) to cubic bezier (rough: sample 20 points)
+function bezierDistSq(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, px, py) {
+  let minD = Infinity;
+  for (let i = 0; i <= 20; i++) {
+    const t  = i / 20;
+    const bx = bezierPoint(p0x, p1x, p2x, p3x, t);
+    const by = bezierPoint(p0y, p1y, p2y, p3y, t);
+    const d  = (bx - px)**2 + (by - py)**2;
+    if (d < minD) minD = d;
+  }
+  return minD;
+}
+
+// ============================================================
+// roundRect polyfill
+// ============================================================
+function roundRect(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
+
+// ============================================================
+// Connection hit testing
+// ============================================================
+function findConnectionAtScreen(cx, cy) {
+  const HIT_DIST = 8;
+  for (let i = state.connections.length - 1; i >= 0; i--) {
+    const conn = state.connections[i];
+    const fi   = SIDE_NAMES.indexOf(conn.from.side);
+    const ti   = SIDE_NAMES.indexOf(conn.to.side);
+    const fw   = getEdgeCenterWorld(conn.from.level, fi);
+    const tw   = getEdgeCenterWorld(conn.to.level,   ti);
+    if (!fw || !tw) continue;
+    const fs = worldToScreen(fw.x, fw.y);
+    const ts = worldToScreen(tw.x, tw.y);
+    const cp = bezierControlPoints(fs, ts, conn.from.side, conn.to.side);
+    const d  = bezierDistSq(fs.x, fs.y, cp.cx1, cp.cy1, cp.cx2, cp.cy2, ts.x, ts.y, cx, cy);
+    if (d < HIT_DIST * HIT_DIST) return i;
+  }
+  return -1;
+}
+
+// ============================================================
+// Compute offset from layout positions
+// ============================================================
+function computeAutoOffset(fromStem, fromSide, toStem, toSide) {
+  const fl = state.editorLayout[fromStem];
+  const tl = state.editorLayout[toStem];
+  if (!fl || !tl) return 0;
+  const fm = state.metadata[fromStem];
+  const tm = state.metadata[toStem];
+  if (!fm || !tm) return 0;
+
+  // For left/right connections: perpendicular is Y
+  if (fromSide === 0 || fromSide === 1) {
+    const fromEdgeCenterY = fl.y + fm.heightPx / 2;
+    const toEdgeCenterY   = tl.y + tm.heightPx / 2;
+    return Math.round(fromEdgeCenterY - toEdgeCenterY);
+  }
+  // For top/bottom connections: perpendicular is X
+  const fromEdgeCenterX = fl.x + fm.widthPx / 2;
+  const toEdgeCenterX   = tl.x + tm.widthPx / 2;
+  return Math.round(fromEdgeCenterX - toEdgeCenterX);
+}
+
+// ============================================================
+// Sidebar update
+// ============================================================
+function updateLevelList() {
+  levelList.innerHTML = '';
+  for (const stem of Object.keys(state.metadata).sort()) {
+    const meta = state.metadata[stem];
+    const div  = document.createElement('div');
+    div.className = 'level-item';
+    div.innerHTML = `<div class="name">${meta.displayName || stem} <span style="color:var(--muted);font-size:10px">[${stem}]</span></div>
+                     <div class="size">${meta.widthPx}×${meta.heightPx} px</div>`;
+    levelList.appendChild(div);
+  }
+}
+
+function selectConnection(idx) {
+  interaction.selectedConnIdx = idx;
+  if (idx < 0 || idx >= state.connections.length) {
+    connNoneMsg.style.display = '';
+    connFields.style.display  = 'none';
+    return;
+  }
+  const conn = state.connections[idx];
+  connNoneMsg.style.display = 'none';
+  connFields.style.display  = '';
+  connFrom.textContent = `${conn.from.level} (${conn.from.side})`;
+  connTo.textContent   = `${conn.to.level} (${conn.to.side})`;
+  connOffset.value     = conn.offset;
+  draw();
+}
+
+connOffset.addEventListener('change', () => {
+  const idx = interaction.selectedConnIdx;
+  if (idx < 0 || idx >= state.connections.length) return;
+  state.connections[idx].offset = parseInt(connOffset.value) || 0;
+  draw();
+});
+
+btnDelete.addEventListener('click', deleteSelectedConnection);
+
+function deleteSelectedConnection() {
+  const idx = interaction.selectedConnIdx;
+  if (idx < 0 || idx >= state.connections.length) return;
+  state.connections.splice(idx, 1);
+  selectConnection(-1);
+  draw();
+}
+
+// ============================================================
+// Load / Save
+// ============================================================
+document.getElementById('btn-load').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      loadJSON(JSON.parse(ev.target.result));
+    } catch (err) {
+      alert('Failed to parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  saveJSON();
+});
+
+function loadJSON(data) {
+  state.rawData = data;
+
+  // Metadata
+  state.metadata = {};
+  const meta = data._metadata || {};
+  for (const stem of Object.keys(meta)) {
+    state.metadata[stem] = {
+      displayName: meta[stem].displayName || stem,
+      widthPx:     meta[stem].widthPx  || 80,
+      heightPx:    meta[stem].heightPx || 64,
+    };
+  }
+
+  // Editor layout
+  state.editorLayout = {};
+  const el = data._editorLayout || {};
+  let needsAutoLayout = false;
+  for (const stem of Object.keys(state.metadata)) {
+    if (el[stem] && typeof el[stem].x === 'number') {
+      state.editorLayout[stem] = { x: el[stem].x, y: el[stem].y };
+    } else {
+      needsAutoLayout = true;
+    }
+  }
+  if (needsAutoLayout) autoLayout();
+
+  // Connections
+  state.connections = (data.connections || []).map(c => ({
+    from:   { level: c.from.level, side: c.from.side },
+    to:     { level: c.to.level,   side: c.to.side   },
+    offset: c.offset || 0,
+  }));
+
+  selectConnection(-1);
+  updateLevelList();
+  fitView();
+  draw();
+  setStatus(`Loaded: ${Object.keys(state.metadata).length} levels, ${state.connections.length} connections.`);
+}
+
+function saveJSON() {
+  // Update editorLayout in raw data
+  const out = Object.assign({}, state.rawData || {});
+  out._editorLayout = {};
+  for (const stem of Object.keys(state.editorLayout)) {
+    out._editorLayout[stem] = {
+      x: state.editorLayout[stem].x,
+      y: state.editorLayout[stem].y,
+    };
+  }
+  out.connections = state.connections.map(c => ({
+    from:   { level: c.from.level, side: c.from.side },
+    to:     { level: c.to.level,   side: c.to.side   },
+    offset: c.offset,
+  }));
+
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'connections.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Saved connections.json');
+}
+
+function setStatus(msg) {
+  statusHint.textContent = msg;
+  setTimeout(() => { if (statusHint.textContent === msg) statusHint.textContent = ''; }, 3000);
+}
+
+// ============================================================
+// Mouse events
+// ============================================================
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const cx   = e.clientX - rect.left;
+  const cy   = e.clientY - rect.top;
+
+  if (e.button === 1 || e.button === 2) {
+    // Pan
+    interaction.isPanning  = true;
+    interaction.panStartX  = e.clientX;
+    interaction.panStartY  = e.clientY;
+    interaction.panStartOX = view.offsetX;
+    interaction.panStartOY = view.offsetY;
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (e.button === 0) {
+    // Cancel drawing on second click on same edge
+    if (interaction.drawingFrom) {
+      const edge = findHoveredEdge(cx, cy);
+      if (edge) {
+        const df = interaction.drawingFrom;
+        if (edge.stem !== df.stem || edge.side !== df.side) {
+          // Create connection
+          const offset = computeAutoOffset(df.stem, df.side, edge.stem, edge.side);
+          state.connections.push({
+            from:   { level: df.stem, side: SIDE_NAMES[df.side] },
+            to:     { level: edge.stem, side: SIDE_NAMES[edge.side] },
+            offset: offset,
+          });
+          const newIdx = state.connections.length - 1;
+          interaction.drawingFrom = null;
+          selectConnection(newIdx);
+          draw();
+          setStatus('Connection created. Adjust offset in sidebar if needed.');
+        } else {
+          // Clicked same edge → cancel
+          interaction.drawingFrom = null;
+          setStatus('');
+          draw();
+        }
+      } else {
+        // Clicked empty space → cancel
+        interaction.drawingFrom = null;
+        setStatus('');
+        draw();
+      }
+      return;
+    }
+
+    // Start drawing from edge
+    const edge = findHoveredEdge(cx, cy);
+    if (edge) {
+      interaction.drawingFrom = edge;
+      setStatus(`Drawing from ${edge.stem} (${SIDE_NAMES[edge.side]}) — click another edge`);
+      draw();
+      return;
+    }
+
+    // Check connection selection
+    const connIdx = findConnectionAtScreen(cx, cy);
+    if (connIdx >= 0) {
+      selectConnection(connIdx);
+      return;
+    }
+
+    // Deselect
+    selectConnection(-1);
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const cx   = e.clientX - rect.left;
+  const cy   = e.clientY - rect.top;
+
+  if (interaction.isPanning) {
+    view.offsetX = interaction.panStartOX + (e.clientX - interaction.panStartX);
+    view.offsetY = interaction.panStartOY + (e.clientY - interaction.panStartY);
+    draw();
+    return;
+  }
+
+  interaction.mouseScreenX = cx;
+  interaction.mouseScreenY = cy;
+
+  const wc = screenToWorld(cx, cy);
+  interaction.mouseWorldX = wc.x;
+  interaction.mouseWorldY = wc.y;
+  coordDisp.textContent = `${Math.round(wc.x)}, ${Math.round(wc.y)}`;
+
+  const prevHov = interaction.hoveredEdge;
+  interaction.hoveredEdge = findHoveredEdge(cx, cy);
+
+  const hovChanged = JSON.stringify(prevHov) !== JSON.stringify(interaction.hoveredEdge);
+
+  if (hovChanged || interaction.drawingFrom) {
+    if (interaction.hoveredEdge) {
+      canvas.style.cursor = 'crosshair';
+    } else {
+      canvas.style.cursor = interaction.drawingFrom ? 'crosshair' : 'default';
+    }
+    draw();
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  if (e.button === 1 || e.button === 2) {
+    interaction.isPanning = false;
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect  = canvas.getBoundingClientRect();
+  const cx    = e.clientX - rect.left;
+  const cy    = e.clientY - rect.top;
+  const delta = e.deltaY > 0 ? 0.85 : 1.15;
+  const newScale = Math.max(0.1, Math.min(8, view.scale * delta));
+
+  // Zoom toward mouse position
+  view.offsetX = cx - (cx - view.offsetX) * (newScale / view.scale);
+  view.offsetY = cy - (cy - view.offsetY) * (newScale / view.scale);
+  view.scale   = newScale;
+  draw();
+}, { passive: false });
+
+// ============================================================
+// Keyboard
+// ============================================================
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (interaction.drawingFrom) {
+      interaction.drawingFrom = null;
+      setStatus('');
+      draw();
+    } else {
+      selectConnection(-1);
+      draw();
+    }
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') &&
+      document.activeElement === document.body) {
+    deleteSelectedConnection();
+  }
+  if (e.key === 'f' || e.key === 'F') {
+    fitView();
+    draw();
+  }
+});
+
+// ============================================================
+// Initial hint
+// ============================================================
+setStatus('Load a connections.json file to get started.');
+
+// Show hint in status
+statusHint.textContent = 'Load a connections.json file to get started.';
+</script>
+</body>
+</html>

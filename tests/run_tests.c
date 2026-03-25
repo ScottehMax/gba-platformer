@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
     // Default level for tests that don't specify one
     // Individual tests can override this by setting .level in their struct
-    const Level* defaultLevel = &Tutorial_Level;
+    const Level* defaultLevel = &level3;
 
     // Run all tests
     int numTests = sizeof(all_tests) / sizeof(all_tests[0]);

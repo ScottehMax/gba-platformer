@@ -105,7 +105,7 @@ const MechanicsTest test_climb_hop_ledge = {
     .description = "Player should pop onto ledge when climbing to the top, not fall back down",
     .inputs = climb_hop_inputs,
     .frameCount = sizeof(climb_hop_inputs) / sizeof(climb_hop_inputs[0]),
-    .level = &Tutorial_Level,
+    .level = &level3,
     .startX = 115758,  // Fixed-point (256 = 1 pixel)
     .startY = 30400,   // Fixed-point (256 = 1 pixel)
     .verifyFrame = verifyClimbHopLedge,

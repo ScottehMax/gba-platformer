@@ -37,7 +37,8 @@ TEST_CASE_SRCS = \
 
 # Desktop stubs
 DESKTOP_SRCS = \
-	src/desktop/desktop_stubs.c
+	src/desktop/desktop_stubs.c \
+	tests/desktop_transition_stubs.c
 
 SRCS = $(CORE_SRCS) $(TEST_FRAMEWORK_SRCS) $(TEST_CASE_SRCS) $(DESKTOP_SRCS)
 OBJS = $(SRCS:.c=.o)

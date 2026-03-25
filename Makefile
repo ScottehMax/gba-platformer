@@ -23,12 +23,12 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o greenbubble.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o greenbubble.o transition.o $(GRIT_OBJS)
 
-all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(TARGET).gba
+all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(GENDIR)/connections.h $(TARGET).gba
 
 # Ensure all generated headers exist before any object file is compiled
-$(OBJS): | $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS)
+$(OBJS): | $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(GENDIR)/connections.h
 
 # Create generated directory if it doesn't exist
 $(GENDIR):
@@ -61,6 +61,10 @@ $(GENDIR)/nightsky.c $(GENDIR)/nightsky.h: assets/nightsky.png | $(GENDIR)
 # Level converter
 $(GENDIR)/%.h: levels/%.tmx | $(GENDIR)
 	$(PYTHON) tools/level_converter.py $< $@
+
+# Connections compiler - generates level registry and connection data
+$(GENDIR)/connections.h: connections.json $(LEVEL_TMXS) tools/compile_connections.py | $(GENDIR)
+	$(PYTHON) tools/compile_connections.py connections.json levels/ $@
 
 # Build targets
 $(TARGET).gba: $(TARGET).elf
@@ -96,7 +100,7 @@ camera.o: $(SRCDIR)/camera/camera.c $(SRCDIR)/camera/camera.h $(SRCDIR)/core/gam
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Collision module
-collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
+collision.o: $(SRCDIR)/collision/collision.c $(SRCDIR)/collision/collision.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/game_math.h $(SRCDIR)/level/level.h $(SRCDIR)/transition/transition.h $(LEVEL_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Player module
@@ -136,7 +140,11 @@ state_hitsquash.o: $(SRCDIR)/player/state/hitsquash.c $(SRCDIR)/player/state.h $
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Menu module
-menu.o: $(SRCDIR)/menu/menu.c $(SRCDIR)/menu/menu.h $(SRCDIR)/core/text.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS)
+menu.o: $(SRCDIR)/menu/menu.c $(SRCDIR)/menu/menu.h $(SRCDIR)/core/text.h $(SRCDIR)/level/level.h $(LEVEL_HEADERS) $(GENDIR)/connections.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Transition module
+transition.o: $(SRCDIR)/transition/transition.c $(SRCDIR)/transition/transition.h $(GENDIR)/connections.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Spring entity module
@@ -155,12 +163,25 @@ main.o: $(SRCDIR)/main.c $(SRCDIR)/core/text.h \
 	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
 	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
 	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h $(SRCDIR)/menu/menu.h \
-	$(SRCDIR)/entities/spring.h \
-	$(GRIT_HEADERS) $(LEVEL_HEADERS)
+	$(SRCDIR)/entities/spring.h $(SRCDIR)/transition/transition.h \
+	$(GRIT_HEADERS) $(LEVEL_HEADERS) $(GENDIR)/connections.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f *.o *.elf *.gba
 	rm -rf $(GENDIR)
 
-.PHONY: all clean
+# ---------------------------------------------------------------------------
+# Desktop test build (runs on host with gcc)
+# ---------------------------------------------------------------------------
+DESKTOP_CC = gcc
+DESKTOP_CFLAGS = -DDESKTOP_BUILD -Wall -I. -I$(GENDIR) -I$(SRCDIR) -I$(SRCDIR)/desktop -Itests
+DESKTOP_LEVEL_SRCS = $(SRCDIR)/level/level.c $(SRCDIR)/transition/transition.c $(GENDIR)/grassy_stone.c $(GENDIR)/plants.c $(GENDIR)/decals.c
+DESKTOP_TEST_SRCS  = tests/test_buffer_swap.c
+
+test-buffers: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS)
+	$(DESKTOP_CC) $(DESKTOP_CFLAGS) -o test_buffer_swap \
+		$(DESKTOP_TEST_SRCS) $(DESKTOP_LEVEL_SRCS)
+	./test_buffer_swap
+
+.PHONY: all clean test-buffers

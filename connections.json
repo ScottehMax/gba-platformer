@@ -1,0 +1,73 @@
+{
+  "_metadata": {
+    "celeste1": {
+      "displayName": "Celeste1",
+      "widthPx": 320,
+      "heightPx": 192
+    },
+    "level1": {
+      "displayName": "Test Level 1",
+      "widthPx": 4096,
+      "heightPx": 320
+    },
+    "level2": {
+      "displayName": "Tutorial Level",
+      "widthPx": 640,
+      "heightPx": 200
+    },
+    "level3": {
+      "displayName": "Tutorial Level",
+      "widthPx": 640,
+      "heightPx": 200
+    },
+    "level4": {
+      "displayName": "Tutorial Level",
+      "widthPx": 1920,
+      "heightPx": 400
+    },
+    "smb11": {
+      "displayName": "smb11",
+      "widthPx": 2048,
+      "heightPx": 240
+    }
+  },
+  "_editorLayout": {
+    "celeste1": {
+      "x": 0,
+      "y": 0
+    },
+    "level1": {
+      "x": 4136,
+      "y": 0
+    },
+    "level2": {
+      "x": 8272,
+      "y": 0
+    },
+    "level3": {
+      "x": 0,
+      "y": 240
+    },
+    "level4": {
+      "x": 4136,
+      "y": 440
+    },
+    "smb11": {
+      "x": 8272,
+      "y": 280
+    }
+  },
+  "connections": [
+    {
+      "from": {
+        "level": "level3",
+        "side": "right"
+      },
+      "to": {
+        "level": "smb11",
+        "side": "left"
+      },
+      "offset": 56
+    }
+  ]
+}

@@ -31,4 +31,8 @@ int getCurrentLevelIndex(void);
 // Switch to a specific level by index
 void switchToLevel(int levelIndex, Player* player, Camera* camera);
 
+// Load a level into VRAM and update internal state for use during screen transitions.
+// Does NOT reset the player position or camera - the transition system handles that.
+void loadLevelForTransition(int levelIndex);
+
 #endif // MENU_H

@@ -18,6 +18,7 @@
 #include "util/calc.h"
 #include "menu/menu.h"
 #include "core/replay.h"
+#include "transition/transition.h"
 #include "entities/spring.h"
 #include "entities/redbubble.h"
 #include "entities/greenbubble.h"
@@ -39,6 +40,57 @@
 // Tilemap state (used in game loop)
 static int oldCameraTileX = -1;
 static int oldCameraTileY = -1;
+static int wasScrolling   = 0;
+static int lastScrollToTileX0 = 0;
+static int lastScrollToTileY0 = 0;
+static int lastScrollBgOriginX = 0;
+static int lastScrollBgOriginY = 0;
+static int bgTileOriginX = 0;
+static int bgTileOriginY = 0;
+
+static inline u16 tileEntryNormal(const Level* level, u8 layerIdx, int lx, int ly) {
+    u16 tid = getTileAt(level, layerIdx, lx, ly);
+    return (tid + (u16)getLevelTileVramOffset()) | ((u16)level->tilePaletteBanks[tid] << 12);
+}
+
+static inline int floorDiv8(int v) {
+    return (v >= 0) ? (v / 8) : -(((-v) + 7) / 8);
+}
+
+static void prefillScrollSeam(volatile u16* bgMap, u8 layerIdx,
+                              const ScrollTransInfo* scrollInfo,
+                              int scrollBgOriginX, int scrollBgOriginY,
+                              int cameraTileX, int cameraTileY) {
+    if (scrollInfo->seamPrefillAxis == 1) {
+        int seamStartsOnRight = scrollInfo->toTileX0 > scrollInfo->fromTileX0;
+        for (int s = 0; s < 2; s++) {
+            int virtualX = seamStartsOnRight
+                ? (scrollInfo->toTileX0 + s)
+                : (scrollInfo->fromTileX0 - 1 - s);
+            int mapX = virtualX + scrollBgOriginX;
+            int mx = mapX & 31;
+            for (int ty = 0; ty < 32; ty++) {
+                int mapY = cameraTileY + ty;
+                int virtualY = mapY - scrollBgOriginY;
+                bgMap[(mapY & 31) * 32 + mx] = getScrollTileEntry(layerIdx, virtualX, virtualY);
+            }
+        }
+    } else if (scrollInfo->seamPrefillAxis == 2) {
+        int seamStartsBelow = scrollInfo->toTileY0 > scrollInfo->fromTileY0;
+        for (int s = 0; s < 2; s++) {
+            int virtualY = seamStartsBelow
+                ? (scrollInfo->toTileY0 + s)
+                : (scrollInfo->fromTileY0 - 1 - s);
+            int mapY = virtualY + scrollBgOriginY;
+            int my = mapY & 31;
+            for (int tx = 0; tx < 32; tx++) {
+                int mapX = cameraTileX + tx;
+                int virtualX = mapX - scrollBgOriginX;
+                bgMap[my * 32 + (mapX & 31)] = getScrollTileEntry(layerIdx, virtualX, virtualY);
+            }
+        }
+    }
+}
 
 // Profiling state
 static int profilingInitialized = 0;
@@ -241,6 +293,7 @@ int main() {
     // Replay system
     ReplayState replay;
     initReplay(&replay);
+    initTransition();
     char replayStr[32] = "";
 
     // Track current level for spring reloading
@@ -370,102 +423,202 @@ int main() {
                 profilingInitialized = 0;  // Reset profiling display for next time
                 oldCameraTileX = -1;       // Reset tilemap state
                 oldCameraTileY = -1;
+                wasScrolling   = 0;
+                lastScrollBgOriginX = 0;
+                lastScrollBgOriginY = 0;
+                bgTileOriginX = 0;
+                bgTileOriginY = 0;
                 continue;
             }
 
-            // Get current level
+            // Get current level (initial read; may be updated after transition)
             const Level* currentLevel = getCurrentLevel();
-
-            // Reload springs and red bubbles if level changed
             int currentLevelIndex = getCurrentLevelIndex();
-            if (currentLevelIndex != lastLevelIndex) {
-                loadSpringsFromLevel(&springManager, currentLevel);
-                loadRedBubblesFromLevel(&redBubbleManager, currentLevel);
-                loadGreenBubblesFromLevel(&greenBubbleManager, currentLevel);
-                lastLevelIndex = currentLevelIndex;
-            }
+
+            // Set transition context so collision code knows the current level index + camera
+            setTransitionLevelContext(currentLevelIndex, camera.x, camera.y, player.x, player.y);
+
+            int transitionActiveAtFrameStart = isTransitioning();
 
             // Profile: Player update
             u16 t0 = REG_TM0CNT_L;
-            updatePlayer(&player, keys, currentLevel);
-            updateSprings(&springManager, &player);
-            updateRedBubbles(&redBubbleManager, &player);
-            updateGreenBubbles(&greenBubbleManager, &player);
+            if (transitionActiveAtFrameStart) {
+                updateTransition(&player, &camera);
+            } else {
+                updatePlayer(&player, keys, currentLevel);
+                updateSprings(&springManager, &player);
+                updateRedBubbles(&redBubbleManager, &player);
+                updateGreenBubbles(&greenBubbleManager, &player);
+            }
             u16 t1 = REG_TM0CNT_L;
             u16 dtPlayer = t1 - t0;
             if (dtPlayer > maxPlayer) maxPlayer = dtPlayer;
 
-            // Profile: Camera update
-            updateCamera(&camera, &player, currentLevel);
+            // Re-read level state in case a transition just switched levels
+            currentLevel = getCurrentLevel();
+            currentLevelIndex = getCurrentLevelIndex();
+
+            int levelChanged = (currentLevelIndex != lastLevelIndex);
+
+            // Skip camera updates both when a transition started this frame and
+            // when a transition is committing this frame after starting earlier.
+            int transitionBusyThisFrame = transitionActiveAtFrameStart || isTransitioning();
+            if (!transitionBusyThisFrame) {
+                updateCamera(&camera, &player, currentLevel);
+            }
             u16 t2 = REG_TM0CNT_L;
             u16 dtCamera = t2 - t1;
             if (dtCamera > maxCamera) maxCamera = dtCamera;
 
-            // Use hardware scrolling in pixel space for all terrain layers
-            REG_BG1HOFS = camera.x;
-            REG_BG1VOFS = camera.y;
-            REG_BG2HOFS = camera.x;
-            REG_BG2VOFS = camera.y;
+            // Tilemap update - supports both normal play and scroll transitions.
+            // During a scroll transition camera.x/y are virtual coordinates spanning
+            // both levels; getScrollTileEntry() selects the right level per tile.
+            ScrollTransInfo scrollInfo;
+            getScrollTransInfo(&scrollInfo);
 
-            // Optimized tilemap update using hardware scrolling wraparound
-            // The tilemap buffer is circular - hardware wraps at 256x256 pixels (32x32 tiles)
-            // Tilemap position (x%32, y%32) contains level tile at floor(camera/8) + [x, y]
-            int cameraTileX = camera.x / 8;
-            int cameraTileY = camera.y / 8;
+            int scrollJustStarted = (!wasScrolling && scrollInfo.active);
+            int scrollJustEnded   = ( wasScrolling && !scrollInfo.active);
+            int usedSeamPrefill   = 0;
+            int scrollBgOriginX   = bgTileOriginX;
+            int scrollBgOriginY   = bgTileOriginY;
+            int scrollCameraX     = camera.x;
+            int scrollCameraY     = camera.y;
+
+            if (scrollInfo.active) {
+                if (scrollJustStarted) {
+                    getTransitionVirtualCamera(&scrollCameraX, &scrollCameraY);
+                }
+                scrollBgOriginX = bgTileOriginX - scrollInfo.fromTileX0;
+                scrollBgOriginY = bgTileOriginY - scrollInfo.fromTileY0;
+            }
+
+            if (levelChanged && !scrollJustEnded) {
+                bgTileOriginX = 0;
+                bgTileOriginY = 0;
+            }
+
+            if (scrollJustEnded) {
+                bgTileOriginX = lastScrollBgOriginX + lastScrollToTileX0;
+                bgTileOriginY = lastScrollBgOriginY + lastScrollToTileY0;
+            }
+
+            int bgCameraX = scrollInfo.active ? (scrollCameraX + scrollBgOriginX * 8)
+                                              : (camera.x + bgTileOriginX * 8);
+            int bgCameraY = scrollInfo.active ? (scrollCameraY + scrollBgOriginY * 8)
+                                              : (camera.y + bgTileOriginY * 8);
+
+            // Set hardware scroll registers first, then update tilemap.
+            // For the incremental path (delta ≤ 2 tiles) this is safe: the column
+            // being written is always past the visible right/bottom edge at the new
+            // scroll position, so the hardware never sees the old content there.
+            REG_BG1HOFS = bgCameraX;
+            REG_BG1VOFS = bgCameraY;
+            REG_BG2HOFS = bgCameraX;
+            REG_BG2VOFS = bgCameraY;
+
+            // On the trigger frame (scrollJustStarted) camera.x/y are still in the
+            // from-level's physical coordinate space. Use the transition system's
+            // virtual start camera plus a scroll-specific ring origin so the existing
+            // 32x32 ring buffer stays valid without a full redraw.
+            if (scrollJustEnded) {
+                oldCameraTileX = floorDiv8(bgCameraX);
+                oldCameraTileY = floorDiv8(bgCameraY);
+            }
+            if (scrollInfo.active) {
+                lastScrollToTileX0 = scrollInfo.toTileX0;
+                lastScrollToTileY0 = scrollInfo.toTileY0;
+                lastScrollBgOriginX = scrollBgOriginX;
+                lastScrollBgOriginY = scrollBgOriginY;
+            }
+            wasScrolling = scrollInfo.active;
+
+            int cameraTileX = floorDiv8(bgCameraX);
+            int cameraTileY = floorDiv8(bgCameraY);
 
             if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
-                // Determine scroll direction
                 int deltaX = cameraTileX - oldCameraTileX;
                 int deltaY = cameraTileY - oldCameraTileY;
 
-                // Update all layers
-                for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
-                    const TileLayer* layer = &currentLevel->layers[layerIdx];
-                    u8 bgLayer = layer->bgLayer;
-                    u8 screenBase = 25 + bgLayer;  // BG1=25, BG2=26
+                // Always iterate all supported BG layers so extra layers get cleared
+                // (tile 0 = transparent) when switching to a level with fewer layers.
+                // Levels with fewer layers return tile 0 for out-of-range layerIdx.
+                const u8 MAX_BG_LAYERS = 2;
+
+                usedSeamPrefill = scrollInfo.active &&
+                                  scrollInfo.seamPrefillAxis != 0 &&
+                                  !scrollJustStarted;
+
+                int tileOriginX = scrollInfo.active ? scrollBgOriginX : bgTileOriginX;
+                int tileOriginY = scrollInfo.active ? scrollBgOriginY : bgTileOriginY;
+
+                for (u8 layerIdx = 0; layerIdx < MAX_BG_LAYERS; layerIdx++) {
+                    u8 bgLayer, screenBase;
+                    if (layerIdx < currentLevel->layerCount) {
+                        bgLayer = currentLevel->layers[layerIdx].bgLayer;
+                    } else if (scrollInfo.active && layerIdx < scrollInfo.toLevel->layerCount) {
+                        bgLayer = scrollInfo.toLevel->layers[layerIdx].bgLayer;
+                    } else {
+                        bgLayer = layerIdx;  // default: layer N maps to BG(N+1)
+                    }
+                    screenBase = 25 + bgLayer;
 
                     volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
 
-                    // First time or large jump - fill entire tilemap
-                    if (oldCameraTileX == -1 || deltaX < -1 || deltaX > 1 || deltaY < -1 || deltaY > 1) {
+#define TILE_ENTRY(lx, ly) \
+    (scrollInfo.active \
+        ? getScrollTileEntry(layerIdx, (lx) - tileOriginX, (ly) - tileOriginY) \
+        : tileEntryNormal(currentLevel, layerIdx, (lx) - tileOriginX, (ly) - tileOriginY))
+
+                    int adx = deltaX < 0 ? -deltaX : deltaX;
+                    int ady = deltaY < 0 ? -deltaY : deltaY;
+                    if (oldCameraTileX == -1 || adx > 2 || ady > 2) {
+                        // Full refresh (only on init or after large jumps like scroll end)
                         for (int ty = 0; ty < 32; ty++) {
                             for (int tx = 0; tx < 32; tx++) {
-                                int levelX = cameraTileX + tx;
-                                int levelY = cameraTileY + ty;
-                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                                // Use wraparound: tilemap position wraps at 32
-                                int mapX = (cameraTileX + tx) & 31;
-                                int mapY = (cameraTileY + ty) & 31;
-                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                                int lx = cameraTileX + tx;
+                                int ly = cameraTileY + ty;
+                                bgMap[(ly & 31) * 32 + (lx & 31)] = TILE_ENTRY(lx, ly);
                             }
                         }
                     } else {
-                        // Incremental update - only update new tiles entering the 32x32 window
+                        if (usedSeamPrefill) {
+                            prefillScrollSeam(bgMap, layerIdx, &scrollInfo,
+                                              scrollBgOriginX, scrollBgOriginY,
+                                              cameraTileX, cameraTileY);
+                        }
+
+                        // Incremental: write up to 2 new columns and/or rows.
+                        // At max 2 tiles/frame (16px) the new columns are always past
+                        // the visible right edge at the new register position — no glitch.
                         if (deltaX != 0) {
-                            // Scrolled horizontally - update one column
-                            int levelX = (deltaX > 0) ? (cameraTileX + 31) : cameraTileX;
-                            int mapX = levelX & 31;
-                            for (int ty = 0; ty < 32; ty++) {
-                                int levelY = cameraTileY + ty;
-                                int mapY = levelY & 31;
-                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            for (int s = 0; s < adx; s++) {
+                                int lx = (deltaX > 0) ? (cameraTileX + 31 - s)
+                                                      : (cameraTileX + s);
+                                int mx = lx & 31;
+                                for (int ty = 0; ty < 32; ty++) {
+                                    int ly = cameraTileY + ty;
+                                    bgMap[(ly & 31) * 32 + mx] = TILE_ENTRY(lx, ly);
+                                }
                             }
                         }
                         if (deltaY != 0) {
-                            // Scrolled vertically - update one row
-                            int levelY = (deltaY > 0) ? (cameraTileY + 31) : cameraTileY;
-                            int mapY = levelY & 31;
-                            for (int tx = 0; tx < 32; tx++) {
-                                int levelX = cameraTileX + tx;
-                                int mapX = levelX & 31;
-                                u16 tileId = getTileAt(currentLevel, layerIdx, levelX, levelY);
-                                bgMap[mapY * 32 + mapX] = tileId | (currentLevel->tilePaletteBanks[tileId] << 12);
+                            for (int s = 0; s < ady; s++) {
+                                int ly = (deltaY > 0) ? (cameraTileY + 31 - s)
+                                                      : (cameraTileY + s);
+                                int my = ly & 31;
+                                for (int tx = 0; tx < 32; tx++) {
+                                    int lx = cameraTileX + tx;
+                                    bgMap[my * 32 + (lx & 31)] = TILE_ENTRY(lx, ly);
+                                }
                             }
                         }
                     }
+#undef TILE_ENTRY
                 }
 
+                if (usedSeamPrefill) {
+                    consumeTransitionSeamPrefill();
+                }
                 oldCameraTileX = cameraTileX;
                 oldCameraTileY = cameraTileY;
             }
@@ -475,11 +628,32 @@ int main() {
             u16 dtTilemap = t3 - t2;
             if (dtTilemap > maxTilemap) maxTilemap = dtTilemap;
 
+            // Keep transition-end tilemap writes first in VBlank to avoid
+            // one-frame BG1 garbage when switching levels.
+            if (levelChanged) {
+                loadSpringsFromLevel(&springManager, currentLevel);
+                loadRedBubblesFromLevel(&redBubbleManager, currentLevel);
+                loadGreenBubblesFromLevel(&greenBubbleManager, currentLevel);
+                lastLevelIndex = currentLevelIndex;
+            }
+
             // Profile: Rendering
-            drawPlayer(&player, &camera);
-            renderSprings(&springManager, camera.x, camera.y);
-            renderRedBubbles(&redBubbleManager, camera.x, camera.y);
-            renderGreenBubbles(&greenBubbleManager, camera.x, camera.y);
+            // During a scroll transition, camera.x/y are in virtual space but the player
+            // and entities use physical level coordinates. Subtract the from-level's virtual
+            // origin so screen positions are computed correctly.
+            // During a scroll transition, camera.x/y are in virtual space from frame T+1
+            // onwards (after updateTransition first advances it). On the trigger frame
+            // (scrollJustStarted), camera.x is still in physical space, so do NOT offset.
+            Camera renderCamera = camera;
+            if (scrollInfo.active && !scrollJustStarted) {
+                renderCamera.x = camera.x - scrollInfo.fromTileX0 * 8;
+                renderCamera.y = camera.y - scrollInfo.fromTileY0 * 8;
+            }
+            u16 playerPriority = scrollInfo.active ? 0 : 1;
+            drawPlayer(&player, &renderCamera, playerPriority);
+            renderSprings(&springManager, renderCamera.x, renderCamera.y);
+            renderRedBubbles(&redBubbleManager, renderCamera.x, renderCamera.y);
+            renderGreenBubbles(&greenBubbleManager, renderCamera.x, renderCamera.y);
             u16 t4 = REG_TM0CNT_L;
             u16 dtRender = t4 - t3;
             if (dtRender > maxRender) maxRender = dtRender;

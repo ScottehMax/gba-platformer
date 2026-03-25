@@ -53,6 +53,10 @@ typedef struct {
 // Populated by loadLevelToVRAM(). Index matches layer index in Level.layers.
 extern u16* g_levelLayerTiles[4];
 
+// RAM buffers for the incoming level during a scroll transition.
+// Populated by loadLevelBToVRAM().
+extern u16* g_levelBLayerTiles[4];
+
 typedef struct {
     const char* name;
     u16 width;
@@ -111,12 +115,32 @@ static inline CollisionType getTileCollision(const Level* level, int tileX, int 
 }
 
 /**
- * Load level tile data to VRAM
- * Scans the level and loads only the tiles that are actually used
- *
- * @param level The level to load
+ * Load level tile data to VRAM starting at slot 0.
+ * Resets g_levelTileVramOffset to 0.
  */
 void loadLevelToVRAM(const Level* level);
+
+/**
+ * Fast transition finalisation: adopt the already-decompressed level-B buffer
+ * as the main level buffer and write its tiles to VRAM slot 0.
+ * Avoids re-running RLUnCompWram (too slow for VBlank) at scroll transition end.
+ * Only valid immediately after a scroll transition completes (g_levelBLayerTiles
+ * must contain the destination level's data from the prior loadLevelBToVRAM call).
+ */
+void adoptLevelBBuffer(const Level* level);
+
+/**
+ * Load level tile data to VRAM starting at the given slot offset.
+ * Decompresses into g_levelBLayerTiles. Used for scroll transitions.
+ *
+ * @param level      The incoming level
+ * @param vramOffset First VRAM slot to use (= current level's uniqueTileCount)
+ */
+void loadLevelBToVRAM(const Level* level, int vramOffset);
+
+/** Current VRAM offset applied to this level's tile indices (0 normally). */
+int getLevelTileVramOffset(void);
+void setLevelTileVramOffset(int offset);
 
 /**
  * Get the VRAM tile index for a tile value

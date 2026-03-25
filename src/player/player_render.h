@@ -10,7 +10,8 @@
  *
  * @param player The player to draw
  * @param camera The camera for world-to-screen coordinate conversion
+ * @param objPriority OBJ priority to use while rendering the player and trail
  */
-void drawPlayer(Player* player, Camera* camera);
+void drawPlayer(Player* player, Camera* camera, u16 objPriority);
 
 #endif
