@@ -36,16 +36,7 @@ void initPlayer(Player* player, const Level* level) {
     player->ducking = 0;
     player->lastAimX = 1 << FIXED_SHIFT;  // Default to right (Celeste line 350)
     player->lastAimY = 0;
-    player->trailIndex = 0;
-    player->trailTimer = 0;  // Counts down, when reaches 0 creates next trail sprite
-    player->trailFadeTimer = TRAIL_LENGTH * 2;  // Start fully faded
-
-    // Initialize trail positions off-screen
-    for (int i = 0; i < TRAIL_LENGTH; i++) {
-        player->trailX[i] = -1000 << FIXED_SHIFT;
-        player->trailY[i] = -1000 << FIXED_SHIFT;
-        player->trailFacing[i] = player->facingRight;
-    }
+    clearPlayerDashTrail(player);
 
     // Initialize climb state
     player->stamina = CLIMB_MAX_STAMINA;

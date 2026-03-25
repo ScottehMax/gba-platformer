@@ -10,6 +10,17 @@
 #include "core/game_math.h"
 #include "collision/collision.h"
 
+static inline void clearPlayerDashTrail(Player* player) {
+    player->trailIndex = 0;
+    player->trailTimer = 0;
+    player->trailFadeTimer = TRAIL_LENGTH * 8;
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+        player->trailX[i] = -1000 << FIXED_SHIFT;
+        player->trailY[i] = -1000 << FIXED_SHIFT;
+        player->trailFacing[i] = player->facingRight;
+    }
+}
+
 /**
  * Initialize a player at the level spawn point
  *

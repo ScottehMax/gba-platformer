@@ -2,6 +2,7 @@
 #include "menu/menu.h"
 #include "core/game_math.h"
 #include "generated/connections.h"
+#include "player/player.h"
 #include "player/state.h"
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,12 @@ typedef struct {
     int virtualCamDY256;
     int virtualEndX256;
     int virtualEndY256;
+    int playerX256;
+    int playerY256;
+    int playerDX256;
+    int playerDY256;
+    int playerEndX256;
+    int playerEndY256;
     int scrollTimer;
 
     // --- both ---
@@ -60,6 +67,8 @@ typedef struct {
     int newPlayerY;
     int newCameraX;   // pixel
     int newCameraY;
+    int preservedVx;
+    int preservedVy;
 
     // --- fade fallback ---
     int timer;
@@ -244,7 +253,7 @@ void setTransitionLevelContext(int levelIdx, int cameraX, int cameraY, int playe
     g_cameraY  = cameraY;
 }
 
-int tryTriggerTransition(const Level* level, int side, int perpPos) {
+int tryTriggerTransition(const Level* level, int side, int perpPos, Player* player) {
     if (!level || g_trans.phase != TRANS_NONE || g_levelIdx < 0) return 0;
 
     // Find matching connection
@@ -263,6 +272,35 @@ int tryTriggerTransition(const Level* level, int side, int perpPos) {
     const Level* fromLevel = level;
     const Level* toLevel   = getRegisteredLevel(conn->toLevelIdx);
     if (!toLevel) return 0;
+
+    g_trans.preservedVx = player ? player->vx : 0;
+    g_trans.preservedVy = player ? player->vy : 0;
+    if (player) {
+        clearPlayerDashTrail(player);
+    }
+
+    int startPlayerX;
+    int startPlayerY;
+    switch ((ConnectionSide)side) {
+        case CONN_SIDE_LEFT:
+            startPlayerX = clampPlayerXForLevel(fromLevel, PLAYER_WIDTH / 2) << FIXED_SHIFT;
+            startPlayerY = clampPlayerYForLevel(fromLevel, perpPos) << FIXED_SHIFT;
+            break;
+        case CONN_SIDE_RIGHT:
+            startPlayerX = clampPlayerXForLevel(fromLevel, fromLevel->width * 8 - PLAYER_WIDTH / 2) << FIXED_SHIFT;
+            startPlayerY = clampPlayerYForLevel(fromLevel, perpPos) << FIXED_SHIFT;
+            break;
+        case CONN_SIDE_TOP:
+            startPlayerX = clampPlayerXForLevel(fromLevel, perpPos) << FIXED_SHIFT;
+            startPlayerY = clampPlayerYForLevel(fromLevel, -PLAYER_TOP(0)) << FIXED_SHIFT;
+            break;
+        case CONN_SIDE_BOTTOM:
+            startPlayerX = clampPlayerXForLevel(fromLevel, perpPos) << FIXED_SHIFT;
+            startPlayerY = clampPlayerYForLevel(fromLevel, fromLevel->height * 8 - PLAYER_BOTTOM(0) - 1) << FIXED_SHIFT;
+            break;
+        default:
+            return 0;
+    }
 
     int newLevelW = toLevel->width  * 8;
     int newLevelH = toLevel->height * 8;
@@ -399,6 +437,14 @@ int tryTriggerTransition(const Level* level, int side, int perpPos) {
         g_trans.virtualCamDY256 = (totalDY << 8) / scrollFrames;
         g_trans.virtualEndX256  = virtualEndX << 8;
         g_trans.virtualEndY256  = virtualEndY << 8;
+        g_trans.playerX256      = startPlayerX;
+        g_trans.playerY256      = startPlayerY;
+        g_trans.playerEndX256   = g_trans.newPlayerX +
+                                  (((g_trans.toTileX0 - g_trans.fromTileX0) * 8) << FIXED_SHIFT);
+        g_trans.playerEndY256   = g_trans.newPlayerY +
+                                  (((g_trans.toTileY0 - g_trans.fromTileY0) * 8) << FIXED_SHIFT);
+        g_trans.playerDX256     = (g_trans.playerEndX256 - g_trans.playerX256) / scrollFrames;
+        g_trans.playerDY256     = (g_trans.playerEndY256 - g_trans.playerY256) / scrollFrames;
         g_trans.scrollTimer = scrollFrames;
         g_trans.canReuseTilemapOnCommit =
             (((virtualEndX >> 3) - g_trans.toTileX0) == (newCameraX >> 3)) &&
@@ -427,16 +473,24 @@ int updateTransition(Player* player, Camera* camera) {
         // exactly and the final frame has pixel-perfect visual continuity.
         g_trans.virtualCamX256 += g_trans.virtualCamDX256;
         g_trans.virtualCamY256 += g_trans.virtualCamDY256;
+        g_trans.playerX256 += g_trans.playerDX256;
+        g_trans.playerY256 += g_trans.playerDY256;
         camera->x = g_trans.virtualCamX256 >> 8;
         camera->y = g_trans.virtualCamY256 >> 8;
+        player->x = g_trans.playerX256;
+        player->y = g_trans.playerY256;
 
         if (g_trans.scrollTimer <= 0) {
             // Keep the final scrolled frame visible for one whole frame, then
             // commit the level swap on the next fresh VBlank.
             g_trans.virtualCamX256 = g_trans.virtualEndX256;
             g_trans.virtualCamY256 = g_trans.virtualEndY256;
+            g_trans.playerX256 = g_trans.playerEndX256;
+            g_trans.playerY256 = g_trans.playerEndY256;
             camera->x = g_trans.virtualCamX256 >> 8;
             camera->y = g_trans.virtualCamY256 >> 8;
+            player->x = g_trans.playerX256;
+            player->y = g_trans.playerY256;
             g_trans.phase = TRANS_SCROLL_COMMIT;
             return 1;
         }
@@ -451,9 +505,12 @@ int updateTransition(Player* player, Camera* camera) {
 
         player->x  = g_trans.newPlayerX;
         player->y  = g_trans.newPlayerY;
+        player->vx = g_trans.preservedVx;
+        player->vy = g_trans.preservedVy;
         player->onGround           = 0;
         player->stateMachine.state = ST_NORMAL;
         player->dashing            = 0;
+        clearPlayerDashTrail(player);
 
         camera->x = g_trans.newCameraX;
         camera->y = g_trans.newCameraY;
@@ -480,9 +537,12 @@ int updateTransition(Player* player, Camera* camera) {
 
             player->x  = g_trans.newPlayerX;
             player->y  = g_trans.newPlayerY;
+            player->vx = g_trans.preservedVx;
+            player->vy = g_trans.preservedVy;
             player->onGround           = 0;
             player->stateMachine.state = ST_NORMAL;
             player->dashing            = 0;
+            clearPlayerDashTrail(player);
 
             camera->x = g_trans.newCameraX;
             camera->y = g_trans.newCameraY;

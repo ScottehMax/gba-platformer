@@ -62,7 +62,7 @@ void setTransitionLevelContext(int levelIdx, int cameraX, int cameraY, int playe
 // Called from collision code when the player would be clamped at a level boundary.
 // Returns 1 if a transition was started (caller must NOT clamp the player).
 // Returns 0 if no connection found (caller clamps normally).
-int tryTriggerTransition(const Level* level, int side, int perpPos);
+int tryTriggerTransition(const Level* level, int side, int perpPos, Player* player);
 
 // Update the active transition. Call once per frame.
 // Returns 1 if a transition is in progress (caller should skip physics/camera update).

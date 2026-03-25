@@ -12,10 +12,11 @@ void setTransitionLevelContext(int levelIdx, int cameraX, int cameraY, int playe
     (void)playerY;
 }
 
-int tryTriggerTransition(const Level* level, int side, int perpPos) {
+int tryTriggerTransition(const Level* level, int side, int perpPos, Player* player) {
     (void)level;
     (void)side;
     (void)perpPos;
+    (void)player;
     return 0;
 }
 

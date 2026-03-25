@@ -1,4 +1,5 @@
 #include "../state.h"
+#include "../player.h"
 #include "util/calc.h"
 #include "collision/collision.h"
 #include "core/game_math.h"
@@ -33,11 +34,7 @@ void dashBegin(Player* player, const Level* level) {
     // Initialize dash timer (0.15s = 9 frames)
     player->dashing = DASH_LENGTH;
 
-    // Clear old trails
-    for (int i = 0; i < TRAIL_LENGTH; i++) {
-        player->trailX[i] = -1000 << FIXED_SHIFT;
-        player->trailY[i] = -1000 << FIXED_SHIFT;
-    }
+    clearPlayerDashTrail(player);
 }
 
 // Called after collision to check for dash slide (must run after collision updates onGround)

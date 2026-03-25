@@ -1,4 +1,5 @@
 #include "../state.h"
+#include "../player.h"
 #include "util/calc.h"
 #include "collision/collision.h"
 #include "core/game_math.h"
@@ -37,11 +38,7 @@ void redDashBegin(Player* player, const Level* level) {
     // RedDash doesn't use dashing timer - it's infinite until interrupted
     player->dashing = 0;
 
-    // Clear old trails
-    for (int i = 0; i < TRAIL_LENGTH; i++) {
-        player->trailX[i] = -1000 << FIXED_SHIFT;
-        player->trailY[i] = -1000 << FIXED_SHIFT;
-    }
+    clearPlayerDashTrail(player);
 
     // Create first trail sprite
     player->trailX[0] = player->x;

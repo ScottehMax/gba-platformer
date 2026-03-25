@@ -6,7 +6,9 @@
 
 // Desktop tonc stub must come first
 #include "desktop/desktop_stubs.h"
+#include "collision/collision.h"
 #include "level/level.h"
+#include "player/state.h"
 #include "smb11.h"  // level3.h pulled in by level.h; smb11.h is not, add explicitly
 #include "transition/transition.h"
 
@@ -350,7 +352,7 @@ static void test_destination_only_layer_visible_during_scroll(void) {
     initTransition();
     setTransitionLevelContext(5, 0, 0, 8 << 8, 120 << 8);
 
-    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120),
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120, NULL),
            "Reverse transition smb11->level3 triggered");
 
     ScrollTransInfo info;
@@ -416,7 +418,7 @@ static void test_scroll_handoff_extra_frame(void) {
     initTransition();
     setTransitionLevelContext(5, 0, 0, 8 << TEST_FIXED_SHIFT, 120 << TEST_FIXED_SHIFT);
 
-    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120),
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120, &player),
            "Reverse transition smb11->level3 triggered");
 
     int frames = 0;
@@ -438,6 +440,104 @@ static void test_scroll_handoff_extra_frame(void) {
     }
 
     ASSERT(camera.x == 400, "Commit frame snaps camera to level3 destination camera");
+}
+
+// ---------------------------------------------------------------------------
+// Test 6b: scroll transition clears old trails and moves the player smoothly
+// ---------------------------------------------------------------------------
+static void test_scroll_player_handoff_and_trail_cleanup(void) {
+    printf("\n[Test 6b] Scroll player handoff and trail cleanup\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_Y = 40,
+        PERP_POS = 120,
+    };
+
+    Player player = {0};
+    Camera camera = {0};
+
+    player.x = (PLAYER_WIDTH / 2) << TEST_FIXED_SHIFT;
+    player.y = PERP_POS << TEST_FIXED_SHIFT;
+    player.vx = -(4 << TEST_FIXED_SHIFT);
+    player.vy = -(2 << TEST_FIXED_SHIFT);
+    player.facingRight = 0;
+    player.dashing = 5;
+    player.trailFadeTimer = 0;
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+        player.trailX[i] = (32 + i) << TEST_FIXED_SHIFT;
+        player.trailY[i] = (64 + i) << TEST_FIXED_SHIFT;
+        player.trailFacing[i] = 0;
+    }
+    camera.y = START_CAMERA_Y;
+
+    loadLevelToVRAM(&smb11);
+    initTransition();
+    clearTransitionTestOverrides();
+    setTransitionTestOverrides(NULL, 0, kHorizontalOffsetConnections, 2);
+    setTransitionLevelContext(TEST_LEVEL_IDX_SMB11, 0, START_CAMERA_Y, player.x, player.y);
+
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, &player),
+           "Reverse transition for player handoff triggered");
+    ASSERT(player.trailX[0] == (-1000 << TEST_FIXED_SHIFT),
+           "Transition start clears previous dash trail positions");
+    ASSERT(player.trailFadeTimer >= TRAIL_LENGTH * 8,
+           "Transition start hides dash trail fade");
+
+    int startX = player.x;
+    int startY = player.y;
+    int preservedVx = player.vx;
+    int preservedVy = player.vy;
+
+    updateTransition(&player, &camera);
+    ASSERT(player.x != startX || player.y != startY,
+           "Scroll transition moves player before commit");
+
+    int frames = 1 + run_transition_to_completion(&player, &camera, 90);
+    ASSERT(!isTransitioning(), "Player handoff transition completed");
+    ASSERT(frames > 0 && frames <= 91, "Player handoff finished within frame budget");
+    ASSERT(player.vx == preservedVx && player.vy == preservedVy,
+           "Transition commit preserves player momentum");
+    ASSERT(player.dashing == 0, "Transition commit clears dash state");
+    ASSERT(player.stateMachine.state == ST_NORMAL,
+           "Transition commit returns player to normal state");
+
+    clearTransitionTestOverrides();
+}
+
+// ---------------------------------------------------------------------------
+// Test 6c: successful side transition does not zero horizontal velocity
+// ---------------------------------------------------------------------------
+static void test_boundary_transition_preserves_horizontal_velocity(void) {
+    printf("\n[Test 6c] Boundary transition preserves horizontal velocity\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_Y = 40,
+        PERP_POS = 120,
+    };
+
+    Player player = {0};
+
+    player.x = ((PLAYER_WIDTH / 2) + 1) << TEST_FIXED_SHIFT;
+    player.y = PERP_POS << TEST_FIXED_SHIFT;
+    player.vx = -(4 << TEST_FIXED_SHIFT);
+    player.facingRight = 0;
+
+    loadLevelToVRAM(&smb11);
+    initTransition();
+    clearTransitionTestOverrides();
+    setTransitionTestOverrides(NULL, 0, kHorizontalOffsetConnections, 2);
+    setTransitionLevelContext(TEST_LEVEL_IDX_SMB11, 0, START_CAMERA_Y, player.x, player.y);
+
+    collideHorizontal(&player, &smb11);
+    ASSERT(isTransitioning(), "Boundary hit starts a transition");
+    ASSERT(player.vx == -(4 << TEST_FIXED_SHIFT),
+           "Successful side transition keeps horizontal velocity");
+    ASSERT((player.x >> TEST_FIXED_SHIFT) == (PLAYER_WIDTH / 2),
+           "Successful side transition still pins player to the edge");
+
+    clearTransitionTestOverrides();
 }
 
 // ---------------------------------------------------------------------------
@@ -466,7 +566,7 @@ static void test_horizontal_connection_offset(void) {
     initTransition();
     setTransitionLevelContext(TEST_LEVEL_IDX_LEVEL3, 0, START_CAMERA_Y, 0, player.y);
 
-    ASSERT(tryTriggerTransition(&level3, CONN_SIDE_RIGHT, PERP_POS),
+    ASSERT(tryTriggerTransition(&level3, CONN_SIDE_RIGHT, PERP_POS, &player),
            "Horizontal offset transition triggered");
 
     ScrollTransInfo info;
@@ -516,7 +616,7 @@ static void test_vertical_connection_offset(void) {
     initTransition();
     setTransitionLevelContext(TEST_LEVEL_IDX_LEVEL3, START_CAMERA_X, 0, player.x, 0);
 
-    ASSERT(tryTriggerTransition(&level3, CONN_SIDE_BOTTOM, PERP_POS),
+    ASSERT(tryTriggerTransition(&level3, CONN_SIDE_BOTTOM, PERP_POS, &player),
            "Vertical offset transition triggered");
 
     ScrollTransInfo info;
@@ -566,7 +666,7 @@ static void test_fade_transition_offset(void) {
     initTransition();
     setTransitionLevelContext(0, 0, START_CAMERA_Y, 0, player.y);
 
-    ASSERT(tryTriggerTransition(&kFadeFromLevel, CONN_SIDE_RIGHT, PERP_POS),
+    ASSERT(tryTriggerTransition(&kFadeFromLevel, CONN_SIDE_RIGHT, PERP_POS, &player),
            "Fade offset transition triggered");
 
     ScrollTransInfo info;
@@ -610,7 +710,7 @@ static void test_reverse_horizontal_offset_commit_reuse(void) {
     initTransition();
     setTransitionLevelContext(TEST_LEVEL_IDX_SMB11, 0, START_CAMERA_Y, 0, player.y);
 
-    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS),
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, &player),
            "Reverse horizontal offset transition triggered");
 
     ScrollTransInfo info;
@@ -647,6 +747,8 @@ int main(void) {
     test_decoration_layer_valid_after_load();
     test_destination_only_layer_visible_during_scroll();
     test_scroll_handoff_extra_frame();
+    test_scroll_player_handoff_and_trail_cleanup();
+    test_boundary_transition_preserves_horizontal_velocity();
     test_horizontal_connection_offset();
     test_vertical_connection_offset();
     test_fade_transition_offset();
