@@ -122,8 +122,9 @@ void loadLevelToVRAM(const Level* level);
 
 /**
  * Fast transition finalisation: adopt the already-decompressed level-B buffer
- * as the main level buffer and write its tiles to VRAM slot 0.
- * Avoids re-running RLUnCompWram (too slow for VBlank) at scroll transition end.
+ * as the main level buffer while preserving the VRAM placement chosen by
+ * loadLevelBToVRAM(). Avoids both re-running RLUnCompWram and rewriting tiles
+ * during scroll transition end.
  * Only valid immediately after a scroll transition completes (g_levelBLayerTiles
  * must contain the destination level's data from the prior loadLevelBToVRAM call).
  */
@@ -141,6 +142,10 @@ void loadLevelBToVRAM(const Level* level, int vramOffset);
 /** Current VRAM offset applied to this level's tile indices (0 normally). */
 int getLevelTileVramOffset(void);
 void setLevelTileVramOffset(int offset);
+
+#ifdef DESKTOP_BUILD
+const u16* getDesktopVramTiles(void);
+#endif
 
 /**
  * Get the VRAM tile index for a tile value

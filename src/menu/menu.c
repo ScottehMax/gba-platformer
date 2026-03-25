@@ -25,6 +25,27 @@ static int currentLevelIndex = -1;  // -1 means in menu
 static int oldCameraTileX = -1;
 static int oldCameraTileY = -1;
 
+#define BG1_SCREEN_BASE 25
+#define BG2_SCREEN_BASE 26
+
+static inline u8 gameplayScreenBase(u8 bgLayer) {
+    return (u8)(24 + bgLayer);
+}
+
+static void clearGameplayTilemaps(void) {
+    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (BG1_SCREEN_BASE << 11));
+    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (BG2_SCREEN_BASE << 11));
+    for (int i = 0; i < 32 * 32; i++) {
+        bg1Map[i] = 0;
+        bg2Map[i] = 0;
+    }
+}
+
+static void configureGameplayBgs(void) {
+    REG_BG1CNT = (BG1_SCREEN_BASE << 8) | (0 << 2) | (0 << 0);
+    REG_BG2CNT = (BG2_SCREEN_BASE << 8) | (0 << 2) | (1 << 0);
+}
+
 // Forward declarations
 static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera);
 
@@ -116,12 +137,8 @@ void returnToMenu(void) {
     }
 
     // Clear BG1 and BG2 tilemaps (hide level tiles)
-    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (25 << 11));
-    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (26 << 11));
-    for (int i = 0; i < 32 * 32; i++) {
-        bg1Map[i] = 0;
-        bg2Map[i] = 0;
-    }
+    clearGameplayTilemaps();
+    configureGameplayBgs();
 
     // Clear all text (both menu and profiling)
     clear_bg_text();
@@ -157,6 +174,9 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
     // Load level tiles to VRAM
     loadLevelToVRAM(currentLevel);
 
+    clearGameplayTilemaps();
+    configureGameplayBgs();
+
     // Reset tilemap state variables to force full refresh
     resetTilemapState();
 
@@ -165,7 +185,7 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
         const TileLayer* layer = &currentLevel->layers[i];
         u8 bgLayer = layer->bgLayer;
         u8 priority = layer->priority;
-        u8 screenBase = 25 + bgLayer;
+        u8 screenBase = gameplayScreenBase(bgLayer);
 
         if (bgLayer == 1) {
             REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
@@ -178,7 +198,7 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
     for (u8 layerIdx = 0; layerIdx < currentLevel->layerCount; layerIdx++) {
         const TileLayer* layer = &currentLevel->layers[layerIdx];
         u8 bgLayer = layer->bgLayer;
-        u8 screenBase = 25 + bgLayer;
+        u8 screenBase = gameplayScreenBase(bgLayer);
 
         volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
 
@@ -235,24 +255,28 @@ void loadLevelForTransition(int levelIndex) {
 
     currentLevel = g_levels[levelIndex];
     currentLevelIndex = levelIndex;
+    int reusingScrollTilemap = (g_levelBLayerTiles[0] != 0);
 
     // If a scroll transition just completed, level B's tile data is already
     // decompressed in g_levelBLayerTiles. Use the fast path (pointer swap +
     // VRAM write only) to avoid RLUnCompWram overflowing VBlank and causing
     // VRAM writes during active display (which produces single-frame tile glitches).
-    if (g_levelBLayerTiles[0] != 0) {
+    if (reusingScrollTilemap) {
         adoptLevelBBuffer(currentLevel);
     } else {
         // Fade fallback: level B was never loaded into the B buffer, full load needed.
         loadLevelToVRAM(currentLevel);
+        clearGameplayTilemaps();
     }
+
+    configureGameplayBgs();
 
     // Set up BG control registers for each layer
     for (u8 i = 0; i < currentLevel->layerCount; i++) {
         const TileLayer* layer = &currentLevel->layers[i];
         u8 bgLayer = layer->bgLayer;
         u8 priority = layer->priority;
-        u8 screenBase = 25 + bgLayer;
+        u8 screenBase = gameplayScreenBase(bgLayer);
 
         if (bgLayer == 1) {
             REG_BG1CNT = (screenBase << 8) | (0 << 2) | (priority << 0);

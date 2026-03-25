@@ -15,6 +15,7 @@ extern const u16* getMainBufBase(void);
 extern const u16* getSecBufBase(void);
 extern const u16* getTileBufA(void);  // always g_tileBuffer
 extern const u16* getTileBufB(void);  // always g_tileBBuffer
+extern const u16* getDesktopVramTiles(void);
 
 // transition.c links against this menu API, but the transition unit test only
 // needs scroll setup and tile queries.
@@ -237,6 +238,28 @@ static void test_double_transition_buffers(void) {
     ASSERT(g_levelBLayerTiles[0] != NULL, "smb11 layerB0 loaded");
     ASSERT_NE_PTR(g_levelLayerTiles[0], g_levelBLayerTiles[0],
                   "Different buffers after 2nd round-trip");
+}
+
+// ---------------------------------------------------------------------------
+// Test 2b: adopting level B preserves its VRAM offset placement
+// ---------------------------------------------------------------------------
+static void test_adopt_preserves_incoming_vram_offset(void) {
+    printf("\n[Test 2b] Adopt preserves incoming VRAM offset\n");
+
+    loadLevelToVRAM(&smb11);
+    loadLevelBToVRAM(&level3, (int)smb11.uniqueTileCount);
+
+    const u16* vramTiles = getDesktopVramTiles();
+    ASSERT(vramTiles[(int)smb11.uniqueTileCount] == 0,
+           "Incoming level blank tile occupies the offset slot before adopt");
+
+    adoptLevelBBuffer(&level3);
+
+    vramTiles = getDesktopVramTiles();
+    ASSERT(getLevelTileVramOffset() == (int)smb11.uniqueTileCount,
+           "Adopt keeps the destination level VRAM offset");
+    ASSERT(vramTiles[(int)smb11.uniqueTileCount] == 0,
+           "Adopt does not clobber the incoming blank tile slot");
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +642,7 @@ int main(void) {
 
     test_buffer_swap_invariant();
     test_double_transition_buffers();
+    test_adopt_preserves_incoming_vram_offset();
     test_player_render_offset_during_transition();
     test_decoration_layer_valid_after_load();
     test_destination_only_layer_visible_during_scroll();

@@ -560,7 +560,7 @@ int main() {
                     } else {
                         bgLayer = layerIdx;  // default: layer N maps to BG(N+1)
                     }
-                    screenBase = 25 + bgLayer;
+                    screenBase = 24 + bgLayer;
 
                     volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
 

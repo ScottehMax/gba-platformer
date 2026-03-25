@@ -8,6 +8,7 @@
 // Sized for the largest possible level: 512x40 tiles, 2 layers
 // ---------------------------------------------------------------------------
 #define TILE_BUFFER_SIZE (512 * 40 * 2)  // u16s, covers 2 layers of 512x40
+#define LEVEL_VRAM_TILE_LIMIT 512
 
 #ifdef DESKTOP_BUILD
 static u16 g_tileBuffer[TILE_BUFFER_SIZE];
@@ -26,6 +27,7 @@ static u16* s_mainBufBase = g_tileBuffer;
 static u16* s_sBufBase    = g_tileBBuffer;
 
 static int g_tileVramOffset = 0;
+static int g_levelBTileVramOffset = 0;
 int getLevelTileVramOffset(void) { return g_tileVramOffset; }
 void setLevelTileVramOffset(int offset) { g_tileVramOffset = offset; }
 
@@ -35,6 +37,8 @@ const u16* getMainBufBase(void)  { return s_mainBufBase; }
 const u16* getSecBufBase(void)   { return s_sBufBase; }
 const u16* getTileBufA(void)     { return g_tileBuffer; }
 const u16* getTileBufB(void)     { return g_tileBBuffer; }
+static u16 g_desktopVramTiles[LEVEL_VRAM_TILE_LIMIT];
+const u16* getDesktopVramTiles(void) { return g_desktopVramTiles; }
 #endif
 
 // ---------------------------------------------------------------------------
@@ -87,7 +91,10 @@ static const TilesetMetadata tilesets[TILESET_COUNT] = {
 // Internal: write one level's unique tiles into VRAM starting at vramSlot.
 static void writeTilesToVRAM(const Level* level, int vramSlot) {
 #ifdef DESKTOP_BUILD
-    (void)level; (void)vramSlot; return;
+    for (u16 i = 0; i < level->uniqueTileCount && (vramSlot + i) < LEVEL_VRAM_TILE_LIMIT; i++) {
+        g_desktopVramTiles[vramSlot + i] = level->uniqueTileIds[i];
+    }
+    return;
 #else
     volatile u32* bgTiles = (volatile u32*)0x06000000;
 
@@ -121,6 +128,7 @@ static void writeTilesToVRAM(const Level* level, int vramSlot) {
 
 void loadLevelToVRAM(const Level* level) {
     g_tileVramOffset = 0;
+    g_levelBTileVramOffset = 0;
 
     // Decompress tile layers into RAM
     u16* bufPtr = s_mainBufBase;
@@ -137,6 +145,8 @@ void loadLevelToVRAM(const Level* level) {
 }
 
 void loadLevelBToVRAM(const Level* level, int vramOffset) {
+    g_levelBTileVramOffset = vramOffset;
+
     // Decompress tile layers into the secondary RAM buffer
     u16* bufPtr = s_sBufBase;
     u32 tilesPerLayer = (u32)level->width * level->height;
@@ -153,7 +163,8 @@ void loadLevelBToVRAM(const Level* level, int vramOffset) {
 
 void adoptLevelBBuffer(const Level* level) {
     // Fast path used at scroll transition end: level B was already decompressed
-    // by loadLevelBToVRAM. Swap the base pointers first so that the next
+    // by loadLevelBToVRAM and its tile graphics are already in VRAM at
+    // g_levelBTileVramOffset. Swap the base pointers first so that the next
     // loadLevelBToVRAM call writes into the OLD main buffer, not the one
     // g_levelLayerTiles now points into. Without this swap, both arrays would
     // reference the same physical storage and a reverse transition would corrupt
@@ -162,7 +173,7 @@ void adoptLevelBBuffer(const Level* level) {
     s_mainBufBase = s_sBufBase;
     s_sBufBase    = tmp;
 
-    g_tileVramOffset = 0;
+    g_tileVramOffset = g_levelBTileVramOffset;
     for (u8 i = 0; i < level->layerCount && i < 4; i++) {
         g_levelLayerTiles[i] = g_levelBLayerTiles[i];
         g_levelBLayerTiles[i] = 0;
@@ -171,8 +182,7 @@ void adoptLevelBBuffer(const Level* level) {
         g_levelLayerTiles[i] = 0;
         g_levelBLayerTiles[i] = 0;
     }
-    // Only the VRAM tile graphics write is needed (no decompression).
-    writeTilesToVRAM(level, 0);
+    g_levelBTileVramOffset = 0;
 }
 
 u16 getVramTileIndex(u16 vramIndex) {
