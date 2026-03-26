@@ -21,6 +21,13 @@ static inline void clearPlayerDashTrail(Player* player) {
     }
 }
 
+static inline void hidePlayerDashTrailPositions(Player* player) {
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+        player->trailX[i] = -1000 << FIXED_SHIFT;
+        player->trailY[i] = -1000 << FIXED_SHIFT;
+    }
+}
+
 /**
  * Initialize a player at the level spawn point
  *

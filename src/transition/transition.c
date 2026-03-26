@@ -69,6 +69,8 @@ typedef struct {
     int newCameraY;
     int preservedVx;
     int preservedVy;
+    Player preservedPlayer;
+    int hasPreservedPlayer;
 
     // --- fade fallback ---
     int timer;
@@ -122,6 +124,44 @@ static int clampPlayerYForLevel(const Level* level, int playerY) {
     int maxY = level->height * 8 - PLAYER_BOTTOM(0) - 1;
     if (maxY < minY) maxY = minY;
     return clamp_val(playerY, minY, maxY);
+}
+
+static void translatePreservedPlayerState(Player* player, int deltaX, int deltaY) {
+    if (player->stateMachine.state == ST_BOOST) {
+        player->boostTargetX += deltaX;
+        player->boostTargetY += deltaY;
+    }
+
+    if (player->currentBubbleX > -900) {
+        player->currentBubbleX += deltaX >> FIXED_SHIFT;
+    }
+    if (player->currentBubbleY > -900) {
+        player->currentBubbleY += deltaY >> FIXED_SHIFT;
+    }
+}
+
+static void restorePlayerAfterTransition(Player* player, int newPlayerX, int newPlayerY) {
+    if (!player) {
+        return;
+    }
+
+    if (g_trans.hasPreservedPlayer) {
+        int deltaX = newPlayerX - g_trans.preservedPlayer.x;
+        int deltaY = newPlayerY - g_trans.preservedPlayer.y;
+
+        *player = g_trans.preservedPlayer;
+        translatePreservedPlayerState(player, deltaX, deltaY);
+        player->x = newPlayerX;
+        player->y = newPlayerY;
+
+        hidePlayerDashTrailPositions(player);
+        return;
+    }
+
+    player->x  = newPlayerX;
+    player->y  = newPlayerY;
+    player->vx = g_trans.preservedVx;
+    player->vy = g_trans.preservedVy;
 }
 
 #ifdef DESKTOP_BUILD
@@ -246,6 +286,7 @@ void initTransition(void) {
     g_trans.timer = 0;
     g_trans.seamPrefillAxis = 0;
     g_trans.canReuseTilemapOnCommit = 0;
+    g_trans.hasPreservedPlayer = 0;
     g_levelIdx    = -1;
 }
 
@@ -283,7 +324,10 @@ int tryTriggerTransition(const Level* level, int side, int perpPos, Player* play
     g_trans.preservedVx = player ? player->vx : 0;
     g_trans.preservedVy = player ? player->vy : 0;
     if (player) {
-        clearPlayerDashTrail(player);
+        g_trans.preservedPlayer = *player;
+        g_trans.hasPreservedPlayer = 1;
+    } else {
+        g_trans.hasPreservedPlayer = 0;
     }
 
     int startPlayerX;
@@ -525,19 +569,13 @@ int updateTransition(Player* player, Camera* camera) {
         setLevelTileVramOffset(g_trans.tileVramOffset);
         g_levelIdx = g_trans.targetLevelIdx;
 
-        player->x  = g_trans.newPlayerX;
-        player->y  = g_trans.newPlayerY;
-        player->vx = g_trans.preservedVx;
-        player->vy = g_trans.preservedVy;
-        player->onGround           = 0;
-        player->stateMachine.state = ST_NORMAL;
-        player->dashing            = 0;
-        clearPlayerDashTrail(player);
+        restorePlayerAfterTransition(player, g_trans.newPlayerX, g_trans.newPlayerY);
 
         camera->x = g_trans.newCameraX;
         camera->y = g_trans.newCameraY;
 
         g_trans.phase = TRANS_NONE;
+        g_trans.hasPreservedPlayer = 0;
         return 0;
     }
 
@@ -557,14 +595,8 @@ int updateTransition(Player* player, Camera* camera) {
             setLevelTileVramOffset(0);
             g_levelIdx = g_trans.targetLevelIdx;
 
-            player->x  = g_trans.newPlayerX;
-            player->y  = g_trans.newPlayerY;
-            player->vx = g_trans.preservedVx;
-            player->vy = g_trans.preservedVy;
-            player->onGround           = 0;
-            player->stateMachine.state = ST_NORMAL;
-            player->dashing            = 0;
-            clearPlayerDashTrail(player);
+            restorePlayerAfterTransition(player, g_trans.newPlayerX, g_trans.newPlayerY);
+            g_trans.hasPreservedPlayer = 0;
 
             camera->x = g_trans.newCameraX;
             camera->y = g_trans.newCameraY;

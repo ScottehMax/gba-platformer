@@ -532,10 +532,10 @@ static void test_scroll_handoff_extra_frame(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 6b: scroll transition clears old trails and moves the player smoothly
+// Test 6b: scroll transition freezes trails and preserves active dash state
 // ---------------------------------------------------------------------------
 static void test_scroll_player_handoff_and_trail_cleanup(void) {
-    printf("\n[Test 6b] Scroll player handoff and trail cleanup\n");
+    printf("\n[Test 6b] Scroll player handoff preserves active dash state\n");
 
     enum {
         TEST_FIXED_SHIFT = 8,
@@ -551,8 +551,12 @@ static void test_scroll_player_handoff_and_trail_cleanup(void) {
     player.vx = -(4 << TEST_FIXED_SHIFT);
     player.vy = -(2 << TEST_FIXED_SHIFT);
     player.facingRight = 0;
+    player.stateMachine.state = ST_DASH;
     player.dashing = 5;
+    player.dashAttackTimer = 7;
+    player.trailTimer = 3;
     player.trailFadeTimer = 0;
+    player.trailIndex = 1;
     for (int i = 0; i < TRAIL_LENGTH; i++) {
         player.trailX[i] = (32 + i) << TEST_FIXED_SHIFT;
         player.trailY[i] = (64 + i) << TEST_FIXED_SHIFT;
@@ -568,28 +572,53 @@ static void test_scroll_player_handoff_and_trail_cleanup(void) {
 
     ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, &player),
            "Reverse transition for player handoff triggered");
-    ASSERT(player.trailX[0] == (-1000 << TEST_FIXED_SHIFT),
-           "Transition start clears previous dash trail positions");
-    ASSERT(player.trailFadeTimer >= TRAIL_LENGTH * 8,
-           "Transition start hides dash trail fade");
+    ASSERT(player.trailX[0] == (32 << TEST_FIXED_SHIFT) &&
+           player.trailY[0] == (64 << TEST_FIXED_SHIFT),
+           "Transition start keeps the existing dash trail frozen in place");
+    ASSERT(player.trailFadeTimer == 0,
+           "Transition start keeps the frozen dash trail visible");
 
     int startX = player.x;
     int startY = player.y;
     int preservedVx = player.vx;
     int preservedVy = player.vy;
+    int preservedDashing = player.dashing;
+    int preservedDashAttackTimer = player.dashAttackTimer;
+    int preservedState = player.stateMachine.state;
+    int preservedTrailTimer = player.trailTimer;
+    int preservedTrailIndex = player.trailIndex;
 
     updateTransition(&player, &camera);
     ASSERT(player.x != startX || player.y != startY,
            "Scroll transition moves player before commit");
+    ASSERT(player.trailX[0] == (32 << TEST_FIXED_SHIFT) &&
+           player.trailY[0] == (64 << TEST_FIXED_SHIFT),
+           "Scroll transition keeps dash trail positions frozen");
+    ASSERT(player.dashing == preservedDashing &&
+           player.dashAttackTimer == preservedDashAttackTimer &&
+           player.stateMachine.state == preservedState,
+           "Scroll transition pauses active dash state without consuming it");
 
     int frames = 1 + run_transition_to_completion(&player, &camera, 90);
     ASSERT(!isTransitioning(), "Player handoff transition completed");
     ASSERT(frames > 0 && frames <= 91, "Player handoff finished within frame budget");
     ASSERT(player.vx == preservedVx && player.vy == preservedVy,
            "Transition commit preserves player momentum");
-    ASSERT(player.dashing == 0, "Transition commit clears dash state");
-    ASSERT(player.stateMachine.state == ST_NORMAL,
-           "Transition commit returns player to normal state");
+    ASSERT(player.dashing == preservedDashing,
+           "Transition commit preserves dash timer");
+    ASSERT(player.dashAttackTimer == preservedDashAttackTimer,
+           "Transition commit preserves dash attack timer");
+    ASSERT(player.stateMachine.state == preservedState,
+           "Transition commit preserves the active dash state");
+    ASSERT(player.trailTimer == preservedTrailTimer,
+           "Transition commit preserves the remaining trail timer");
+    ASSERT(player.trailIndex == preservedTrailIndex,
+           "Transition commit preserves how many future dash trails remain");
+    ASSERT(player.trailX[0] == (-1000 << TEST_FIXED_SHIFT) &&
+           player.trailY[0] == (-1000 << TEST_FIXED_SHIFT),
+           "Transition commit hides frozen old-map trail positions");
+    ASSERT(player.trailFadeTimer == 0,
+           "Transition commit keeps active dash trail timing alive");
 
     clearTransitionTestOverrides();
 }
@@ -1015,6 +1044,68 @@ static void test_generated_reverse_vertical_camera_stability(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Test 14: transition preserves boost state and translates boost targets
+// ---------------------------------------------------------------------------
+static void test_transition_preserves_boost_state(void) {
+    printf("\n[Test 14] Transition preserves boost state\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_Y = 40,
+        PERP_POS = 120,
+    };
+
+    Player player = {0};
+    Camera camera = {0};
+
+    player.x = (PLAYER_WIDTH / 2) << TEST_FIXED_SHIFT;
+    player.y = PERP_POS << TEST_FIXED_SHIFT;
+    player.stateMachine.state = ST_BOOST;
+    player.boostTimer = 11;
+    player.boostRed = 1;
+    player.boostTargetX = player.x + (20 << TEST_FIXED_SHIFT);
+    player.boostTargetY = player.y - (12 << TEST_FIXED_SHIFT);
+    player.currentBubbleX = (player.x >> TEST_FIXED_SHIFT) + 20;
+    player.currentBubbleY = (player.y >> TEST_FIXED_SHIFT) - 12;
+    camera.y = START_CAMERA_Y;
+
+    int savedPlayerX = player.x;
+    int savedPlayerY = player.y;
+    int savedBoostTargetX = player.boostTargetX;
+    int savedBoostTargetY = player.boostTargetY;
+    int savedCurrentBubbleX = player.currentBubbleX;
+    int savedCurrentBubbleY = player.currentBubbleY;
+
+    loadLevelToVRAM(&smb11);
+    initTransition();
+    clearTransitionTestOverrides();
+    setTransitionTestOverrides(NULL, 0, kHorizontalOffsetConnections, 2);
+    setTransitionLevelContext(TEST_LEVEL_IDX_SMB11, 0, START_CAMERA_Y, player.x, player.y);
+
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, &player),
+           "Boost-state transition triggered");
+
+    int frames = run_transition_to_completion(&player, &camera, 90);
+    int deltaX = player.x - savedPlayerX;
+    int deltaY = player.y - savedPlayerY;
+
+    ASSERT(!isTransitioning(), "Boost-state transition completed");
+    ASSERT(frames > 0 && frames <= 90, "Boost-state transition finished within frame budget");
+    ASSERT(player.stateMachine.state == ST_BOOST,
+           "Transition commit preserves boost state");
+    ASSERT(player.boostTimer == 11,
+           "Transition commit preserves boost timer");
+    ASSERT(player.boostTargetX == savedBoostTargetX + deltaX,
+           "Transition commit translates boost target X with the player");
+    ASSERT(player.boostTargetY == savedBoostTargetY + deltaY,
+           "Transition commit translates boost target Y with the player");
+    ASSERT(player.currentBubbleX == savedCurrentBubbleX + (deltaX >> TEST_FIXED_SHIFT),
+           "Transition commit translates current bubble X with the player");
+    ASSERT(player.currentBubbleY == savedCurrentBubbleY + (deltaY >> TEST_FIXED_SHIFT),
+           "Transition commit translates current bubble Y with the player");
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 int main(void) {
@@ -1036,6 +1127,7 @@ int main(void) {
     test_generated_horizontal_connection_quantization();
     test_generated_vertical_connection_handoff();
     test_generated_reverse_vertical_camera_stability();
+    test_transition_preserves_boost_state();
 
     printf("\n================================\n");
     printf("Results: %d passed, %d failed\n", g_passed, g_failed);

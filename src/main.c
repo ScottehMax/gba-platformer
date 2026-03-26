@@ -514,6 +514,8 @@ int main() {
             int transitionBusyThisFrame = transitionActiveAtFrameStart || isTransitioning();
             if (!transitionBusyThisFrame) {
                 updateCamera(&camera, &player, currentLevel);
+            } else {
+                player.prevKeys = keys;
             }
             u16 t2 = REG_TM0CNT_L;
             u16 dtCamera = t2 - t1;
