@@ -15,4 +15,11 @@
  */
 void updateCamera(Camera* camera, Player* player, const Level* level);
 
+/**
+ * Apply the camera deadzone/clamp logic for a player position already expressed
+ * in pixels. This lets transitions land on the same camera pose that normal
+ * gameplay will use on the next frame.
+ */
+void settleCameraToPlayer(Camera* camera, int playerX, int playerY, const Level* level);
+
 #endif

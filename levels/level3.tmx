@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="80" height="25" tilewidth="8" tileheight="8" infinite="0" nextlayerid="7" nextobjectid="5">
  <properties>
-  <property name="name" value="Tutorial Level"/>
+  <property name="name" value="Tutorial Level X"/>
  </properties>
  <tileset firstgid="1" source="../assets/grassy_stone.tsx"/>
  <tileset firstgid="56" source="../assets/decals.tsx"/>
@@ -79,7 +79,7 @@
    <point/>
   </object>
  </objectgroup>
- <layer id="6" name="Collision" width="80" height="25" visible="0" opacity="0.5">
+ <layer id="6" name="Collision" width="80" height="25" opacity="0.5">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

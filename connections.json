@@ -16,7 +16,7 @@
       "heightPx": 200
     },
     "level3": {
-      "displayName": "Tutorial Level",
+      "displayName": "Tutorial Level X",
       "widthPx": 640,
       "heightPx": 200
     },
@@ -31,43 +31,44 @@
       "heightPx": 240
     }
   },
-  "_editorLayout": {
+  "levels": {
     "celeste1": {
-      "x": 0,
-      "y": 0
+      "worldX": 952,
+      "worldY": 210
     },
     "level1": {
-      "x": 4136,
-      "y": 0
+      "worldX": -1062,
+      "worldY": -549
     },
     "level2": {
-      "x": 8272,
-      "y": 0
+      "worldX": 0,
+      "worldY": -141
     },
     "level3": {
-      "x": 0,
-      "y": 240
+      "worldX": 0,
+      "worldY": 84
     },
     "level4": {
-      "x": 4136,
-      "y": 440
+      "worldX": -500,
+      "worldY": 700
     },
     "smb11": {
-      "x": 8272,
-      "y": 280
+      "worldX": 640,
+      "worldY": -30
     }
   },
   "connections": [
     {
-      "from": {
-        "level": "level3",
-        "side": "right"
-      },
-      "to": {
-        "level": "smb11",
-        "side": "left"
-      },
-      "offset": 56
+      "a": "level2",
+      "b": "smb11"
+    },
+    {
+      "a": "level3",
+      "b": "smb11"
+    },
+    {
+      "a": "celeste1",
+      "b": "smb11"
     }
   ]
 }

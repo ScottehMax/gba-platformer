@@ -16,7 +16,6 @@
     --muted:    #8899aa;
     --border:   #2a3a5a;
     --hover:    #1a3a6a;
-    --selected: #e9456033;
     --font:     'Consolas', 'Courier New', monospace;
   }
 
@@ -31,7 +30,6 @@
     overflow: hidden;
   }
 
-  /* ---- Header ---- */
   #header {
     display: flex;
     align-items: center;
@@ -42,6 +40,7 @@
     flex-shrink: 0;
   }
   #header h1 { font-size: 15px; color: var(--accent); flex: 1; }
+
   button {
     background: var(--panel);
     color: var(--text);
@@ -57,20 +56,17 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { background: #c73350; }
 
-  /* ---- Body layout ---- */
   #body {
     display: flex;
     flex: 1;
     overflow: hidden;
   }
 
-  /* ---- Canvas area ---- */
   #canvas-wrap {
     flex: 1;
     position: relative;
     overflow: hidden;
     background: var(--bg);
-    cursor: default;
   }
   #main-canvas {
     position: absolute;
@@ -78,7 +74,6 @@
     display: block;
   }
 
-  /* ---- Sidebar ---- */
   #sidebar {
     width: 260px;
     min-width: 200px;
@@ -97,52 +92,62 @@
     color: var(--muted);
     padding: 8px 12px 4px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
 
-  /* Level list */
   #level-list {
     flex: 1;
     overflow-y: auto;
     padding: 4px 0;
   }
   .level-item {
-    padding: 6px 12px;
+    padding: 5px 12px;
     border-bottom: 1px solid var(--border);
     cursor: default;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
-  .level-item .name { color: var(--text); }
-  .level-item .size { color: var(--muted); font-size: 11px; }
+  .level-item .name { color: var(--text); flex: 1; }
+  .level-item .size { color: var(--muted); font-size: 10px; }
+  .level-item .img-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+    background: var(--bg);
+    border-color: var(--border);
+  }
 
-  /* Connection details */
-  #conn-details {
+  #conn-section {
     border-top: 1px solid var(--border);
-    padding: 10px 12px;
+    flex-shrink: 0;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .conn-item {
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .conn-item:hover { background: var(--hover); }
+  .conn-item.selected { background: rgba(233,69,96,0.15); }
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
     flex-shrink: 0;
   }
-  #conn-details h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
-  #conn-details .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  #conn-details label { color: var(--muted); font-size: 11px; flex-shrink: 0; width: 54px; }
-  #conn-details input[type=number] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 4px 6px;
-    border-radius: 3px;
-    font-family: var(--font);
-    font-size: 12px;
-    width: 80px;
-  }
-  #conn-details input[type=number]:focus { outline: none; border-color: var(--accent); }
-  #conn-none-msg { color: var(--muted); font-size: 11px; font-style: italic; }
+  .conn-label { font-size: 11px; flex: 1; }
+  .conn-del { padding: 1px 5px; font-size: 10px; background: transparent; border: 1px solid var(--border); }
 
-  /* Instructions */
   #instructions {
     border-top: 1px solid var(--border);
     padding: 8px 12px;
     flex-shrink: 0;
   }
   #instructions h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
-  #instructions p { color: var(--muted); font-size: 11px; line-height: 1.6; margin-bottom: 2px; }
+  #instructions p { color: var(--muted); font-size: 11px; line-height: 1.7; }
   #instructions kbd {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -153,7 +158,6 @@
     color: var(--text);
   }
 
-  /* ---- Status bar ---- */
   #statusbar {
     display: flex;
     gap: 16px;
@@ -174,86 +178,79 @@
 </head>
 <body>
 
-<!-- Header -->
 <div id="header">
   <h1>Level Connection Editor</h1>
+  <button id="btn-load-project">Load Project</button>
   <button id="btn-load">Load JSON</button>
   <button id="btn-save" class="primary">Save JSON</button>
+  <input id="project-input" type="file" webkitdirectory multiple style="display:none">
   <input id="file-input" type="file" accept=".json" style="display:none">
+  <input id="img-input"  type="file" accept="image/*" style="display:none">
 </div>
 
-<!-- Body -->
 <div id="body">
-
-  <!-- Canvas -->
   <div id="canvas-wrap">
     <canvas id="main-canvas"></canvas>
   </div>
 
-  <!-- Sidebar -->
   <div id="sidebar">
     <div class="panel-title">Levels</div>
     <div id="level-list"></div>
 
-    <div id="conn-details">
-      <h3>Connection</h3>
-      <div id="conn-none-msg">No connection selected.</div>
-      <div id="conn-fields" style="display:none">
-        <div class="row">
-          <label>From</label>
-          <span id="conn-from" style="color:var(--text);font-size:11px;"></span>
-        </div>
-        <div class="row">
-          <label>To</label>
-          <span id="conn-to" style="color:var(--text);font-size:11px;"></span>
-        </div>
-        <div class="row">
-          <label>Offset</label>
-          <input id="conn-offset" type="number" value="0" step="1">
-          <span style="color:var(--muted);font-size:11px;">px</span>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button id="btn-delete-conn" style="background:var(--accent);border-color:var(--accent);color:#fff;">Delete</button>
-        </div>
-      </div>
-    </div>
+    <div class="panel-title" style="margin-top:0">Connections</div>
+    <div id="conn-section"></div>
 
     <div id="instructions">
       <h3>Controls</h3>
-      <p><kbd>Click edge</kbd> Start connection</p>
-      <p><kbd>Click edge</kbd> Complete connection</p>
-      <p><kbd>Esc</kbd> Cancel connection</p>
-      <p><kbd>Del</kbd> Delete selected</p>
+      <p><kbd>Drag level</kbd> Move &amp; snap to edges</p>
+      <p><kbd>Click shared edge</kbd> Toggle connection</p>
+      <p><kbd>RMB/MMB drag</kbd> Pan</p>
       <p><kbd>Scroll</kbd> Zoom</p>
-      <p><kbd>RMB drag</kbd> Pan</p>
+      <p><kbd>F</kbd> Fit all levels</p>
+      <p><kbd>Del</kbd> Delete selected connection</p>
     </div>
   </div>
 </div>
 
-<!-- Status bar -->
 <div id="statusbar">
   <span>World: <span id="coord-display" class="coords">0, 0</span></span>
-  <span id="status-hint" class="hint"></span>
+  <span id="status-hint" class="hint">Load a project folder or connections.json to get started.</span>
 </div>
 
 <script>
 'use strict';
 
 // ============================================================
-// State
+// Constants
 // ============================================================
-const SIDE_NAMES  = ['right', 'left', 'bottom', 'top'];
-const SIDE_LABELS = ['Right', 'Left', 'Bottom', 'Top'];
+const SNAP_DIST   = 12;   // world pixels — snap-to-edge threshold while dragging
+const EDGE_HIT    = 8;    // world pixels — click-on-edge threshold
 const CONN_COLORS = [
   '#e94560','#4ecca3','#f5a623','#9b59b6',
   '#3498db','#2ecc71','#e67e22','#1abc9c',
+  '#e91e63','#00bcd4','#ff9800','#8bc34a',
 ];
+const FLIP_H = 0x80000000 >>> 0;
+const FLIP_V = 0x40000000 >>> 0;
+const FLIP_D = 0x20000000 >>> 0;
+const FLIP_MASK = (FLIP_H | FLIP_V | FLIP_D) >>> 0;
+const GID_MASK = (~FLIP_MASK) >>> 0;
 
+// ============================================================
+// State
+// ============================================================
 let state = {
-  metadata:     {},   // stem -> { displayName, widthPx, heightPx }
-  editorLayout: {},   // stem -> { x, y }   (game-pixel coords)
-  connections:  [],   // { from:{level,side}, to:{level,side}, offset }
-  rawData:      null, // full parsed JSON (preserved for save)
+  metadata:    {},   // stem -> { displayName, widthPx, heightPx }
+  levels:      {},   // stem -> { worldX, worldY }
+  connections: [],   // [ { a, b } ]
+  images:      {},   // stem -> CanvasImageSource (auto preview or override)
+  rawData:     null,
+};
+
+let projectAssets = {
+  files:    new Map(), // relative path -> File
+  tilesets: new Map(), // tsx path -> Promise<tileset data>
+  images:   new Map(), // image cache key -> Promise<CanvasImageSource>
 };
 
 let view = {
@@ -262,34 +259,39 @@ let view = {
   scale:   1.0,
 };
 
-let interaction = {
-  isPanning:      false,
-  panStartX:      0,
-  panStartY:      0,
-  panStartOX:     0,
-  panStartOY:     0,
-  drawingFrom:    null,   // { stem, side, px, py } – world coords of edge center
-  mouseWorldX:    0,
-  mouseWorldY:    0,
-  hoveredEdge:    null,   // { stem, side }
-  selectedConnIdx: -1,
+let drag = {
+  active:    false,
+  stem:      null,
+  startWX:   0,    // world position of level origin at drag start
+  startWY:   0,
+  mouseWX:   0,    // mouse world position at drag start
+  mouseWY:   0,
 };
+
+let pan = {
+  active:  false,
+  startX:  0,
+  startY:  0,
+  startOX: 0,
+  startOY: 0,
+};
+
+let hoveredSharedEdge = null;  // { a, b, side } or null — edge under mouse
+let selectedConnIdx   = -1;
 
 // ============================================================
 // DOM refs
 // ============================================================
-const canvas      = document.getElementById('main-canvas');
-const ctx         = canvas.getContext('2d');
-const canvasWrap  = document.getElementById('canvas-wrap');
-const levelList   = document.getElementById('level-list');
-const coordDisp   = document.getElementById('coord-display');
-const statusHint  = document.getElementById('status-hint');
-const connNoneMsg = document.getElementById('conn-none-msg');
-const connFields  = document.getElementById('conn-fields');
-const connFrom    = document.getElementById('conn-from');
-const connTo      = document.getElementById('conn-to');
-const connOffset  = document.getElementById('conn-offset');
-const btnDelete   = document.getElementById('btn-delete-conn');
+const canvas     = document.getElementById('main-canvas');
+const ctx        = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvas-wrap');
+const coordDisp  = document.getElementById('coord-display');
+const statusHint = document.getElementById('status-hint');
+const levelList  = document.getElementById('level-list');
+const connSection = document.getElementById('conn-section');
+const projectInput = document.getElementById('project-input');
+const imgInput   = document.getElementById('img-input');
+ctx.imageSmoothingEnabled = false;
 
 // ============================================================
 // Canvas resize
@@ -298,115 +300,566 @@ function resizeCanvas() {
   const r = canvasWrap.getBoundingClientRect();
   canvas.width  = r.width;
   canvas.height = r.height;
+  ctx.imageSmoothingEnabled = false;
   draw();
 }
-
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 // ============================================================
 // Coordinate transforms
 // ============================================================
-function worldToScreen(wx, wy) {
-  return {
-    x: wx * view.scale + view.offsetX,
-    y: wy * view.scale + view.offsetY,
-  };
+function w2s(wx, wy) {
+  return { x: wx * view.scale + view.offsetX, y: wy * view.scale + view.offsetY };
 }
-function screenToWorld(sx, sy) {
-  return {
-    x: (sx - view.offsetX) / view.scale,
-    y: (sy - view.offsetY) / view.scale,
-  };
+function s2w(sx, sy) {
+  return { x: (sx - view.offsetX) / view.scale, y: (sy - view.offsetY) / view.scale };
 }
 
 // ============================================================
-// Edge detection helpers
+// Level rect helpers
 // ============================================================
-const EDGE_THRESHOLD = 12; // screen pixels
+function getLevelRect(stem) {
+  const pos  = state.levels[stem];
+  const meta = state.metadata[stem];
+  if (!pos || !meta) return null;
+  return { x: pos.worldX, y: pos.worldY, w: meta.widthPx, h: meta.heightPx };
+}
 
-function getEdgeCenterWorld(stem, side) {
-  const layout = state.editorLayout[stem];
-  const meta   = state.metadata[stem];
-  if (!layout || !meta) return null;
-  const x = layout.x, y = layout.y;
-  const w = meta.widthPx, h = meta.heightPx;
-  switch (side) {
-    case 0 /*right*/:  return { x: x + w, y: y + h / 2 };
-    case 1 /*left*/:   return { x: x,     y: y + h / 2 };
-    case 2 /*bottom*/: return { x: x + w / 2, y: y + h };
-    case 3 /*top*/:    return { x: x + w / 2, y: y     };
-    default: return null;
+function normalizePath(path) {
+  return String(path || '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '')
+    .replace(/\/+/g, '/');
+}
+
+function resolveRelativePath(basePath, relativePath) {
+  const rel = normalizePath(relativePath);
+  if (!rel) return normalizePath(basePath);
+  const parts = normalizePath(basePath).split('/');
+  parts.pop();
+  for (const part of rel.split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      if (parts.length) parts.pop();
+    } else {
+      parts.push(part);
+    }
   }
+  return parts.join('/');
 }
 
-/**
- * Given a canvas mouse position, find the closest (stem, side) edge
- * within EDGE_THRESHOLD screen pixels. Returns null if none.
- */
-function findHoveredEdge(cx, cy) {
-  let best = null, bestDist = Infinity;
+function resetProjectAssets() {
+  projectAssets = {
+    files: new Map(),
+    tilesets: new Map(),
+    images: new Map(),
+  };
+}
+
+function findProjectFile(path) {
+  const norm = normalizePath(path);
+  if (!norm || !projectAssets.files.size) return null;
+  if (projectAssets.files.has(norm)) return projectAssets.files.get(norm);
+  for (const [storedPath, file] of projectAssets.files) {
+    if (storedPath === norm || storedPath.endsWith('/' + norm)) {
+      return file;
+    }
+  }
+  return null;
+}
+
+function parseXml(text, label) {
+  const xml = new DOMParser().parseFromString(text, 'application/xml');
+  const parserError = xml.getElementsByTagName('parsererror')[0];
+  if (parserError) {
+    throw new Error(`Failed to parse ${label}: ${parserError.textContent.trim()}`);
+  }
+  return xml.documentElement;
+}
+
+function parseCsvLayerData(dataNode, width, height) {
+  const out = new Array(width * height).fill(0);
+  const cells = (dataNode.textContent || '').split(',');
+  const limit = Math.min(out.length, cells.length);
+  for (let i = 0; i < limit; i++) {
+    const value = Number(cells[i].trim());
+    out[i] = Number.isFinite(value) ? (value >>> 0) : 0;
+  }
+  return out;
+}
+
+function parseHexColor(hex) {
+  const clean = String(hex || '').trim().replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null;
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
+}
+
+function fileToImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error(`Failed to load image ${file.name}`));
+    };
+    image.src = url;
+  });
+}
+
+function applyTransparentColor(image, transparentHex) {
+  const color = parseHexColor(transparentHex);
+  if (!color) return image;
+
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = image.width;
+  canvasEl.height = image.height;
+  const canvasCtx = canvasEl.getContext('2d');
+  canvasCtx.imageSmoothingEnabled = false;
+  canvasCtx.drawImage(image, 0, 0);
+
+  const imageData = canvasCtx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+  const pixels = imageData.data;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] === color.r && pixels[i + 1] === color.g && pixels[i + 2] === color.b) {
+      pixels[i + 3] = 0;
+    }
+  }
+  canvasCtx.putImageData(imageData, 0, 0);
+  return canvasEl;
+}
+
+async function loadTilesetImage(imagePath, transparentHex) {
+  const normalizedPath = normalizePath(imagePath);
+  const cacheKey = `${normalizedPath}|${transparentHex || ''}`;
+  if (projectAssets.images.has(cacheKey)) {
+    return await projectAssets.images.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    const file = findProjectFile(normalizedPath);
+    if (!file) {
+      throw new Error(`Missing tileset image: ${normalizedPath}`);
+    }
+    const image = await fileToImage(file);
+    return transparentHex ? applyTransparentColor(image, transparentHex) : image;
+  })();
+
+  projectAssets.images.set(cacheKey, promise);
+  return await promise;
+}
+
+async function parseTilesetNode(tilesetNode, sourcePath) {
+  const imageNode = tilesetNode.getElementsByTagName('image')[0];
+  if (!imageNode) return null;
+
+  const tileWidth = Number(tilesetNode.getAttribute('tilewidth') || 8);
+  const tileHeight = Number(tilesetNode.getAttribute('tileheight') || 8);
+  const columns = Number(tilesetNode.getAttribute('columns') || 1);
+  const tileCount = Number(tilesetNode.getAttribute('tilecount') || columns);
+  const imageSource = imageNode.getAttribute('source') || '';
+  const transparentHex = imageNode.getAttribute('trans') || '';
+  const imagePath = resolveRelativePath(sourcePath, imageSource);
+
+  return {
+    tileWidth,
+    tileHeight,
+    columns,
+    tileCount,
+    image: await loadTilesetImage(imagePath, transparentHex),
+  };
+}
+
+async function loadExternalTileset(tsxPath) {
+  const normalizedPath = normalizePath(tsxPath);
+  if (projectAssets.tilesets.has(normalizedPath)) {
+    return await projectAssets.tilesets.get(normalizedPath);
+  }
+
+  const promise = (async () => {
+    const file = findProjectFile(normalizedPath);
+    if (!file) {
+      throw new Error(`Missing tileset source: ${normalizedPath}`);
+    }
+    const root = parseXml(await file.text(), normalizedPath);
+    return await parseTilesetNode(root, normalizedPath);
+  })();
+
+  projectAssets.tilesets.set(normalizedPath, promise);
+  return await promise;
+}
+
+async function loadMapTilesets(tmxPath, mapRoot) {
+  const tilesets = [];
+  const nodes = Array.from(mapRoot.getElementsByTagName('tileset'))
+    .filter(node => node.parentNode === mapRoot);
+
+  for (const node of nodes) {
+    const firstgid = Number(node.getAttribute('firstgid') || 0);
+    let tileset = null;
+    const source = node.getAttribute('source');
+    if (source) {
+      tileset = await loadExternalTileset(resolveRelativePath(tmxPath, source));
+    } else {
+      tileset = await parseTilesetNode(node, tmxPath);
+    }
+    if (tileset) {
+      tilesets.push({ firstgid, ...tileset });
+    }
+  }
+
+  tilesets.sort((a, b) => a.firstgid - b.firstgid);
+  return tilesets;
+}
+
+function findTilesetForGid(tilesets, gid) {
+  let match = null;
+  for (const tileset of tilesets) {
+    if (gid >= tileset.firstgid) {
+      match = tileset;
+    } else {
+      break;
+    }
+  }
+  return match;
+}
+
+function drawRenderedTile(targetCtx, tilesets, rawGid, dx, dy, tileWidth, tileHeight) {
+  const gid = rawGid >>> 0;
+  if (!gid) return;
+
+  const flipH = (gid & FLIP_H) !== 0;
+  const flipV = (gid & FLIP_V) !== 0;
+  const flipD = (gid & FLIP_D) !== 0;
+  const tileGid = gid & GID_MASK;
+  if (!tileGid) return;
+
+  const tileset = findTilesetForGid(tilesets, tileGid);
+  if (!tileset) return;
+
+  const localId = tileGid - tileset.firstgid;
+  if (localId < 0 || localId >= tileset.tileCount) return;
+
+  const sx = (localId % tileset.columns) * tileset.tileWidth;
+  const sy = Math.floor(localId / tileset.columns) * tileset.tileHeight;
+
+  if (flipH || flipV || flipD) {
+    targetCtx.save();
+    targetCtx.translate(dx + tileWidth / 2, dy + tileHeight / 2);
+    if (flipD) {
+      targetCtx.transform(0, flipH ? -1 : 1, flipV ? -1 : 1, 0, 0, 0);
+    } else {
+      targetCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    }
+    targetCtx.drawImage(
+      tileset.image,
+      sx, sy, tileset.tileWidth, tileset.tileHeight,
+      -tileWidth / 2, -tileHeight / 2, tileWidth, tileHeight
+    );
+    targetCtx.restore();
+    return;
+  }
+
+  targetCtx.drawImage(
+    tileset.image,
+    sx, sy, tileset.tileWidth, tileset.tileHeight,
+    dx, dy, tileWidth, tileHeight
+  );
+}
+
+async function renderLevelPreview(stem) {
+  const tmxFile = findProjectFile(`levels/${stem}.tmx`) || findProjectFile(`${stem}.tmx`);
+  if (!tmxFile) {
+    throw new Error(`Missing TMX file for ${stem}`);
+  }
+
+  const tmxPath = normalizePath(tmxFile.webkitRelativePath || tmxFile.name);
+  const mapRoot = parseXml(await tmxFile.text(), tmxPath);
+  const mapWidth = Number(mapRoot.getAttribute('width') || 0);
+  const mapHeight = Number(mapRoot.getAttribute('height') || 0);
+  const tileWidth = Number(mapRoot.getAttribute('tilewidth') || 8);
+  const tileHeight = Number(mapRoot.getAttribute('tileheight') || 8);
+  if (!mapWidth || !mapHeight) return null;
+
+  const tilesets = await loadMapTilesets(tmxPath, mapRoot);
+  if (!tilesets.length) return null;
+
+  const preview = document.createElement('canvas');
+  preview.width = mapWidth * tileWidth;
+  preview.height = mapHeight * tileHeight;
+  const previewCtx = preview.getContext('2d');
+  previewCtx.imageSmoothingEnabled = false;
+
+  const layers = Array.from(mapRoot.getElementsByTagName('layer'))
+    .filter(node => node.parentNode === mapRoot)
+    .filter(node => !/collision/i.test(node.getAttribute('name') || ''));
+
+  for (const layer of layers) {
+    const dataNode = layer.getElementsByTagName('data')[0];
+    if (!dataNode || (dataNode.getAttribute('encoding') || '').toLowerCase() !== 'csv') {
+      continue;
+    }
+
+    const opacity = Number(layer.getAttribute('opacity') || 1);
+    const gids = parseCsvLayerData(dataNode, mapWidth, mapHeight);
+    previewCtx.save();
+    previewCtx.globalAlpha = opacity;
+    for (let i = 0; i < gids.length; i++) {
+      const gid = gids[i] >>> 0;
+      if (!gid) continue;
+      const tx = i % mapWidth;
+      const ty = Math.floor(i / mapWidth);
+      drawRenderedTile(previewCtx, tilesets, gid, tx * tileWidth, ty * tileHeight, tileWidth, tileHeight);
+    }
+    previewCtx.restore();
+  }
+
+  return preview;
+}
+
+async function loadProjectPreviews() {
+  let loadedCount = 0;
+  let failedCount = 0;
+
   for (const stem of Object.keys(state.metadata)) {
-    for (let side = 0; side < 4; side++) {
-      const wc = getEdgeCenterWorld(stem, side);
-      if (!wc) continue;
-      const sc = worldToScreen(wc.x, wc.y);
-      const d  = Math.hypot(cx - sc.x, cy - sc.y);
-      if (d < EDGE_THRESHOLD && d < bestDist) {
-        bestDist = d;
-        best = { stem, side };
+    try {
+      const preview = await renderLevelPreview(stem);
+      if (preview) {
+        state.images[stem] = preview;
+        loadedCount++;
+      }
+    } catch (err) {
+      failedCount++;
+      console.warn(`Preview render failed for ${stem}:`, err);
+    }
+  }
+
+  draw();
+  if (!loadedCount) {
+    setStatus('Loaded project, but TMX previews were unavailable.');
+    return;
+  }
+
+  const fallbackMsg = failedCount ? `, ${failedCount} outline fallback${failedCount === 1 ? '' : 's'}` : '';
+  setStatus(`Loaded ${loadedCount} map preview${loadedCount === 1 ? '' : 's'}${fallbackMsg}.`);
+}
+
+async function loadProjectFiles(fileList) {
+  resetProjectAssets();
+  for (const file of Array.from(fileList)) {
+    projectAssets.files.set(normalizePath(file.webkitRelativePath || file.name), file);
+  }
+
+  const connFile = findProjectFile('connections.json');
+  if (!connFile) {
+    throw new Error('Could not find connections.json. Select the repository root folder.');
+  }
+
+  let data;
+  try {
+    data = JSON.parse(await connFile.text());
+  } catch (err) {
+    throw new Error(`Failed to parse ${connFile.name}: ${err.message}`);
+  }
+
+  loadJSON(data);
+  await loadProjectPreviews();
+}
+
+// ============================================================
+// Shared-edge detection
+// Finds all pairs of levels that share an adjacent edge.
+// Returns array of { a, b, side } where side is the side of level A
+// ('right','left','bottom','top').
+// ============================================================
+const SNAP_TOL = 2; // same as Python compiler
+
+function getSharedEdges() {
+  const stems = Object.keys(state.metadata);
+  const edges = [];
+  for (let i = 0; i < stems.length; i++) {
+    for (let j = i + 1; j < stems.length; j++) {
+      const a = stems[i], b = stems[j];
+      const ra = getLevelRect(a), rb = getLevelRect(b);
+      if (!ra || !rb) continue;
+
+      // A-right / B-left
+      if (Math.abs((ra.x + ra.w) - rb.x) <= SNAP_TOL) {
+        const oy = Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
+        if (oy > 0) edges.push({ a, b, side: 'right' });
+      }
+      // B-right / A-left
+      else if (Math.abs((rb.x + rb.w) - ra.x) <= SNAP_TOL) {
+        const oy = Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
+        if (oy > 0) edges.push({ a, b, side: 'left' });
+      }
+      // A-bottom / B-top
+      else if (Math.abs((ra.y + ra.h) - rb.y) <= SNAP_TOL) {
+        const ox = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+        if (ox > 0) edges.push({ a, b, side: 'bottom' });
+      }
+      // B-bottom / A-top
+      else if (Math.abs((rb.y + rb.h) - ra.y) <= SNAP_TOL) {
+        const ox = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+        if (ox > 0) edges.push({ a, b, side: 'top' });
       }
     }
   }
-  return best;
+  return edges;
+}
+
+function isConnected(a, b) {
+  return state.connections.some(c =>
+    (c.a === a && c.b === b) || (c.a === b && c.b === a));
+}
+
+function connIdxFor(a, b) {
+  return state.connections.findIndex(c =>
+    (c.a === a && c.b === b) || (c.a === b && c.b === a));
 }
 
 // ============================================================
-// Auto-layout: arrange levels in a grid
+// Snap while dragging
+// ============================================================
+function computeSnapOffset(movingStem, candidateX, candidateY) {
+  // Returns { dx, dy } snap correction, or { dx:0, dy:0 } if no snap.
+  const meta = state.metadata[movingStem];
+  if (!meta) return { dx: 0, dy: 0 };
+  const mw = meta.widthPx, mh = meta.heightPx;
+  const mx0 = candidateX, mx1 = candidateX + mw;
+  const my0 = candidateY, my1 = candidateY + mh;
+
+  let bestDx = Infinity, bestDy = Infinity;
+
+  for (const stem of Object.keys(state.metadata)) {
+    if (stem === movingStem) continue;
+    const r = getLevelRect(stem);
+    if (!r) continue;
+
+    // Horizontal snap: moving level's right to other's left, or left to other's right
+    const snapXRight = r.x - mw;       // moving.left = r.left - mw  =>  moving.right = r.left
+    const snapXLeft  = r.x + r.w;      // moving.left = r.right
+    if (Math.abs(candidateX - snapXRight) < SNAP_DIST) {
+      if (Math.abs(candidateX - snapXRight) < Math.abs(bestDx)) bestDx = snapXRight - candidateX;
+    }
+    if (Math.abs(candidateX - snapXLeft) < SNAP_DIST) {
+      if (Math.abs(candidateX - snapXLeft) < Math.abs(bestDx)) bestDx = snapXLeft - candidateX;
+    }
+
+    // Vertical snap
+    const snapYBottom = r.y - mh;
+    const snapYTop    = r.y + r.h;
+    if (Math.abs(candidateY - snapYBottom) < SNAP_DIST) {
+      if (Math.abs(candidateY - snapYBottom) < Math.abs(bestDy)) bestDy = snapYBottom - candidateY;
+    }
+    if (Math.abs(candidateY - snapYTop) < SNAP_DIST) {
+      if (Math.abs(candidateY - snapYTop) < Math.abs(bestDy)) bestDy = snapYTop - candidateY;
+    }
+  }
+
+  return {
+    dx: isFinite(bestDx) ? bestDx : 0,
+    dy: isFinite(bestDy) ? bestDy : 0,
+  };
+}
+
+// ============================================================
+// Find hovered shared edge from a screen coordinate
+// ============================================================
+function findHoveredSharedEdge(sx, sy) {
+  const wm = s2w(sx, sy);
+  const edges = getSharedEdges();
+  for (const e of edges) {
+    const ra = getLevelRect(e.a), rb = getLevelRect(e.b);
+    if (!ra || !rb) continue;
+
+    if (e.side === 'right' || e.side === 'left') {
+      // Vertical shared edge
+      const edgeWorldX = (e.side === 'right') ? ra.x + ra.w : ra.x;
+      const overlapY0  = Math.max(ra.y, rb.y);
+      const overlapY1  = Math.min(ra.y + ra.h, rb.y + rb.h);
+      const edgeSX     = w2s(edgeWorldX, 0).x;
+      const edgeSY0    = w2s(0, overlapY0).y;
+      const edgeSY1    = w2s(0, overlapY1).y;
+      if (Math.abs(sx - edgeSX) <= EDGE_HIT * view.scale &&
+          sy >= edgeSY0 - 4 && sy <= edgeSY1 + 4) {
+        return e;
+      }
+    } else {
+      // Horizontal shared edge
+      const edgeWorldY = (e.side === 'bottom') ? ra.y + ra.h : ra.y;
+      const overlapX0  = Math.max(ra.x, rb.x);
+      const overlapX1  = Math.min(ra.x + ra.w, rb.x + rb.w);
+      const edgeSY     = w2s(0, edgeWorldY).y;
+      const edgeSX0    = w2s(overlapX0, 0).x;
+      const edgeSX1    = w2s(overlapX1, 0).x;
+      if (Math.abs(sy - edgeSY) <= EDGE_HIT * view.scale &&
+          sx >= edgeSX0 - 4 && sx <= edgeSX1 + 4) {
+        return e;
+      }
+    }
+  }
+  return null;
+}
+
+// Find which level (stem) the mouse is over (for starting drag)
+function findLevelAt(sx, sy) {
+  const wm = s2w(sx, sy);
+  // Iterate in reverse draw order (last drawn = topmost)
+  const stems = Object.keys(state.metadata);
+  for (let i = stems.length - 1; i >= 0; i--) {
+    const r = getLevelRect(stems[i]);
+    if (!r) continue;
+    if (wm.x >= r.x && wm.x <= r.x + r.w && wm.y >= r.y && wm.y <= r.y + r.h) {
+      return stems[i];
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// Auto layout (grid)
 // ============================================================
 function autoLayout() {
   const stems = Object.keys(state.metadata).sort();
   const cols  = Math.max(1, Math.ceil(Math.sqrt(stems.length)));
-  const PAD   = 40; // game pixels between levels
+  const PAD   = 40;
   let maxW = 0;
   for (const s of stems) maxW = Math.max(maxW, state.metadata[s].widthPx || 0);
-
   stems.forEach((stem, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    const col = i % cols, row = Math.floor(i / cols);
     const meta = state.metadata[stem];
-    state.editorLayout[stem] = {
-      x: col * (maxW + PAD),
-      y: row * ((meta.heightPx || 80) + PAD),
+    state.levels[stem] = {
+      worldX: col * (maxW + PAD),
+      worldY: row * ((meta.heightPx || 80) + PAD),
     };
   });
 }
 
 // ============================================================
-// Fit view to show all levels
+// Fit view
 // ============================================================
 function fitView() {
   const stems = Object.keys(state.metadata);
   if (!stems.length) return;
-
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const stem of stems) {
-    const layout = state.editorLayout[stem];
-    const meta   = state.metadata[stem];
-    if (!layout || !meta) continue;
-    minX = Math.min(minX, layout.x);
-    minY = Math.min(minY, layout.y);
-    maxX = Math.max(maxX, layout.x + meta.widthPx);
-    maxY = Math.max(maxY, layout.y + meta.heightPx);
+  for (const s of stems) {
+    const r = getLevelRect(s);
+    if (!r) continue;
+    minX = Math.min(minX, r.x); minY = Math.min(minY, r.y);
+    maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h);
   }
-
-  const PAD  = 40;
-  const worldW = maxX - minX + PAD * 2;
-  const worldH = maxY - minY + PAD * 2;
-  const scaleX = canvas.width  / worldW;
-  const scaleY = canvas.height / worldH;
-  view.scale   = Math.min(scaleX, scaleY, 4);
-
+  const PAD = 60;
+  const worldW = maxX - minX + PAD * 2, worldH = maxY - minY + PAD * 2;
+  view.scale   = Math.min(canvas.width / worldW, canvas.height / worldH, 4);
   view.offsetX = (canvas.width  - worldW * view.scale) / 2 - (minX - PAD) * view.scale;
   view.offsetY = (canvas.height - worldH * view.scale) / 2 - (minY - PAD) * view.scale;
 }
@@ -416,372 +869,306 @@ function fitView() {
 // ============================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Grid
   drawGrid();
 
-  // Connections
-  for (let i = 0; i < state.connections.length; i++) {
-    drawConnection(i, i === interaction.selectedConnIdx);
-  }
+  const sharedEdges = getSharedEdges();
 
-  // Ghost line while drawing a connection
-  if (interaction.drawingFrom) {
-    drawGhostLine();
-  }
-
-  // Levels (on top)
+  // Draw all levels
   for (const stem of Object.keys(state.metadata)) {
-    drawLevel(stem);
+    drawLevel(stem, sharedEdges);
+  }
+
+  // Draw shared edge overlays
+  for (const e of sharedEdges) {
+    drawSharedEdge(e);
   }
 }
 
 function drawGrid() {
-  const GRID = 64; // world pixels
-  const sx0  = ((0 - view.offsetX) / view.scale);
-  const sy0  = ((0 - view.offsetY) / view.scale);
-  const sx1  = ((canvas.width  - view.offsetX) / view.scale);
-  const sy1  = ((canvas.height - view.offsetY) / view.scale);
+  const GRID = 64;
+  const w0 = (0 - view.offsetX) / view.scale;
+  const w1 = (canvas.width  - view.offsetX) / view.scale;
+  const h0 = (0 - view.offsetY) / view.scale;
+  const h1 = (canvas.height - view.offsetY) / view.scale;
 
   ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth   = 1;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let gx = Math.floor(sx0 / GRID) * GRID; gx <= sx1; gx += GRID) {
+  for (let gx = Math.floor(w0 / GRID) * GRID; gx <= w1; gx += GRID) {
     const sx = gx * view.scale + view.offsetX;
-    ctx.moveTo(sx, 0);
-    ctx.lineTo(sx, canvas.height);
+    ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height);
   }
-  for (let gy = Math.floor(sy0 / GRID) * GRID; gy <= sy1; gy += GRID) {
+  for (let gy = Math.floor(h0 / GRID) * GRID; gy <= h1; gy += GRID) {
     const sy = gy * view.scale + view.offsetY;
-    ctx.moveTo(0, sy);
-    ctx.lineTo(canvas.width, sy);
+    ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy);
   }
   ctx.stroke();
 }
 
-function drawLevel(stem) {
-  const layout = state.editorLayout[stem];
-  const meta   = state.metadata[stem];
-  if (!layout || !meta) return;
+function drawLevel(stem, sharedEdges) {
+  const r = getLevelRect(stem);
+  if (!r) return;
+  const sp = w2s(r.x, r.y);
+  const sw = r.w * view.scale, sh = r.h * view.scale;
 
-  const sp = worldToScreen(layout.x, layout.y);
-  const sw = meta.widthPx  * view.scale;
-  const sh = meta.heightPx * view.scale;
-
-  // Box
-  ctx.fillStyle   = 'rgba(15, 52, 96, 0.85)';
-  ctx.strokeStyle = '#2a3a5a';
-  ctx.lineWidth   = 1.5;
-  roundRect(ctx, sp.x, sp.y, sw, sh, 4 * view.scale);
-  ctx.fill();
-  ctx.stroke();
-
-  // Level name
-  const fontSize = Math.max(9, Math.min(14, sw / 8));
-  ctx.fillStyle  = '#eaeaea';
-  ctx.font       = `${fontSize}px Consolas, monospace`;
-  ctx.textAlign  = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(meta.displayName || stem, sp.x + sw / 2, sp.y + sh / 2 - fontSize * 0.6);
-
-  // Size label
-  const sizeStr = `${meta.widthPx}×${meta.heightPx}`;
-  ctx.fillStyle  = '#8899aa';
-  ctx.font       = `${Math.max(8, fontSize * 0.8)}px Consolas, monospace`;
-  ctx.fillText(sizeStr, sp.x + sw / 2, sp.y + sh / 2 + fontSize * 0.7);
-
-  // Draw edge highlights
-  for (let side = 0; side < 4; side++) {
-    const isHov = interaction.hoveredEdge &&
-                  interaction.hoveredEdge.stem === stem &&
-                  interaction.hoveredEdge.side === side;
-    const isFrom = interaction.drawingFrom &&
-                   interaction.drawingFrom.stem === stem &&
-                   interaction.drawingFrom.side === side;
-
-    if (isHov || isFrom) {
-      drawEdgeHighlight(stem, side, isFrom ? '#e94560' : '#f5d020');
-    }
-  }
-
-  // Edge dots
-  for (let side = 0; side < 4; side++) {
-    const wc = getEdgeCenterWorld(stem, side);
-    if (!wc) continue;
-    const sc = worldToScreen(wc.x, wc.y);
-    const r  = Math.max(3, 4 * view.scale);
-
-    const isHov = interaction.hoveredEdge &&
-                  interaction.hoveredEdge.stem === stem &&
-                  interaction.hoveredEdge.side === side;
-    const isFrom = interaction.drawingFrom &&
-                   interaction.drawingFrom.stem === stem &&
-                   interaction.drawingFrom.side === side;
-
-    ctx.beginPath();
-    ctx.arc(sc.x, sc.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = isFrom ? '#e94560' : isHov ? '#f5d020' : '#4a5a7a';
+  // Optional image
+  const img = state.images[stem];
+  if (img) {
+    ctx.drawImage(img, sp.x, sp.y, sw, sh);
+    // Semi-transparent overlay for readability
+    ctx.fillStyle = 'rgba(15,52,96,0.18)';
+    ctx.fillRect(sp.x, sp.y, sw, sh);
+  } else {
+    ctx.fillStyle = 'rgba(15,52,96,0.85)';
+    roundRect(ctx, sp.x, sp.y, sw, sh, 3);
     ctx.fill();
   }
-}
 
-function drawEdgeHighlight(stem, side, color) {
-  const layout = state.editorLayout[stem];
-  const meta   = state.metadata[stem];
-  if (!layout || !meta) return;
-
-  const sp = worldToScreen(layout.x, layout.y);
-  const sw = meta.widthPx  * view.scale;
-  const sh = meta.heightPx * view.scale;
-  const t  = 3;
-
-  ctx.fillStyle = color + '55';
-  if (side === 0)      ctx.fillRect(sp.x + sw - t, sp.y, t, sh);
-  else if (side === 1) ctx.fillRect(sp.x,           sp.y, t, sh);
-  else if (side === 2) ctx.fillRect(sp.x, sp.y + sh - t, sw, t);
-  else if (side === 3) ctx.fillRect(sp.x, sp.y,           sw, t);
-}
-
-function drawConnection(idx, selected) {
-  const conn = state.connections[idx];
-  const fromEdge = getEdgeCenterWorld(conn.from.level, SIDE_NAMES.indexOf(conn.from.side));
-  const toEdge   = getEdgeCenterWorld(conn.to.level,   SIDE_NAMES.indexOf(conn.to.side));
-  if (!fromEdge || !toEdge) return;
-
-  const fs = worldToScreen(fromEdge.x, fromEdge.y);
-  const ts = worldToScreen(toEdge.x,   toEdge.y);
-
-  const color = CONN_COLORS[idx % CONN_COLORS.length];
-  const cp    = bezierControlPoints(fs, ts, conn.from.side, conn.to.side);
-
-  ctx.beginPath();
-  ctx.moveTo(fs.x, fs.y);
-  ctx.bezierCurveTo(cp.cx1, cp.cy1, cp.cx2, cp.cy2, ts.x, ts.y);
-  ctx.strokeStyle = selected ? '#ffffff' : color;
-  ctx.lineWidth   = selected ? 3 : 2;
-  ctx.setLineDash(selected ? [] : []);
+  ctx.strokeStyle = drag.stem === stem ? '#e94560' : '#2a3a5a';
+  ctx.lineWidth = drag.stem === stem ? 2 : 1.5;
+  roundRect(ctx, sp.x, sp.y, sw, sh, 3);
   ctx.stroke();
-  ctx.setLineDash([]);
 
-  // Arrowhead in the middle
-  const tm = 0.5;
-  const mx = bezierPoint(fs.x, cp.cx1, cp.cx2, ts.x, tm);
-  const my = bezierPoint(fs.y, cp.cy1, cp.cy2, ts.y, tm);
-  const dx = bezierTangent(fs.x, cp.cx1, cp.cx2, ts.x, tm);
-  const dy = bezierTangent(fs.y, cp.cy1, cp.cy2, ts.y, tm);
-  drawArrowhead(mx, my, dx, dy, color, selected);
+  // Label
+  if (sw > 20 && sh > 12) {
+    const fontSize = Math.max(9, Math.min(14, sw / 10));
+    ctx.fillStyle = '#eaeaea';
+    ctx.font = `${fontSize}px Consolas, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(state.metadata[stem].displayName || stem, sp.x + sw / 2, sp.y + sh / 2 - fontSize * 0.6);
+    ctx.fillStyle = '#8899aa';
+    ctx.font = `${Math.max(8, fontSize * 0.8)}px Consolas, monospace`;
+    ctx.fillText(`${r.w}×${r.h}`, sp.x + sw / 2, sp.y + sh / 2 + fontSize * 0.7);
+  }
 
-  // Offset label
-  if (conn.offset !== 0) {
-    ctx.fillStyle = color;
+  // World position label (top-left)
+  if (sw > 60 && sh > 20) {
+    ctx.fillStyle = 'rgba(136,153,170,0.7)';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`(${r.x}, ${r.y})`, sp.x + 4, sp.y + 3);
+  }
+}
+
+function drawSharedEdge(e) {
+  const ra = getLevelRect(e.a), rb = getLevelRect(e.b);
+  if (!ra || !rb) return;
+
+  const connected = isConnected(e.a, e.b);
+  const idx = connIdxFor(e.a, e.b);
+  const color = connected ? CONN_COLORS[idx % CONN_COLORS.length] : '#3a4a6a';
+  const isHov = hoveredSharedEdge &&
+                hoveredSharedEdge.a === e.a && hoveredSharedEdge.b === e.b &&
+                hoveredSharedEdge.side === e.side;
+  const isSelected = connected && idx === selectedConnIdx;
+
+  const alpha = connected ? (isSelected ? 0.9 : 0.6) : (isHov ? 0.5 : 0.2);
+  const BAND = Math.max(3, 4 * view.scale);
+
+  ctx.fillStyle = hexToRgba(color, alpha);
+
+  if (e.side === 'right' || e.side === 'left') {
+    const edgeWorldX = (e.side === 'right') ? ra.x + ra.w : ra.x;
+    const overlapY0  = Math.max(ra.y, rb.y);
+    const overlapY1  = Math.min(ra.y + ra.h, rb.y + rb.h);
+    const esx  = w2s(edgeWorldX, 0).x;
+    const esy0 = w2s(0, overlapY0).y;
+    const esy1 = w2s(0, overlapY1).y;
+    ctx.fillRect(esx - BAND / 2, esy0, BAND, esy1 - esy0);
+
+    if (connected) {
+      // Draw range brackets on both sides
+      drawRangeBracket(e.a, e.b, e.side, overlapY0, overlapY1, color, isSelected);
+    }
+    if (isHov && !connected) {
+      ctx.strokeStyle = hexToRgba(color, 0.8);
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(esx, esy0); ctx.lineTo(esx, esy1);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  } else {
+    const edgeWorldY = (e.side === 'bottom') ? ra.y + ra.h : ra.y;
+    const overlapX0  = Math.max(ra.x, rb.x);
+    const overlapX1  = Math.min(ra.x + ra.w, rb.x + rb.w);
+    const esy  = w2s(0, edgeWorldY).y;
+    const esx0 = w2s(overlapX0, 0).x;
+    const esx1 = w2s(overlapX1, 0).x;
+    ctx.fillRect(esx0, esy - BAND / 2, esx1 - esx0, BAND);
+
+    if (connected) {
+      drawRangeBracket(e.a, e.b, e.side, overlapX0, overlapX1, color, isSelected);
+    }
+    if (isHov && !connected) {
+      ctx.strokeStyle = hexToRgba(color, 0.8);
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(esx0, esy); ctx.lineTo(esx1, esy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Hover tooltip
+  if (isHov) {
+    const cx = (e.side === 'right' || e.side === 'left')
+      ? w2s(((e.side === 'right') ? ra.x + ra.w : ra.x), (Math.max(ra.y, rb.y) + Math.min(ra.y + ra.h, rb.y + rb.h)) / 2)
+      : w2s((Math.max(ra.x, rb.x) + Math.min(ra.x + ra.w, rb.x + rb.w)) / 2, (e.side === 'bottom') ? ra.y + ra.h : ra.y);
+    const action = connected ? 'Click to remove connection' : 'Click to add connection';
+    ctx.fillStyle = 'rgba(15,52,96,0.95)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    const tw = ctx.measureText(action).width + 12;
+    ctx.fillRect(cx.x - tw / 2, cx.y - 22, tw, 16);
+    ctx.strokeRect(cx.x - tw / 2, cx.y - 22, tw, 16);
+    ctx.fillStyle = '#eaeaea';
     ctx.font = '10px Consolas, monospace';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(`Δ${conn.offset}`, mx, my - 4);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(action, cx.x, cx.y - 14);
   }
-
-  // Click area: draw an invisible wider stroke for hit-testing
-  // (handled in mouse click - we test distance from cubic bezier)
 }
 
-function drawArrowhead(mx, my, dx, dy, color, selected) {
-  const len = Math.hypot(dx, dy);
-  if (len < 0.001) return;
-  const nx = dx / len, ny = dy / len;
-  const size = selected ? 9 : 7;
+function drawRangeBracket(stemA, stemB, side, worldStart, worldEnd, color, selected) {
+  const ra = getLevelRect(stemA), rb = getLevelRect(stemB);
+  if (!ra || !rb) return;
+  const lw = selected ? 2 : 1.5;
+  const TICK = 4 * view.scale;
 
-  ctx.save();
-  ctx.translate(mx, my);
-  ctx.rotate(Math.atan2(ny, nx));
-  ctx.beginPath();
-  ctx.moveTo(size, 0);
-  ctx.lineTo(-size, -size * 0.5);
-  ctx.lineTo(-size, size * 0.5);
-  ctx.closePath();
-  ctx.fillStyle = selected ? '#ffffff' : color;
-  ctx.fill();
-  ctx.restore();
-}
+  if (side === 'right' || side === 'left') {
+    const edgeWorldX = (side === 'right') ? ra.x + ra.w : ra.x;
+    const esx  = w2s(edgeWorldX, 0).x;
+    const esy0 = w2s(0, worldStart).y;
+    const esy1 = w2s(0, worldEnd).y;
 
-function drawGhostLine() {
-  const df = interaction.drawingFrom;
-  const wc = getEdgeCenterWorld(df.stem, df.side);
-  if (!wc) return;
-  const fs = worldToScreen(wc.x, wc.y);
-  const mx = interaction.mouseScreenX || canvas.width / 2;
-  const my = interaction.mouseScreenY || canvas.height / 2;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lw;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(esx - TICK, esy0); ctx.lineTo(esx + TICK, esy0);
+    ctx.moveTo(esx - TICK, esy1); ctx.lineTo(esx + TICK, esy1);
+    ctx.stroke();
+  } else {
+    const edgeWorldY = (side === 'bottom') ? ra.y + ra.h : ra.y;
+    const esy  = w2s(0, edgeWorldY).y;
+    const esx0 = w2s(worldStart, 0).x;
+    const esx1 = w2s(worldEnd, 0).x;
 
-  ctx.beginPath();
-  ctx.moveTo(fs.x, fs.y);
-  ctx.lineTo(mx, my);
-  ctx.strokeStyle = 'rgba(229,69,96,0.6)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 4]);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-// ============================================================
-// Bezier helpers
-// ============================================================
-function bezierControlPoints(fs, ts, fromSide, toSide) {
-  const CTRL_LEN = Math.max(40, Math.hypot(ts.x - fs.x, ts.y - fs.y) * 0.45);
-  function sideDir(sideStr) {
-    const idx = typeof sideStr === 'string' ? SIDE_NAMES.indexOf(sideStr) : sideStr;
-    switch (idx) {
-      case 0: return [1,  0];   // right
-      case 1: return [-1, 0];   // left
-      case 2: return [0,  1];   // bottom
-      case 3: return [0, -1];   // top
-    }
-    return [1, 0];
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lw;
+    ctx.beginPath();
+    ctx.moveTo(esx0, esy - TICK); ctx.lineTo(esx0, esy + TICK);
+    ctx.moveTo(esx1, esy - TICK); ctx.lineTo(esx1, esy + TICK);
+    ctx.stroke();
   }
-  const [d1x, d1y] = sideDir(fromSide);
-  const [d2x, d2y] = sideDir(toSide);
-  return {
-    cx1: fs.x + d1x * CTRL_LEN,
-    cy1: fs.y + d1y * CTRL_LEN,
-    cx2: ts.x + d2x * CTRL_LEN,
-    cy2: ts.y + d2y * CTRL_LEN,
-  };
-}
-
-function bezierPoint(p0, p1, p2, p3, t) {
-  const mt = 1 - t;
-  return mt*mt*mt*p0 + 3*mt*mt*t*p1 + 3*mt*t*t*p2 + t*t*t*p3;
-}
-
-function bezierTangent(p0, p1, p2, p3, t) {
-  const mt = 1 - t;
-  return 3*mt*mt*(p1-p0) + 6*mt*t*(p2-p1) + 3*t*t*(p3-p2);
-}
-
-// Distance from point (px,py) to cubic bezier (rough: sample 20 points)
-function bezierDistSq(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, px, py) {
-  let minD = Infinity;
-  for (let i = 0; i <= 20; i++) {
-    const t  = i / 20;
-    const bx = bezierPoint(p0x, p1x, p2x, p3x, t);
-    const by = bezierPoint(p0y, p1y, p2y, p3y, t);
-    const d  = (bx - px)**2 + (by - py)**2;
-    if (d < minD) minD = d;
-  }
-  return minD;
 }
 
 // ============================================================
-// roundRect polyfill
+// Sidebar
 // ============================================================
-function roundRect(c, x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.lineTo(x + w - r, y);
-  c.quadraticCurveTo(x + w, y, x + w, y + r);
-  c.lineTo(x + w, y + h - r);
-  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  c.lineTo(x + r, y + h);
-  c.quadraticCurveTo(x, y + h, x, y + h - r);
-  c.lineTo(x, y + r);
-  c.quadraticCurveTo(x, y, x + r, y);
-  c.closePath();
-}
-
-// ============================================================
-// Connection hit testing
-// ============================================================
-function findConnectionAtScreen(cx, cy) {
-  const HIT_DIST = 8;
-  for (let i = state.connections.length - 1; i >= 0; i--) {
-    const conn = state.connections[i];
-    const fi   = SIDE_NAMES.indexOf(conn.from.side);
-    const ti   = SIDE_NAMES.indexOf(conn.to.side);
-    const fw   = getEdgeCenterWorld(conn.from.level, fi);
-    const tw   = getEdgeCenterWorld(conn.to.level,   ti);
-    if (!fw || !tw) continue;
-    const fs = worldToScreen(fw.x, fw.y);
-    const ts = worldToScreen(tw.x, tw.y);
-    const cp = bezierControlPoints(fs, ts, conn.from.side, conn.to.side);
-    const d  = bezierDistSq(fs.x, fs.y, cp.cx1, cp.cy1, cp.cx2, cp.cy2, ts.x, ts.y, cx, cy);
-    if (d < HIT_DIST * HIT_DIST) return i;
-  }
-  return -1;
-}
-
-// ============================================================
-// Compute offset from layout positions
-// ============================================================
-function computeAutoOffset(fromStem, fromSide, toStem, toSide) {
-  const fl = state.editorLayout[fromStem];
-  const tl = state.editorLayout[toStem];
-  if (!fl || !tl) return 0;
-  const fm = state.metadata[fromStem];
-  const tm = state.metadata[toStem];
-  if (!fm || !tm) return 0;
-
-  // For left/right connections: perpendicular is Y
-  if (fromSide === 0 || fromSide === 1) {
-    const fromEdgeCenterY = fl.y + fm.heightPx / 2;
-    const toEdgeCenterY   = tl.y + tm.heightPx / 2;
-    return Math.round(fromEdgeCenterY - toEdgeCenterY);
-  }
-  // For top/bottom connections: perpendicular is X
-  const fromEdgeCenterX = fl.x + fm.widthPx / 2;
-  const toEdgeCenterX   = tl.x + tm.widthPx / 2;
-  return Math.round(fromEdgeCenterX - toEdgeCenterX);
-}
-
-// ============================================================
-// Sidebar update
-// ============================================================
-function updateLevelList() {
+function updateSidebar() {
+  // Level list
   levelList.innerHTML = '';
   for (const stem of Object.keys(state.metadata).sort()) {
     const meta = state.metadata[stem];
     const div  = document.createElement('div');
     div.className = 'level-item';
-    div.innerHTML = `<div class="name">${meta.displayName || stem} <span style="color:var(--muted);font-size:10px">[${stem}]</span></div>
-                     <div class="size">${meta.widthPx}×${meta.heightPx} px</div>`;
+    div.innerHTML = `
+      <div style="flex:1">
+        <div class="name">${meta.displayName || stem} <span style="color:var(--muted);font-size:10px">[${stem}]</span></div>
+        <div class="size">${meta.widthPx}×${meta.heightPx} px</div>
+      </div>
+      <button class="img-btn" title="Load PNG for this level">PNG</button>
+    `;
+    div.querySelector('.img-btn').addEventListener('click', () => loadImageForLevel(stem));
     levelList.appendChild(div);
   }
-}
 
-function selectConnection(idx) {
-  interaction.selectedConnIdx = idx;
-  if (idx < 0 || idx >= state.connections.length) {
-    connNoneMsg.style.display = '';
-    connFields.style.display  = 'none';
-    return;
+  // Connection list
+  connSection.innerHTML = '';
+  state.connections.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'conn-item' + (i === selectedConnIdx ? ' selected' : '');
+    const color = CONN_COLORS[i % CONN_COLORS.length];
+    div.innerHTML = `
+      <div class="conn-dot" style="background:${color}"></div>
+      <div class="conn-label">${c.a} ↔ ${c.b}</div>
+      <button class="conn-del" title="Delete">✕</button>
+    `;
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('conn-del')) {
+        state.connections.splice(i, 1);
+        if (selectedConnIdx >= state.connections.length) selectedConnIdx = -1;
+        updateSidebar();
+        draw();
+      } else {
+        selectedConnIdx = (selectedConnIdx === i) ? -1 : i;
+        updateSidebar();
+        draw();
+      }
+    });
+    connSection.appendChild(div);
+  });
+  if (!state.connections.length) {
+    const p = document.createElement('div');
+    p.style.cssText = 'padding:8px 12px;color:var(--muted);font-size:11px;font-style:italic';
+    p.textContent = 'No connections yet. Click a shared edge.';
+    connSection.appendChild(p);
   }
-  const conn = state.connections[idx];
-  connNoneMsg.style.display = 'none';
-  connFields.style.display  = '';
-  connFrom.textContent = `${conn.from.level} (${conn.from.side})`;
-  connTo.textContent   = `${conn.to.level} (${conn.to.side})`;
-  connOffset.value     = conn.offset;
-  draw();
 }
 
-connOffset.addEventListener('change', () => {
-  const idx = interaction.selectedConnIdx;
-  if (idx < 0 || idx >= state.connections.length) return;
-  state.connections[idx].offset = parseInt(connOffset.value) || 0;
-  draw();
+// ============================================================
+// Image loading per level
+// ============================================================
+let _pendingImageStem = null;
+
+function loadImageForLevel(stem) {
+  _pendingImageStem = stem;
+  imgInput.value = '';
+  imgInput.click();
+}
+
+imgInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file || !_pendingImageStem) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      state.images[_pendingImageStem] = img;
+      draw();
+      setStatus(`Image loaded for ${_pendingImageStem}`);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
 });
-
-btnDelete.addEventListener('click', deleteSelectedConnection);
-
-function deleteSelectedConnection() {
-  const idx = interaction.selectedConnIdx;
-  if (idx < 0 || idx >= state.connections.length) return;
-  state.connections.splice(idx, 1);
-  selectConnection(-1);
-  draw();
-}
 
 // ============================================================
 // Load / Save
 // ============================================================
+document.getElementById('btn-load-project').addEventListener('click', () => {
+  projectInput.value = '';
+  projectInput.click();
+});
+
+projectInput.addEventListener('change', async e => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  try {
+    await loadProjectFiles(files);
+  } catch (err) {
+    alert('Failed to load project: ' + err.message);
+  } finally {
+    e.target.value = '';
+  }
+});
+
 document.getElementById('btn-load').addEventListener('click', () => {
   document.getElementById('file-input').click();
 });
@@ -792,82 +1179,79 @@ document.getElementById('file-input').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
+      resetProjectAssets();
       loadJSON(JSON.parse(ev.target.result));
-    } catch (err) {
-      alert('Failed to parse JSON: ' + err.message);
     }
+    catch (err) { alert('Failed to parse JSON: ' + err.message); }
   };
   reader.readAsText(file);
   e.target.value = '';
 });
 
-document.getElementById('btn-save').addEventListener('click', () => {
-  saveJSON();
-});
+document.getElementById('btn-save').addEventListener('click', saveJSON);
 
 function loadJSON(data) {
   state.rawData = data;
-
-  // Metadata
+  state.images = {};
   state.metadata = {};
-  const meta = data._metadata || {};
-  for (const stem of Object.keys(meta)) {
+  for (const [stem, m] of Object.entries(data._metadata || {})) {
     state.metadata[stem] = {
-      displayName: meta[stem].displayName || stem,
-      widthPx:     meta[stem].widthPx  || 80,
-      heightPx:    meta[stem].heightPx || 64,
+      displayName: m.displayName || stem,
+      widthPx:  m.widthPx  || 80,
+      heightPx: m.heightPx || 64,
     };
   }
 
-  // Editor layout
-  state.editorLayout = {};
-  const el = data._editorLayout || {};
+  // Load level positions from new "levels" key, fall back to _editorLayout
+  state.levels = {};
+  const lvlPositions = data.levels || data._editorLayout || {};
   let needsAutoLayout = false;
   for (const stem of Object.keys(state.metadata)) {
-    if (el[stem] && typeof el[stem].x === 'number') {
-      state.editorLayout[stem] = { x: el[stem].x, y: el[stem].y };
+    const p = lvlPositions[stem];
+    if (p && typeof p.worldX === 'number') {
+      state.levels[stem] = { worldX: p.worldX, worldY: p.worldY };
+    } else if (p && typeof p.x === 'number') {
+      // Legacy _editorLayout format
+      state.levels[stem] = { worldX: p.x, worldY: p.y };
     } else {
       needsAutoLayout = true;
     }
   }
   if (needsAutoLayout) autoLayout();
 
-  // Connections
-  state.connections = (data.connections || []).map(c => ({
-    from:   { level: c.from.level, side: c.from.side },
-    to:     { level: c.to.level,   side: c.to.side   },
-    offset: c.offset || 0,
-  }));
+  // Load connections — new {a,b} format or legacy {from,to,offset} format
+  state.connections = [];
+  for (const c of (data.connections || [])) {
+    if (c.a && c.b) {
+      state.connections.push({ a: c.a, b: c.b });
+    } else if (c.from && c.to) {
+      // Legacy: convert to pair format
+      state.connections.push({ a: c.from.level, b: c.to.level });
+    }
+  }
 
-  selectConnection(-1);
-  updateLevelList();
+  selectedConnIdx = -1;
+  updateSidebar();
   fitView();
   draw();
-  setStatus(`Loaded: ${Object.keys(state.metadata).length} levels, ${state.connections.length} connections.`);
+  const previewHint = projectAssets.files.size ? '' : ' Use Load Project for TMX previews.';
+  setStatus(`Loaded: ${Object.keys(state.metadata).length} levels, ${state.connections.length} connections.${previewHint}`);
 }
 
 function saveJSON() {
-  // Update editorLayout in raw data
   const out = Object.assign({}, state.rawData || {});
-  out._editorLayout = {};
-  for (const stem of Object.keys(state.editorLayout)) {
-    out._editorLayout[stem] = {
-      x: state.editorLayout[stem].x,
-      y: state.editorLayout[stem].y,
-    };
+  // Always write new format
+  delete out._editorLayout;
+  out.levels = {};
+  for (const [stem, pos] of Object.entries(state.levels)) {
+    out.levels[stem] = { worldX: Math.round(pos.worldX), worldY: Math.round(pos.worldY) };
   }
-  out.connections = state.connections.map(c => ({
-    from:   { level: c.from.level, side: c.from.side },
-    to:     { level: c.to.level,   side: c.to.side   },
-    offset: c.offset,
-  }));
+  out.connections = state.connections.map(c => ({ a: c.a, b: c.b }));
 
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'connections.json';
-  a.click();
+  a.href = url; a.download = 'connections.json'; a.click();
   URL.revokeObjectURL(url);
   setStatus('Saved connections.json');
 }
@@ -884,128 +1268,132 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 canvas.addEventListener('mousedown', e => {
   const rect = canvas.getBoundingClientRect();
-  const cx   = e.clientX - rect.left;
-  const cy   = e.clientY - rect.top;
+  const sx   = e.clientX - rect.left;
+  const sy   = e.clientY - rect.top;
 
   if (e.button === 1 || e.button === 2) {
-    // Pan
-    interaction.isPanning  = true;
-    interaction.panStartX  = e.clientX;
-    interaction.panStartY  = e.clientY;
-    interaction.panStartOX = view.offsetX;
-    interaction.panStartOY = view.offsetY;
+    pan.active  = true;
+    pan.startX  = e.clientX;
+    pan.startY  = e.clientY;
+    pan.startOX = view.offsetX;
+    pan.startOY = view.offsetY;
     canvas.style.cursor = 'grabbing';
     return;
   }
 
   if (e.button === 0) {
-    // Cancel drawing on second click on same edge
-    if (interaction.drawingFrom) {
-      const edge = findHoveredEdge(cx, cy);
-      if (edge) {
-        const df = interaction.drawingFrom;
-        if (edge.stem !== df.stem || edge.side !== df.side) {
-          // Create connection
-          const offset = computeAutoOffset(df.stem, df.side, edge.stem, edge.side);
-          state.connections.push({
-            from:   { level: df.stem, side: SIDE_NAMES[df.side] },
-            to:     { level: edge.stem, side: SIDE_NAMES[edge.side] },
-            offset: offset,
-          });
-          const newIdx = state.connections.length - 1;
-          interaction.drawingFrom = null;
-          selectConnection(newIdx);
-          draw();
-          setStatus('Connection created. Adjust offset in sidebar if needed.');
-        } else {
-          // Clicked same edge → cancel
-          interaction.drawingFrom = null;
-          setStatus('');
-          draw();
-        }
+    // Check for shared edge click (toggle connection)
+    const edgeHit = findHoveredSharedEdge(sx, sy);
+    if (edgeHit) {
+      const idx = connIdxFor(edgeHit.a, edgeHit.b);
+      if (idx >= 0) {
+        // Remove connection
+        state.connections.splice(idx, 1);
+        selectedConnIdx = -1;
+        setStatus(`Removed connection: ${edgeHit.a} ↔ ${edgeHit.b}`);
       } else {
-        // Clicked empty space → cancel
-        interaction.drawingFrom = null;
-        setStatus('');
-        draw();
+        // Add connection
+        state.connections.push({ a: edgeHit.a, b: edgeHit.b });
+        selectedConnIdx = state.connections.length - 1;
+        setStatus(`Added connection: ${edgeHit.a} ↔ ${edgeHit.b}`);
       }
-      return;
-    }
-
-    // Start drawing from edge
-    const edge = findHoveredEdge(cx, cy);
-    if (edge) {
-      interaction.drawingFrom = edge;
-      setStatus(`Drawing from ${edge.stem} (${SIDE_NAMES[edge.side]}) — click another edge`);
+      updateSidebar();
       draw();
       return;
     }
 
-    // Check connection selection
-    const connIdx = findConnectionAtScreen(cx, cy);
-    if (connIdx >= 0) {
-      selectConnection(connIdx);
+    // Check for level drag start
+    const stem = findLevelAt(sx, sy);
+    if (stem) {
+      const wm = s2w(sx, sy);
+      const pos = state.levels[stem];
+      drag.active  = true;
+      drag.stem    = stem;
+      drag.startWX = pos.worldX;
+      drag.startWY = pos.worldY;
+      drag.mouseWX = wm.x;
+      drag.mouseWY = wm.y;
+      canvas.style.cursor = 'grabbing';
+      draw();
       return;
     }
 
     // Deselect
-    selectConnection(-1);
+    selectedConnIdx = -1;
+    updateSidebar();
+    draw();
   }
 });
 
 window.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
-  const cx   = e.clientX - rect.left;
-  const cy   = e.clientY - rect.top;
+  const sx   = e.clientX - rect.left;
+  const sy   = e.clientY - rect.top;
 
-  if (interaction.isPanning) {
-    view.offsetX = interaction.panStartOX + (e.clientX - interaction.panStartX);
-    view.offsetY = interaction.panStartOY + (e.clientY - interaction.panStartY);
+  if (pan.active) {
+    view.offsetX = pan.startOX + (e.clientX - pan.startX);
+    view.offsetY = pan.startOY + (e.clientY - pan.startY);
     draw();
     return;
   }
 
-  interaction.mouseScreenX = cx;
-  interaction.mouseScreenY = cy;
+  if (drag.active && drag.stem) {
+    const wm = s2w(sx, sy);
+    const rawX = drag.startWX + (wm.x - drag.mouseWX);
+    const rawY = drag.startWY + (wm.y - drag.mouseWY);
+    const snap = computeSnapOffset(drag.stem, rawX, rawY);
+    state.levels[drag.stem] = {
+      worldX: rawX + snap.dx,
+      worldY: rawY + snap.dy,
+    };
+    const wc = s2w(sx, sy);
+    coordDisp.textContent = `${Math.round(wc.x)}, ${Math.round(wc.y)}`;
+    draw();
+    return;
+  }
 
-  const wc = screenToWorld(cx, cy);
-  interaction.mouseWorldX = wc.x;
-  interaction.mouseWorldY = wc.y;
+  const wc = s2w(sx, sy);
   coordDisp.textContent = `${Math.round(wc.x)}, ${Math.round(wc.y)}`;
 
-  const prevHov = interaction.hoveredEdge;
-  interaction.hoveredEdge = findHoveredEdge(cx, cy);
+  const prevHov = hoveredSharedEdge;
+  hoveredSharedEdge = findHoveredSharedEdge(sx, sy);
 
-  const hovChanged = JSON.stringify(prevHov) !== JSON.stringify(interaction.hoveredEdge);
-
-  if (hovChanged || interaction.drawingFrom) {
-    if (interaction.hoveredEdge) {
-      canvas.style.cursor = 'crosshair';
-    } else {
-      canvas.style.cursor = interaction.drawingFrom ? 'crosshair' : 'default';
-    }
-    draw();
+  if (hoveredSharedEdge) {
+    canvas.style.cursor = 'pointer';
+  } else if (findLevelAt(sx, sy)) {
+    canvas.style.cursor = 'grab';
+  } else {
+    canvas.style.cursor = 'default';
   }
+
+  // Redraw only if hover changed
+  const changed = JSON.stringify(prevHov) !== JSON.stringify(hoveredSharedEdge);
+  if (changed) draw();
 });
 
 window.addEventListener('mouseup', e => {
   if (e.button === 1 || e.button === 2) {
-    interaction.isPanning = false;
+    pan.active = false;
     canvas.style.cursor = 'default';
+  }
+  if (e.button === 0 && drag.active) {
+    drag.active = false;
+    drag.stem   = null;
+    canvas.style.cursor = 'default';
+    updateSidebar();  // world positions shown in level list may have changed
+    draw();
   }
 });
 
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const rect  = canvas.getBoundingClientRect();
-  const cx    = e.clientX - rect.left;
-  const cy    = e.clientY - rect.top;
+  const sx    = e.clientX - rect.left;
+  const sy    = e.clientY - rect.top;
   const delta = e.deltaY > 0 ? 0.85 : 1.15;
-  const newScale = Math.max(0.1, Math.min(8, view.scale * delta));
-
-  // Zoom toward mouse position
-  view.offsetX = cx - (cx - view.offsetX) * (newScale / view.scale);
-  view.offsetY = cy - (cy - view.offsetY) * (newScale / view.scale);
+  const newScale = Math.max(0.02, Math.min(8, view.scale * delta));
+  view.offsetX = sx - (sx - view.offsetX) * (newScale / view.scale);
+  view.offsetY = sy - (sy - view.offsetY) * (newScale / view.scale);
   view.scale   = newScale;
   draw();
 }, { passive: false });
@@ -1014,33 +1402,42 @@ canvas.addEventListener('wheel', e => {
 // Keyboard
 // ============================================================
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    if (interaction.drawingFrom) {
-      interaction.drawingFrom = null;
-      setStatus('');
-      draw();
-    } else {
-      selectConnection(-1);
-      draw();
-    }
-  }
+  if (e.key === 'f' || e.key === 'F') { fitView(); draw(); }
   if ((e.key === 'Delete' || e.key === 'Backspace') &&
       document.activeElement === document.body) {
-    deleteSelectedConnection();
-  }
-  if (e.key === 'f' || e.key === 'F') {
-    fitView();
-    draw();
+    if (selectedConnIdx >= 0 && selectedConnIdx < state.connections.length) {
+      state.connections.splice(selectedConnIdx, 1);
+      selectedConnIdx = -1;
+      updateSidebar();
+      draw();
+    }
   }
 });
 
 // ============================================================
-// Initial hint
+// Utilities
 // ============================================================
-setStatus('Load a connections.json file to get started.');
+function roundRect(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
 
-// Show hint in status
-statusHint.textContent = 'Load a connections.json file to get started.';
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 </script>
 </body>
 </html>

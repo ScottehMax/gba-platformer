@@ -45,6 +45,7 @@ static int lastScrollToTileX0 = 0;
 static int lastScrollToTileY0 = 0;
 static int lastScrollBgOriginX = 0;
 static int lastScrollBgOriginY = 0;
+static int lastScrollCanReuseTilemapOnCommit = 0;
 static int bgTileOriginX = 0;
 static int bgTileOriginY = 0;
 
@@ -87,6 +88,53 @@ static void prefillScrollSeam(volatile u16* bgMap, u8 layerIdx,
                 int mapX = cameraTileX + tx;
                 int virtualX = mapX - scrollBgOriginX;
                 bgMap[my * 32 + (mapX & 31)] = getScrollTileEntry(layerIdx, virtualX, virtualY);
+            }
+        }
+    }
+}
+
+static void prefillScrollIncomingOverlap(const Level* currentLevel,
+                                         const ScrollTransInfo* scrollInfo,
+                                         int scrollBgOriginX, int scrollBgOriginY,
+                                         int cameraTileX, int cameraTileY) {
+    int incomingX0 = scrollBgOriginX + scrollInfo->toTileX0;
+    int incomingY0 = scrollBgOriginY + scrollInfo->toTileY0;
+    int incomingX1 = incomingX0 + scrollInfo->toLevel->width - 1;
+    int incomingY1 = incomingY0 + scrollInfo->toLevel->height - 1;
+
+    int windowX0 = cameraTileX;
+    int windowY0 = cameraTileY;
+    int windowX1 = cameraTileX + 31;
+    int windowY1 = cameraTileY + 31;
+
+    int startX = incomingX0 > windowX0 ? incomingX0 : windowX0;
+    int startY = incomingY0 > windowY0 ? incomingY0 : windowY0;
+    int endX = incomingX1 < windowX1 ? incomingX1 : windowX1;
+    int endY = incomingY1 < windowY1 ? incomingY1 : windowY1;
+
+    if (startX > endX || startY > endY) {
+        return;
+    }
+
+    const u8 MAX_BG_LAYERS = 2;
+    for (u8 layerIdx = 0; layerIdx < MAX_BG_LAYERS; layerIdx++) {
+        u8 bgLayer, screenBase;
+        if (layerIdx < currentLevel->layerCount) {
+            bgLayer = currentLevel->layers[layerIdx].bgLayer;
+        } else if (layerIdx < scrollInfo->toLevel->layerCount) {
+            bgLayer = scrollInfo->toLevel->layers[layerIdx].bgLayer;
+        } else {
+            bgLayer = layerIdx;
+        }
+        screenBase = 24 + bgLayer;
+
+        volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
+        for (int mapY = startY; mapY <= endY; mapY++) {
+            int virtualY = mapY - scrollBgOriginY;
+            int rowBase = (mapY & 31) * 32;
+            for (int mapX = startX; mapX <= endX; mapX++) {
+                int virtualX = mapX - scrollBgOriginX;
+                bgMap[rowBase + (mapX & 31)] = getScrollTileEntry(layerIdx, virtualX, virtualY);
             }
         }
     }
@@ -426,6 +474,7 @@ int main() {
                 wasScrolling   = 0;
                 lastScrollBgOriginX = 0;
                 lastScrollBgOriginY = 0;
+                lastScrollCanReuseTilemapOnCommit = 0;
                 bgTileOriginX = 0;
                 bgTileOriginY = 0;
                 continue;
@@ -516,24 +565,32 @@ int main() {
             REG_BG2HOFS = bgCameraX;
             REG_BG2VOFS = bgCameraY;
 
-            // On the trigger frame (scrollJustStarted) camera.x/y are still in the
-            // from-level's physical coordinate space. Use the transition system's
-            // virtual start camera plus a scroll-specific ring origin so the existing
-            // 32x32 ring buffer stays valid without a full redraw.
-            if (scrollJustEnded) {
-                oldCameraTileX = floorDiv8(bgCameraX);
-                oldCameraTileY = floorDiv8(bgCameraY);
-            }
             if (scrollInfo.active) {
                 lastScrollToTileX0 = scrollInfo.toTileX0;
                 lastScrollToTileY0 = scrollInfo.toTileY0;
                 lastScrollBgOriginX = scrollBgOriginX;
                 lastScrollBgOriginY = scrollBgOriginY;
+                lastScrollCanReuseTilemapOnCommit = scrollInfo.canReuseTilemapOnCommit;
             }
             wasScrolling = scrollInfo.active;
 
             int cameraTileX = floorDiv8(bgCameraX);
             int cameraTileY = floorDiv8(bgCameraY);
+
+            if (scrollJustStarted) {
+                prefillScrollIncomingOverlap(currentLevel, &scrollInfo,
+                                             scrollBgOriginX, scrollBgOriginY,
+                                             cameraTileX, cameraTileY);
+            } else if (scrollJustEnded) {
+                if (lastScrollCanReuseTilemapOnCommit) {
+                    oldCameraTileX = cameraTileX;
+                    oldCameraTileY = cameraTileY;
+                } else {
+                    oldCameraTileX = -1;
+                    oldCameraTileY = -1;
+                }
+                lastScrollCanReuseTilemapOnCommit = 0;
+            }
 
             if (cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
                 int deltaX = cameraTileX - oldCameraTileX;

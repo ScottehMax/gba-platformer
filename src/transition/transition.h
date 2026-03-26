@@ -19,13 +19,18 @@ typedef enum {
     CONN_SIDE_TOP    = 3,
 } ConnectionSide;
 
-// A connection between two level screens
+// A connection between two level screens.
+// When the player exits fromLevel on fromSide at a perpendicular position perpPos,
+// a transition triggers if fromStart <= perpPos < fromEnd.
+// The destination perpendicular position is: perpPos - fromStart + toStart.
 typedef struct {
     u8 fromLevelIdx;
     u8 toLevelIdx;
     ConnectionSide fromSide;
     ConnectionSide toSide;
-    s16 posOffset;  // Pixel offset on perpendicular axis: newPos = oldPos + posOffset
+    s16 fromStart;  // Range start on from-side perp axis (local px, inclusive)
+    s16 fromEnd;    // Range end on from-side perp axis (local px, exclusive)
+    s16 toStart;    // Corresponding start on to-side perp axis (local px)
 } ScreenConnection;
 
 // ---------------------------------------------------------------------------

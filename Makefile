@@ -176,7 +176,7 @@ clean:
 # ---------------------------------------------------------------------------
 DESKTOP_CC = gcc
 DESKTOP_CFLAGS = -DDESKTOP_BUILD -Wall -I. -I$(GENDIR) -I$(SRCDIR) -I$(SRCDIR)/desktop -Itests
-DESKTOP_LEVEL_SRCS = $(SRCDIR)/level/level.c $(SRCDIR)/transition/transition.c $(GENDIR)/grassy_stone.c $(GENDIR)/plants.c $(GENDIR)/decals.c
+DESKTOP_LEVEL_SRCS = $(SRCDIR)/level/level.c $(SRCDIR)/camera/camera.c $(SRCDIR)/transition/transition.c $(SRCDIR)/collision/collision.c $(GENDIR)/grassy_stone.c $(GENDIR)/plants.c $(GENDIR)/decals.c
 DESKTOP_TEST_SRCS  = tests/test_buffer_swap.c
 
 test-buffers: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS)

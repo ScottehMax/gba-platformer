@@ -5,6 +5,14 @@ Usage: compile_connections.py <connections.json> <levels_dir> <output_connection
 
 Scans levels_dir for *.tmx files, reads their dimensions and names,
 then generates a C header with level indices and connection data.
+
+Connection format in connections.json:
+  "levels": { "stem": { "worldX": int, "worldY": int } }
+  "connections": [ { "a": "stemA", "b": "stemB" } ]
+
+The shared edge and valid range are derived from the world positions.
+fromStart/fromEnd define the valid perpendicular exit range (local px).
+newPerpPos = perpPos - fromStart + toStart
 """
 
 import sys
@@ -12,6 +20,8 @@ import os
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+SNAP_TOLERANCE = 2  # pixels — how close edges must be to count as adjacent
 
 
 def sanitize_identifier(name: str) -> str:
@@ -22,18 +32,11 @@ def sanitize_identifier(name: str) -> str:
     return result or 'unnamed'
 
 
-SIDE_MAP = {
-    'right':  ('CONN_SIDE_RIGHT',  0),
-    'left':   ('CONN_SIDE_LEFT',   1),
-    'bottom': ('CONN_SIDE_BOTTOM', 2),
-    'top':    ('CONN_SIDE_TOP',    3),
-}
-
-OPPOSITE_SIDE = {
-    'right':  'left',
-    'left':   'right',
-    'bottom': 'top',
-    'top':    'bottom',
+SIDE_C_NAME = {
+    'right':  'CONN_SIDE_RIGHT',
+    'left':   'CONN_SIDE_LEFT',
+    'bottom': 'CONN_SIDE_BOTTOM',
+    'top':    'CONN_SIDE_TOP',
 }
 
 
@@ -49,7 +52,6 @@ def parse_tmx(tmx_path: Path):
     width  = int(root.get('width',  0))
     height = int(root.get('height', 0))
 
-    # Extract display name from <properties>
     display_name = tmx_path.stem  # fallback
     props = root.find('properties')
     if props is not None:
@@ -59,6 +61,117 @@ def parse_tmx(tmx_path: Path):
                 break
 
     return display_name, width, height
+
+
+def derive_connection(a_stem, b_stem, meta, world_pos):
+    """
+    Given two level stems and their metadata + world positions, determine
+    which side they share and compute the overlap range.
+
+    Returns a list of two dicts (A→B and B→A), each with:
+      { from_stem, to_stem, from_side, to_side, from_start, from_end, to_start }
+    Returns None if the levels are not adjacent on any side.
+    """
+    if a_stem not in meta or b_stem not in meta:
+        return None
+    if a_stem not in world_pos or b_stem not in world_pos:
+        return None
+
+    ax = world_pos[a_stem]['worldX']
+    ay = world_pos[a_stem]['worldY']
+    aw = meta[a_stem]['widthPx']
+    ah = meta[a_stem]['heightPx']
+
+    bx = world_pos[b_stem]['worldX']
+    by = world_pos[b_stem]['worldY']
+    bw = meta[b_stem]['widthPx']
+    bh = meta[b_stem]['heightPx']
+
+    entries = []
+
+    # Check A-right / B-left
+    if abs((ax + aw) - bx) <= SNAP_TOLERANCE:
+        # Perpendicular axis: Y
+        overlap_start = max(ay, by)
+        overlap_end   = min(ay + ah, by + bh)
+        if overlap_end > overlap_start:
+            from_start = overlap_start - ay
+            to_start   = overlap_start - by
+            from_end   = overlap_end   - ay
+            entries.append({
+                'from_stem': a_stem, 'to_stem': b_stem,
+                'from_side': 'right', 'to_side': 'left',
+                'from_start': from_start, 'from_end': from_end, 'to_start': to_start,
+            })
+            entries.append({
+                'from_stem': b_stem, 'to_stem': a_stem,
+                'from_side': 'left', 'to_side': 'right',
+                'from_start': to_start, 'from_end': to_start + (from_end - from_start), 'to_start': from_start,
+            })
+            return entries
+
+    # Check B-right / A-left
+    if abs((bx + bw) - ax) <= SNAP_TOLERANCE:
+        overlap_start = max(ay, by)
+        overlap_end   = min(ay + ah, by + bh)
+        if overlap_end > overlap_start:
+            from_start = overlap_start - by
+            to_start   = overlap_start - ay
+            from_end   = overlap_end   - by
+            entries.append({
+                'from_stem': b_stem, 'to_stem': a_stem,
+                'from_side': 'right', 'to_side': 'left',
+                'from_start': from_start, 'from_end': from_end, 'to_start': to_start,
+            })
+            entries.append({
+                'from_stem': a_stem, 'to_stem': b_stem,
+                'from_side': 'left', 'to_side': 'right',
+                'from_start': to_start, 'from_end': to_start + (from_end - from_start), 'to_start': from_start,
+            })
+            return entries
+
+    # Check A-bottom / B-top
+    if abs((ay + ah) - by) <= SNAP_TOLERANCE:
+        # Perpendicular axis: X
+        overlap_start = max(ax, bx)
+        overlap_end   = min(ax + aw, bx + bw)
+        if overlap_end > overlap_start:
+            from_start = overlap_start - ax
+            to_start   = overlap_start - bx
+            from_end   = overlap_end   - ax
+            entries.append({
+                'from_stem': a_stem, 'to_stem': b_stem,
+                'from_side': 'bottom', 'to_side': 'top',
+                'from_start': from_start, 'from_end': from_end, 'to_start': to_start,
+            })
+            entries.append({
+                'from_stem': b_stem, 'to_stem': a_stem,
+                'from_side': 'top', 'to_side': 'bottom',
+                'from_start': to_start, 'from_end': to_start + (from_end - from_start), 'to_start': from_start,
+            })
+            return entries
+
+    # Check B-bottom / A-top
+    if abs((by + bh) - ay) <= SNAP_TOLERANCE:
+        overlap_start = max(ax, bx)
+        overlap_end   = min(ax + aw, bx + bw)
+        if overlap_end > overlap_start:
+            from_start = overlap_start - bx
+            to_start   = overlap_start - ax
+            from_end   = overlap_end   - bx
+            entries.append({
+                'from_stem': b_stem, 'to_stem': a_stem,
+                'from_side': 'bottom', 'to_side': 'top',
+                'from_start': from_start, 'from_end': from_end, 'to_start': to_start,
+            })
+            entries.append({
+                'from_stem': a_stem, 'to_stem': b_stem,
+                'from_side': 'top', 'to_side': 'bottom',
+                'from_start': to_start, 'from_end': to_start + (from_end - from_start), 'to_start': from_start,
+            })
+            return entries
+
+    return None
 
 
 def main():
@@ -114,18 +227,70 @@ def main():
     print(f"Updated metadata in {conn_json_path}")
 
     # -------------------------------------------------------------------------
-    # 4. Build level index lookup
+    # 4. Build level index lookup and metadata dict
     # -------------------------------------------------------------------------
-    # stem -> index in sorted list
     stem_to_idx = {stem: i for i, (stem, _, _, _) in enumerate(level_info)}
+    meta = {stem: {'widthPx': w * 8, 'heightPx': h * 8}
+            for stem, _, w, h in level_info}
 
     # -------------------------------------------------------------------------
-    # 5. Parse connections array
+    # 5. Parse world positions and connections
     # -------------------------------------------------------------------------
+    world_pos = conn_data.get('levels', {})
     connections = conn_data.get('connections', [])
 
     # -------------------------------------------------------------------------
-    # 6. Generate connections.h
+    # 6. Derive connection entries from world positions
+    # -------------------------------------------------------------------------
+    conn_entries = []
+    errors = 0
+    for conn in connections:
+        a_stem = conn.get('a', '')
+        b_stem = conn.get('b', '')
+
+        ok = True
+        if a_stem not in stem_to_idx:
+            print(f"ERROR: Connection references unknown level {a_stem!r}", file=sys.stderr)
+            ok = False
+        if b_stem not in stem_to_idx:
+            print(f"ERROR: Connection references unknown level {b_stem!r}", file=sys.stderr)
+            ok = False
+        if a_stem not in world_pos:
+            print(f"ERROR: Level {a_stem!r} has no world position in 'levels'", file=sys.stderr)
+            ok = False
+        if b_stem not in world_pos:
+            print(f"ERROR: Level {b_stem!r} has no world position in 'levels'", file=sys.stderr)
+            ok = False
+        if not ok:
+            errors += 1
+            continue
+
+        derived = derive_connection(a_stem, b_stem, meta, world_pos)
+        if derived is None:
+            print(f"ERROR: Levels {a_stem!r} and {b_stem!r} are not adjacent "
+                  f"(no shared edge within {SNAP_TOLERANCE}px tolerance). "
+                  f"Check their worldX/worldY positions.", file=sys.stderr)
+            errors += 1
+            continue
+
+        for e in derived:
+            from_idx = stem_to_idx[e['from_stem']]
+            to_idx   = stem_to_idx[e['to_stem']]
+            fs = SIDE_C_NAME[e['from_side']]
+            ts = SIDE_C_NAME[e['to_side']]
+            conn_entries.append(
+                f'    {{ {from_idx}, {to_idx}, {fs}, {ts}, '
+                f'{e["from_start"]}, {e["from_end"]}, {e["to_start"]} }},'
+            )
+            print(f"  {e['from_stem']} ({e['from_side']}) -> {e['to_stem']} ({e['to_side']})  "
+                  f"range [{e['from_start']}, {e['from_end']}) -> [{e['to_start']}, "
+                  f"{e['to_start'] + e['from_end'] - e['from_start']})")
+
+    if errors:
+        print(f"WARNING: {errors} connection(s) skipped due to errors.", file=sys.stderr)
+
+    # -------------------------------------------------------------------------
+    # 7. Generate connections.h
     # -------------------------------------------------------------------------
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -139,31 +304,26 @@ def main():
     lines.append('#include <tonc.h>')
     lines.append('#endif')
     lines.append('')
-    # ConnectionSide, ScreenConnection defined in transition.h - include it for those types
     lines.append('#include "transition/transition.h"')
     lines.append('#include "level/level.h"')
     lines.append('')
 
-    # Individual level headers
     for stem, display_name, w, h in level_info:
         lines.append(f'#include "{stem}.h"')
     lines.append('')
 
-    # Level index constants
     for i, (stem, display_name, w, h) in enumerate(level_info):
         lines.append(f'#define LEVEL_IDX_{stem} {i}')
     lines.append(f'#define LEVEL_COUNT {len(level_info)}')
     lines.append('')
 
-    # g_levels array
     lines.append('static const Level* g_levels[LEVEL_COUNT] = {')
     for stem, display_name, w, h in level_info:
-        c_var = sanitize_identifier(stem)  # use filename stem - guaranteed unique
+        c_var = sanitize_identifier(stem)
         lines.append(f'    &{c_var},')
     lines.append('};')
     lines.append('')
 
-    # g_levelNames array - used by menu.c; suppress unused warning in other TUs
     lines.append('static const char* g_levelNames[LEVEL_COUNT]')
     lines.append('    __attribute__((unused)) = {')
     for stem, display_name, w, h in level_info:
@@ -172,55 +332,6 @@ def main():
     lines.append('};')
     lines.append('')
 
-    # Build connection entries (both directions)
-    conn_entries = []
-    errors = 0
-    for conn in connections:
-        from_obj  = conn.get('from', {})
-        to_obj    = conn.get('to',   {})
-        offset    = conn.get('offset', 0)
-
-        from_stem = from_obj.get('level', '')
-        to_stem   = to_obj.get('level',   '')
-        from_side_str = from_obj.get('side', '').lower()
-        to_side_str   = to_obj.get('side',   '').lower()
-
-        # Validate
-        ok = True
-        if from_stem not in stem_to_idx:
-            print(f"ERROR: Connection references unknown level {from_stem!r}", file=sys.stderr)
-            ok = False
-        if to_stem not in stem_to_idx:
-            print(f"ERROR: Connection references unknown level {to_stem!r}", file=sys.stderr)
-            ok = False
-        if from_side_str not in SIDE_MAP:
-            print(f"ERROR: Unknown side {from_side_str!r}", file=sys.stderr)
-            ok = False
-        if to_side_str not in SIDE_MAP:
-            print(f"ERROR: Unknown side {to_side_str!r}", file=sys.stderr)
-            ok = False
-        if not ok:
-            errors += 1
-            continue
-
-        from_idx = stem_to_idx[from_stem]
-        to_idx   = stem_to_idx[to_stem]
-        from_side_name, _ = SIDE_MAP[from_side_str]
-        to_side_name,   _ = SIDE_MAP[to_side_str]
-
-        # from -> to
-        conn_entries.append(
-            f'    {{ {from_idx}, {to_idx}, {from_side_name}, {to_side_name}, {offset} }},'
-        )
-        # to -> from (reversed, negated offset)
-        conn_entries.append(
-            f'    {{ {to_idx}, {from_idx}, {to_side_name}, {from_side_name}, {-offset} }},'
-        )
-
-    if errors:
-        print(f"WARNING: {errors} connection(s) skipped due to errors.", file=sys.stderr)
-
-    # g_connections array
     lines.append('static const ScreenConnection g_connections[] = {')
     if conn_entries:
         lines.extend(conn_entries)

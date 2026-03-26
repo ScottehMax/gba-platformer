@@ -6,8 +6,11 @@
 
 // Desktop tonc stub must come first
 #include "desktop/desktop_stubs.h"
+#include "camera/camera.h"
+#include "celeste1.h"
 #include "collision/collision.h"
 #include "level/level.h"
+#include "level4.h"
 #include "player/state.h"
 #include "smb11.h"  // level3.h pulled in by level.h; smb11.h is not, add explicitly
 #include "transition/transition.h"
@@ -56,20 +59,104 @@ static int run_transition_to_completion(Player* player, Camera* camera, int maxF
     return frames;
 }
 
+static int run_transition_collect_screen_y(Camera* camera, Player* player, int maxFrames, int fixedShift,
+                                           int* minScreenY, int* maxScreenY,
+                                           int* minCameraY, int* maxCameraY,
+                                           int* lastScrollScreenY, int* lastScrollCameraY) {
+    int frames = 0;
+    int screenMin = 1000000, screenMax = -1000000;
+    int cameraMin = 1000000, cameraMax = -1000000;
+    int lastScreen = 0, lastCamera = 0;
+    while (isTransitioning() && frames < maxFrames) {
+        updateTransition(player, camera);
+        frames++;
+        ScrollTransInfo info;
+        getScrollTransInfo(&info);
+        if (info.active) {
+            int screenY = (player->y >> fixedShift) - camera->y;
+            if (screenY < screenMin) screenMin = screenY;
+            if (screenY > screenMax) screenMax = screenY;
+            if (camera->y < cameraMin) cameraMin = camera->y;
+            if (camera->y > cameraMax) cameraMax = camera->y;
+            lastScreen = screenY;
+            lastCamera = camera->y;
+        }
+    }
+    if (screenMin == 1000000) {
+        screenMin = screenMax = (player->y >> fixedShift) - camera->y;
+        cameraMin = cameraMax = camera->y;
+        lastScreen = screenMin;
+        lastCamera = cameraMin;
+    }
+    if (minScreenY) *minScreenY = screenMin;
+    if (maxScreenY) *maxScreenY = screenMax;
+    if (minCameraY) *minCameraY = cameraMin;
+    if (maxCameraY) *maxCameraY = cameraMax;
+    if (lastScrollScreenY) *lastScrollScreenY = lastScreen;
+    if (lastScrollCameraY) *lastScrollCameraY = lastCamera;
+    return frames;
+}
+
+static int run_transition_collect_screen_x(Camera* camera, Player* player, int maxFrames, int fixedShift,
+                                           int* minScreenX, int* maxScreenX,
+                                           int* minCameraX, int* maxCameraX,
+                                           int* lastScrollScreenX, int* lastScrollCameraX) {
+    int frames = 0;
+    int screenMin = 1000000, screenMax = -1000000;
+    int cameraMin = 1000000, cameraMax = -1000000;
+    int lastScreen = 0, lastCamera = 0;
+    while (isTransitioning() && frames < maxFrames) {
+        updateTransition(player, camera);
+        frames++;
+        ScrollTransInfo info;
+        getScrollTransInfo(&info);
+        if (info.active) {
+            int screenX = (player->x >> fixedShift) - camera->x;
+            if (screenX < screenMin) screenMin = screenX;
+            if (screenX > screenMax) screenMax = screenX;
+            if (camera->x < cameraMin) cameraMin = camera->x;
+            if (camera->x > cameraMax) cameraMax = camera->x;
+            lastScreen = screenX;
+            lastCamera = camera->x;
+        }
+    }
+    if (screenMin == 1000000) {
+        screenMin = screenMax = (player->x >> fixedShift) - camera->x;
+        cameraMin = cameraMax = camera->x;
+        lastScreen = screenMin;
+        lastCamera = cameraMin;
+    }
+    if (minScreenX) *minScreenX = screenMin;
+    if (maxScreenX) *maxScreenX = screenMax;
+    if (minCameraX) *minCameraX = cameraMin;
+    if (maxCameraX) *maxCameraX = cameraMax;
+    if (lastScrollScreenX) *lastScrollScreenX = lastScreen;
+    if (lastScrollCameraX) *lastScrollCameraX = lastCamera;
+    return frames;
+}
+
 enum {
+    TEST_LEVEL_IDX_CELESTE1 = 0,
     TEST_LEVEL_IDX_LEVEL3 = 3,
     TEST_LEVEL_IDX_LEVEL4 = 4,
     TEST_LEVEL_IDX_SMB11 = 5,
 };
 
+static void assert_camera_stable_after_commit(Camera* camera, Player* player,
+                                              const Level* level, const char* message) {
+    Camera nextCamera = *camera;
+    updateCamera(&nextCamera, player, level);
+    ASSERT(nextCamera.x == camera->x && nextCamera.y == camera->y, message);
+}
+
 static const ScreenConnection kHorizontalOffsetConnections[] = {
-    { TEST_LEVEL_IDX_LEVEL3, TEST_LEVEL_IDX_SMB11, CONN_SIDE_RIGHT,  CONN_SIDE_LEFT,  21 },
-    { TEST_LEVEL_IDX_SMB11,  TEST_LEVEL_IDX_LEVEL3, CONN_SIDE_LEFT,   CONN_SIDE_RIGHT, -21 },
+    { TEST_LEVEL_IDX_LEVEL3, TEST_LEVEL_IDX_SMB11, CONN_SIDE_RIGHT,  CONN_SIDE_LEFT,  0, 200, 21 },
+    { TEST_LEVEL_IDX_SMB11,  TEST_LEVEL_IDX_LEVEL3, CONN_SIDE_LEFT,   CONN_SIDE_RIGHT, 21, 221, 0 },
 };
 
 static const ScreenConnection kVerticalOffsetConnections[] = {
-    { TEST_LEVEL_IDX_LEVEL3, TEST_LEVEL_IDX_LEVEL4, CONN_SIDE_BOTTOM, CONN_SIDE_TOP,    16 },
-    { TEST_LEVEL_IDX_LEVEL4, TEST_LEVEL_IDX_LEVEL3, CONN_SIDE_TOP,    CONN_SIDE_BOTTOM, -16 },
+    { TEST_LEVEL_IDX_LEVEL3, TEST_LEVEL_IDX_LEVEL4, CONN_SIDE_BOTTOM, CONN_SIDE_TOP,    0, 240, 16 },
+    { TEST_LEVEL_IDX_LEVEL4, TEST_LEVEL_IDX_LEVEL3, CONN_SIDE_TOP,    CONN_SIDE_BOTTOM, 16, 256, 0 },
 };
 
 static const Level kFadeFromLevel = {
@@ -114,8 +201,8 @@ static const Level* const kFadeLevelTable[] = {
 };
 
 static const ScreenConnection kFadeOffsetConnections[] = {
-    { 0, 1, CONN_SIDE_RIGHT, CONN_SIDE_LEFT, 13 },
-    { 1, 0, CONN_SIDE_LEFT,  CONN_SIDE_RIGHT, -13 },
+    { 0, 1, CONN_SIDE_RIGHT, CONN_SIDE_LEFT, 0, 240, 13 },
+    { 1, 0, CONN_SIDE_LEFT,  CONN_SIDE_RIGHT, 13, 253, 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -348,11 +435,13 @@ static void test_decoration_layer_valid_after_load(void) {
 static void test_destination_only_layer_visible_during_scroll(void) {
     printf("\n[Test 5] Destination-only BG1 visible during reverse scroll\n");
 
+    enum { PERP_POS = 140 };
+
     loadLevelToVRAM(&smb11);
     initTransition();
-    setTransitionLevelContext(5, 0, 0, 8 << 8, 120 << 8);
+    setTransitionLevelContext(5, 0, 0, 8 << 8, PERP_POS << 8);
 
-    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120, NULL),
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, NULL),
            "Reverse transition smb11->level3 triggered");
 
     ScrollTransInfo info;
@@ -409,16 +498,16 @@ static void test_destination_only_layer_visible_during_scroll(void) {
 static void test_scroll_handoff_extra_frame(void) {
     printf("\n[Test 6] Scroll handoff uses separate commit frame\n");
 
-    enum { TEST_FIXED_SHIFT = 8 };
+    enum { TEST_FIXED_SHIFT = 8, PERP_POS = 140 };
 
     Player player = {0};
     Camera camera = {0};
 
     loadLevelToVRAM(&smb11);
     initTransition();
-    setTransitionLevelContext(5, 0, 0, 8 << TEST_FIXED_SHIFT, 120 << TEST_FIXED_SHIFT);
+    setTransitionLevelContext(5, 0, 0, 8 << TEST_FIXED_SHIFT, PERP_POS << TEST_FIXED_SHIFT);
 
-    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, 120, &player),
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_LEFT, PERP_POS, &player),
            "Reverse transition smb11->level3 triggered");
 
     int frames = 0;
@@ -572,20 +661,30 @@ static void test_horizontal_connection_offset(void) {
     ScrollTransInfo info;
     getScrollTransInfo(&info);
     ASSERT(info.active, "Horizontal offset uses scroll transition");
-    ASSERT(info.toTileY0 == -2, "Horizontal scroll layout shifts destination by 2 tiles");
+    ASSERT(info.toTileY0 == -3, "Horizontal scroll layout quantizes destination by 3 tiles");
     ASSERT(info.seamPrefillAxis == 1, "Horizontal rightward scroll requests seam column prefill");
-    ASSERT(info.canReuseTilemapOnCommit, "Horizontal tilemap can be reused on commit for non-tile-aligned offset");
+    ASSERT(info.canReuseTilemapOnCommit, "Horizontal non-tile-aligned offset keeps the scrolled tilemap aligned");
 
-    updateTransition(&player, &camera);
-    ASSERT(camera.y == START_CAMERA_Y, "Horizontal scroll stays on a single axis until commit");
+    int minScreenY, maxScreenY, minCameraY, maxCameraY, lastScrollScreenY, lastScrollCameraY;
+    int frames = run_transition_collect_screen_y(&camera, &player, 91, TEST_FIXED_SHIFT,
+                                                 &minScreenY, &maxScreenY,
+                                                 &minCameraY, &maxCameraY,
+                                                 &lastScrollScreenY, &lastScrollCameraY);
 
-    int frames = 1 + run_transition_to_completion(&player, &camera, 90);
     ASSERT(!isTransitioning(), "Horizontal offset transition completed");
     ASSERT(frames > 0 && frames <= 91, "Horizontal offset transition finished within frame budget");
+    ASSERT((maxCameraY - minCameraY) <= 3,
+           "Horizontal offset only nudges the combined camera by the tile-quantization residual");
+    ASSERT((maxScreenY - minScreenY) == 0,
+           "Horizontal offset keeps player screen Y fixed during the scroll");
     ASSERT(camera.y == START_CAMERA_Y + OFFSET, "Horizontal offset shifts destination camera Y");
     ASSERT((player.y >> TEST_FIXED_SHIFT) == PERP_POS + OFFSET, "Horizontal offset shifts destination player Y");
     ASSERT(((player.y >> TEST_FIXED_SHIFT) - camera.y) == (PERP_POS - START_CAMERA_Y),
            "Horizontal offset preserves player screen Y");
+    ASSERT(lastScrollScreenY == ((player.y >> TEST_FIXED_SHIFT) - camera.y),
+           "Horizontal scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraY == camera.y + ((info.toTileY0 - info.fromTileY0) * 8),
+           "Horizontal scroll ends on the committed destination camera view");
 
     clearTransitionTestOverrides();
 }
@@ -598,7 +697,7 @@ static void test_vertical_connection_offset(void) {
 
     enum {
         TEST_FIXED_SHIFT = 8,
-        START_CAMERA_X = 120,
+        START_CAMERA_X = 70,
         PERP_POS = 150,
         OFFSET = 16,
     };
@@ -626,17 +725,29 @@ static void test_vertical_connection_offset(void) {
     ASSERT(info.seamPrefillAxis == 2, "Vertical downward scroll requests seam row prefill");
     ASSERT(info.canReuseTilemapOnCommit, "Vertical tilemap can be reused on commit for tile-aligned offset");
 
-    updateTransition(&player, &camera);
-    ASSERT(camera.x == START_CAMERA_X, "Vertical scroll stays on a single axis until commit");
+    int minScreenX, maxScreenX, minCameraX, maxCameraX, lastScrollScreenX, lastScrollCameraX;
+    int frames = run_transition_collect_screen_x(&camera, &player, 81, TEST_FIXED_SHIFT,
+                                                 &minScreenX, &maxScreenX,
+                                                 &minCameraX, &maxCameraX,
+                                                 &lastScrollScreenX, &lastScrollCameraX);
 
-    int frames = 1 + run_transition_to_completion(&player, &camera, 80);
     ASSERT(!isTransitioning(), "Vertical offset transition completed");
     ASSERT(frames > 0 && frames <= 81, "Vertical offset transition finished within frame budget");
+    ASSERT(minCameraX == START_CAMERA_X && maxCameraX == START_CAMERA_X,
+           "Vertical scroll keeps camera X fixed during the scroll");
+    ASSERT((maxScreenX - minScreenX) == 0,
+           "Tile-aligned vertical offset keeps player screen X fixed during scroll");
     ASSERT(camera.x == START_CAMERA_X + OFFSET, "Vertical offset shifts destination camera X");
     ASSERT((player.x >> TEST_FIXED_SHIFT) == PERP_POS + OFFSET, "Vertical offset shifts destination player X");
     ASSERT(((player.x >> TEST_FIXED_SHIFT) - camera.x) == (PERP_POS - START_CAMERA_X),
            "Vertical offset preserves player screen X");
     ASSERT(camera.y == 0, "Vertical offset keeps top-entry camera Y");
+    ASSERT(lastScrollScreenX == ((player.x >> TEST_FIXED_SHIFT) - camera.x),
+           "Vertical scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraX == camera.x + ((info.toTileX0 - info.fromTileX0) * 8),
+           "Vertical scroll ends on the committed destination camera view");
+    assert_camera_stable_after_commit(&camera, &player, &level4,
+                                      "Vertical offset lands on the first gameplay camera");
 
     clearTransitionTestOverrides();
 }
@@ -718,20 +829,189 @@ static void test_reverse_horizontal_offset_commit_reuse(void) {
     ASSERT(info.active, "Reverse horizontal offset uses scroll transition");
     ASSERT(info.toTileY0 == 3, "Reverse horizontal scroll layout shifts destination by 3 tiles");
     ASSERT(info.seamPrefillAxis == 1, "Reverse horizontal scroll requests seam column prefill");
-    ASSERT(info.canReuseTilemapOnCommit, "Reverse horizontal tilemap can be reused on commit");
+    ASSERT(info.canReuseTilemapOnCommit, "Reverse horizontal non-tile offset still reuses the tilemap on commit");
 
-    updateTransition(&player, &camera);
-    ASSERT(camera.y == START_CAMERA_Y, "Reverse horizontal scroll stays on a single axis until commit");
+    int minScreenY, maxScreenY, minCameraY, maxCameraY, lastScrollScreenY, lastScrollCameraY;
+    int frames = run_transition_collect_screen_y(&camera, &player, 91, TEST_FIXED_SHIFT,
+                                                 &minScreenY, &maxScreenY,
+                                                 &minCameraY, &maxCameraY,
+                                                 &lastScrollScreenY, &lastScrollCameraY);
 
-    int frames = 1 + run_transition_to_completion(&player, &camera, 90);
     ASSERT(!isTransitioning(), "Reverse horizontal offset transition completed");
     ASSERT(frames > 0 && frames <= 91, "Reverse horizontal offset transition finished within frame budget");
+    ASSERT((maxCameraY - minCameraY) <= 3,
+           "Reverse horizontal offset only nudges the combined camera by the tile-quantization residual");
+    ASSERT((maxScreenY - minScreenY) == 0,
+           "Reverse horizontal offset keeps player screen Y fixed during the scroll");
     ASSERT(camera.y == START_CAMERA_Y + OFFSET, "Reverse horizontal offset shifts destination camera Y");
     ASSERT((player.y >> TEST_FIXED_SHIFT) == PERP_POS + OFFSET, "Reverse horizontal offset shifts destination player Y");
     ASSERT(((player.y >> TEST_FIXED_SHIFT) - camera.y) == (PERP_POS - START_CAMERA_Y),
            "Reverse horizontal offset preserves player screen Y");
+    ASSERT(lastScrollScreenY == ((player.y >> TEST_FIXED_SHIFT) - camera.y),
+           "Reverse horizontal scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraY == camera.y + ((info.toTileY0 - info.fromTileY0) * 8),
+           "Reverse horizontal scroll ends on the committed destination camera view");
 
     clearTransitionTestOverrides();
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: real generated level3->smb11 connection scrolls into the committed view
+// ---------------------------------------------------------------------------
+static void test_generated_horizontal_connection_quantization(void) {
+    printf("\n[Test 11] Generated horizontal connection hands off cleanly\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_Y = 40,
+        PERP_POS = 80,
+    };
+
+    Player player = {0};
+    Camera camera = {0};
+
+    player.y = PERP_POS << TEST_FIXED_SHIFT;
+    camera.y = START_CAMERA_Y;
+
+    clearTransitionTestOverrides();
+
+    loadLevelToVRAM(&level3);
+    initTransition();
+    setTransitionLevelContext(TEST_LEVEL_IDX_LEVEL3, 0, START_CAMERA_Y, 0, player.y);
+
+    ASSERT(tryTriggerTransition(&level3, CONN_SIDE_RIGHT, PERP_POS, &player),
+           "Generated level3->smb11 transition triggered");
+
+    ScrollTransInfo info;
+    getScrollTransInfo(&info);
+    ASSERT(info.active, "Generated horizontal connection uses scroll transition");
+    ASSERT(info.toTileY0 == -14, "Generated connection quantizes the destination room to the nearest tile");
+    ASSERT(info.canReuseTilemapOnCommit, "Generated connection keeps the scrolled tilemap aligned");
+
+    int minScreenY, maxScreenY, minCameraY, maxCameraY, lastScrollScreenY, lastScrollCameraY;
+    int frames = run_transition_collect_screen_y(&camera, &player, 120, TEST_FIXED_SHIFT,
+                                                 &minScreenY, &maxScreenY,
+                                                 &minCameraY, &maxCameraY,
+                                                 &lastScrollScreenY, &lastScrollCameraY);
+
+    ASSERT(!isTransitioning(), "Generated horizontal transition completed");
+    ASSERT(frames > 0 && frames <= 120, "Generated horizontal transition finished within frame budget");
+    ASSERT((maxScreenY - minScreenY) > 0,
+           "Generated horizontal clamp case actually exercises the perpendicular handoff");
+    ASSERT(lastScrollScreenY == ((player.y >> TEST_FIXED_SHIFT) - camera.y),
+           "Generated horizontal scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraY == camera.y + ((info.toTileY0 - info.fromTileY0) * 8),
+           "Generated horizontal scroll ends on the committed destination camera view");
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: real generated smb11->celeste1 vertical connection keeps the view aligned
+// ---------------------------------------------------------------------------
+static void test_generated_vertical_connection_handoff(void) {
+    printf("\n[Test 12] Generated vertical connection hands off cleanly\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_X = 240,
+        START_CAMERA_Y = 80,
+        PERP_POS = 320,
+        START_PLAYER_Y = 220,
+    };
+
+    Player player = {0};
+    Camera camera = {0};
+
+    player.x = PERP_POS << TEST_FIXED_SHIFT;
+    player.y = START_PLAYER_Y << TEST_FIXED_SHIFT;
+    camera.x = START_CAMERA_X;
+    camera.y = START_CAMERA_Y;
+
+    clearTransitionTestOverrides();
+
+    loadLevelToVRAM(&smb11);
+    initTransition();
+    setTransitionLevelContext(TEST_LEVEL_IDX_SMB11, START_CAMERA_X, START_CAMERA_Y, player.x, player.y);
+
+    ASSERT(tryTriggerTransition(&smb11, CONN_SIDE_BOTTOM, PERP_POS, &player),
+           "Generated smb11->celeste1 transition triggered");
+
+    ScrollTransInfo info;
+    getScrollTransInfo(&info);
+    ASSERT(info.active, "Generated vertical connection uses scroll transition");
+    ASSERT(info.toTileX0 == 39, "Generated vertical connection preserves the large horizontal room offset");
+    ASSERT(info.canReuseTilemapOnCommit, "Generated vertical connection keeps the scrolled tilemap aligned");
+
+    int minScreenX, maxScreenX, minCameraX, maxCameraX, lastScrollScreenX, lastScrollCameraX;
+    int frames = run_transition_collect_screen_x(&camera, &player, 120, TEST_FIXED_SHIFT,
+                                                 &minScreenX, &maxScreenX,
+                                                 &minCameraX, &maxCameraX,
+                                                 &lastScrollScreenX, &lastScrollCameraX);
+
+    ASSERT(!isTransitioning(), "Generated vertical transition completed");
+    ASSERT(frames > 0 && frames <= 120, "Generated vertical transition finished within frame budget");
+    ASSERT(camera.x == 0, "Generated vertical transition lands on the clamped destination camera X");
+    ASSERT((maxScreenX - minScreenX) > 0,
+           "Generated vertical clamp case exercises the perpendicular camera handoff");
+    ASSERT(lastScrollScreenX == ((player.x >> TEST_FIXED_SHIFT) - camera.x),
+           "Generated vertical scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraX == camera.x + ((info.toTileX0 - info.fromTileX0) * 8),
+           "Generated vertical scroll ends on the committed destination camera view");
+    assert_camera_stable_after_commit(&camera, &player, &celeste1,
+                                      "Generated vertical transition lands on the first gameplay camera");
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: real generated celeste1->smb11 vertical connection settles the camera
+// ---------------------------------------------------------------------------
+static void test_generated_reverse_vertical_camera_stability(void) {
+    printf("\n[Test 13] Generated reverse vertical transition settles camera before commit\n");
+
+    enum {
+        TEST_FIXED_SHIFT = 8,
+        START_CAMERA_X = 0,
+        START_CAMERA_Y = 0,
+        PERP_POS = 72,
+    };
+
+    Player player = {0};
+    Camera camera = {0};
+
+    player.x = PERP_POS << TEST_FIXED_SHIFT;
+    player.y = 0;
+    camera.x = START_CAMERA_X;
+    camera.y = START_CAMERA_Y;
+
+    clearTransitionTestOverrides();
+
+    loadLevelToVRAM(&celeste1);
+    initTransition();
+    setTransitionLevelContext(TEST_LEVEL_IDX_CELESTE1, START_CAMERA_X, START_CAMERA_Y, player.x, player.y);
+
+    ASSERT(tryTriggerTransition(&celeste1, CONN_SIDE_TOP, PERP_POS, &player),
+           "Generated celeste1->smb11 transition triggered");
+
+    ScrollTransInfo info;
+    getScrollTransInfo(&info);
+    ASSERT(info.active, "Generated reverse vertical connection uses scroll transition");
+    ASSERT(info.toTileX0 == -39, "Generated reverse vertical connection keeps the large horizontal offset");
+
+    int minScreenX, maxScreenX, minCameraX, maxCameraX, lastScrollScreenX, lastScrollCameraX;
+    int frames = run_transition_collect_screen_x(&camera, &player, 120, TEST_FIXED_SHIFT,
+                                                 &minScreenX, &maxScreenX,
+                                                 &minCameraX, &maxCameraX,
+                                                 &lastScrollScreenX, &lastScrollCameraX);
+
+    ASSERT(!isTransitioning(), "Generated reverse vertical transition completed");
+    ASSERT(frames > 0 && frames <= 120, "Generated reverse vertical transition finished within frame budget");
+    ASSERT(camera.x == 304, "Generated reverse vertical transition lands on the settled destination camera X");
+    ASSERT((maxScreenX - minScreenX) <= 8,
+           "Generated reverse vertical transition limits player screen X drift to the dead-zone correction");
+    ASSERT(lastScrollScreenX == ((player.x >> TEST_FIXED_SHIFT) - camera.x),
+           "Generated reverse vertical scroll hands off to commit without a screen-space jump");
+    ASSERT(lastScrollCameraX == camera.x + ((info.toTileX0 - info.fromTileX0) * 8),
+           "Generated reverse vertical scroll ends on the committed destination camera view");
+    assert_camera_stable_after_commit(&camera, &player, &smb11,
+                                      "Generated reverse vertical transition lands on the first gameplay camera");
 }
 
 // ---------------------------------------------------------------------------
@@ -753,6 +1033,9 @@ int main(void) {
     test_vertical_connection_offset();
     test_fade_transition_offset();
     test_reverse_horizontal_offset_commit_reuse();
+    test_generated_horizontal_connection_quantization();
+    test_generated_vertical_connection_handoff();
+    test_generated_reverse_vertical_camera_stability();
 
     printf("\n================================\n");
     printf("Results: %d passed, %d failed\n", g_passed, g_failed);

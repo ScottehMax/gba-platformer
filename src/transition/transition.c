@@ -93,6 +93,11 @@ static inline int clamp_val(int v, int lo, int hi) {
     return v < lo ? lo : v > hi ? hi : v;
 }
 
+static int round_div8(int v) {
+    if (v >= 0) return (v + 4) / 8;
+    return -(((-v) + 4) / 8);
+}
+
 static int clampCameraXForLevel(const Level* level, int cameraX) {
     int maxCamX = level->width * 8 - SCREEN_W;
     if (maxCamX < 0) maxCamX = 0;
@@ -262,7 +267,9 @@ int tryTriggerTransition(const Level* level, int side, int perpPos, Player* play
     const ScreenConnection* conn = NULL;
     for (int i = 0; i < connectionCount; i++) {
         if (connections[i].fromLevelIdx == (u8)g_levelIdx &&
-            (int)connections[i].fromSide == side) {
+            (int)connections[i].fromSide == side &&
+            perpPos >= (int)connections[i].fromStart &&
+            perpPos <  (int)connections[i].fromEnd) {
             conn = &connections[i];
             break;
         }
@@ -304,7 +311,9 @@ int tryTriggerTransition(const Level* level, int side, int perpPos, Player* play
 
     int newLevelW = toLevel->width  * 8;
     int newLevelH = toLevel->height * 8;
-    int offset    = conn->posOffset;
+    // Derived offset: how much the destination perp position shifts relative to the source.
+    // newPerpPos = perpPos - fromStart + toStart  ==>  perpPos + offset
+    int offset    = (int)conn->toStart - (int)conn->fromStart;
 
     // Destination camera position (clamped to level B bounds)
     int newCameraX, newCameraY;
@@ -336,8 +345,15 @@ int tryTriggerTransition(const Level* level, int side, int perpPos, Player* play
         default: return 0;
     }
 
-    int scrollTileOffsetX = (g_cameraX >> 3) - (newCameraX >> 3);
-    int scrollTileOffsetY = (g_cameraY >> 3) - (newCameraY >> 3);
+    {
+        Camera settledCamera = { newCameraX, newCameraY };
+        settleCameraToPlayer(&settledCamera,
+                             g_trans.newPlayerX >> FIXED_SHIFT,
+                             g_trans.newPlayerY >> FIXED_SHIFT,
+                             toLevel);
+        newCameraX = settledCamera.x;
+        newCameraY = settledCamera.y;
+    }
 
     g_trans.targetLevelIdx = conn->toLevelIdx;
     g_trans.newCameraX     = newCameraX;
@@ -360,62 +376,68 @@ int tryTriggerTransition(const Level* level, int side, int perpPos, Player* play
         g_trans.fromTileVramOffset = fromTileVramOffset;
         g_trans.tileVramOffset = toTileVramOffset;
 
-        // Virtual layout: levels laid out side-by-side along the scroll axis.
-        // The perpendicular offset is tile-quantized here; the exact pixel
-        // offset is still applied to the committed camera/player positions.
+        // Virtual layout: levels are laid out side-by-side along the scroll axis.
+        // The room origins are quantized to tiles for the BG renderer, but the
+        // virtual camera endpoints still land on the exact destination view so
+        // the last scrolled frame already matches the committed camera.
         int virtualStartX, virtualStartY; // camera start (pixels)
         int virtualEndX,   virtualEndY;   // camera end (pixels)
+        int roomTileOffset;
 
         g_trans.seamPrefillAxis = 0;
         g_trans.canReuseTilemapOnCommit = 0;
 
         switch ((ConnectionSide)conn->fromSide) {
             case CONN_SIDE_RIGHT:  // exits right → B to the right
+                roomTileOffset = round_div8((int)conn->fromStart - (int)conn->toStart);
                 g_trans.fromTileX0 = 0;
                 g_trans.fromTileY0 = 0;
                 g_trans.toTileX0   = fromLevel->width;
-                g_trans.toTileY0   = scrollTileOffsetY;
+                g_trans.toTileY0   = roomTileOffset;
                 g_trans.seamPrefillAxis = 1;
-                virtualStartX = g_cameraX;
-                virtualStartY = g_cameraY;
-                virtualEndX   = fromLevel->width * 8 + newCameraX;
-                virtualEndY   = g_cameraY;
+                virtualStartX = g_cameraX + g_trans.fromTileX0 * 8;
+                virtualStartY = g_cameraY + g_trans.fromTileY0 * 8;
+                virtualEndX   = newCameraX + g_trans.toTileX0 * 8;
+                virtualEndY   = newCameraY + g_trans.toTileY0 * 8;
                 break;
 
             case CONN_SIDE_LEFT:   // exits left → B to the left
+                roomTileOffset = round_div8((int)conn->fromStart - (int)conn->toStart);
                 g_trans.fromTileX0 = toLevel->width;
                 g_trans.fromTileY0 = 0;
                 g_trans.toTileX0   = 0;
-                g_trans.toTileY0   = scrollTileOffsetY;
+                g_trans.toTileY0   = roomTileOffset;
                 g_trans.seamPrefillAxis = 1;
-                virtualStartX = toLevel->width * 8 + g_cameraX;
-                virtualStartY = g_cameraY;
-                virtualEndX   = newCameraX;
-                virtualEndY   = g_cameraY;
+                virtualStartX = g_cameraX + g_trans.fromTileX0 * 8;
+                virtualStartY = g_cameraY + g_trans.fromTileY0 * 8;
+                virtualEndX   = newCameraX + g_trans.toTileX0 * 8;
+                virtualEndY   = newCameraY + g_trans.toTileY0 * 8;
                 break;
 
             case CONN_SIDE_BOTTOM: // exits bottom → B below
+                roomTileOffset = round_div8((int)conn->fromStart - (int)conn->toStart);
                 g_trans.fromTileX0 = 0;
                 g_trans.fromTileY0 = 0;
-                g_trans.toTileX0   = scrollTileOffsetX;
+                g_trans.toTileX0   = roomTileOffset;
                 g_trans.toTileY0   = fromLevel->height;
                 g_trans.seamPrefillAxis = 2;
-                virtualStartX = g_cameraX;
-                virtualStartY = g_cameraY;
-                virtualEndX   = g_cameraX;
-                virtualEndY   = fromLevel->height * 8 + newCameraY;
+                virtualStartX = g_cameraX + g_trans.fromTileX0 * 8;
+                virtualStartY = g_cameraY + g_trans.fromTileY0 * 8;
+                virtualEndX   = newCameraX + g_trans.toTileX0 * 8;
+                virtualEndY   = newCameraY + g_trans.toTileY0 * 8;
                 break;
 
             case CONN_SIDE_TOP:    // exits top → B above
+                roomTileOffset = round_div8((int)conn->fromStart - (int)conn->toStart);
                 g_trans.fromTileX0 = 0;
                 g_trans.fromTileY0 = toLevel->height;
-                g_trans.toTileX0   = scrollTileOffsetX;
+                g_trans.toTileX0   = roomTileOffset;
                 g_trans.toTileY0   = 0;
                 g_trans.seamPrefillAxis = 2;
-                virtualStartX = g_cameraX;
-                virtualStartY = toLevel->height * 8 + g_cameraY;
-                virtualEndX   = g_cameraX;
-                virtualEndY   = newCameraY;
+                virtualStartX = g_cameraX + g_trans.fromTileX0 * 8;
+                virtualStartY = g_cameraY + g_trans.fromTileY0 * 8;
+                virtualEndX   = newCameraX + g_trans.toTileX0 * 8;
+                virtualEndY   = newCameraY + g_trans.toTileY0 * 8;
                 break;
 
             default:
