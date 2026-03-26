@@ -11,11 +11,16 @@ static int menuSelection = 0;       // Currently highlighted level
 static u16 prevKeys = 0;            // Previous frame keys for edge detection
 static int menuInitialized = 0;     // Whether menu text has been drawn
 
-// Fixed slot indices for menu (0-6)
+// Fixed slot indices for menu UI
 #define MENU_SLOT_TITLE 0
 #define MENU_SLOT_LEVEL_START 1
-#define MENU_SLOT_INSTRUCTIONS_1 5
-#define MENU_SLOT_INSTRUCTIONS_2 6
+#define MENU_SLOT_INSTRUCTIONS_1 (MENU_SLOT_LEVEL_START + LEVEL_COUNT)
+#define MENU_SLOT_INSTRUCTIONS_2 (MENU_SLOT_INSTRUCTIONS_1 + 1)
+#define MENU_SLOT_COUNT (MENU_SLOT_INSTRUCTIONS_2 + 1)
+
+#if MENU_SLOT_COUNT > BG_TEXT_MAX_SLOTS
+#error "Menu uses more BG text slots than available"
+#endif
 
 // Current level (set by menu)
 static const Level* currentLevel = NULL;

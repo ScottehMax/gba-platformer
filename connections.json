@@ -37,16 +37,16 @@
       "worldY": 210
     },
     "level1": {
-      "worldX": -1062,
-      "worldY": -549
+      "worldX": 640,
+      "worldY": -350
     },
     "level2": {
-      "worldX": 0,
-      "worldY": -141
+      "worldX": -59,
+      "worldY": -875
     },
     "level3": {
       "worldX": 0,
-      "worldY": 84
+      "worldY": 26
     },
     "level4": {
       "worldX": -500,
@@ -59,15 +59,15 @@
   },
   "connections": [
     {
-      "a": "level2",
-      "b": "smb11"
-    },
-    {
       "a": "level3",
       "b": "smb11"
     },
     {
       "a": "celeste1",
+      "b": "smb11"
+    },
+    {
+      "a": "level1",
       "b": "smb11"
     }
   ]

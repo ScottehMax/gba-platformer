@@ -5,6 +5,8 @@
 #include "tinypixie.h"
 #include "assets/tinypixie_widths.h"
 
+#define BG_TEXT_MAX_SLOTS 18
+
 // Background text functions (BG1-based) - for lots of text
 void init_bg_text();
 void clear_bg_text();

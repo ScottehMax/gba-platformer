@@ -7,10 +7,9 @@
 // Background text tile start (in background char block 1)
 #define BG_TEXT_DYNAMIC_START 1   // Start at tile 1 in char block 1 for dynamic text tiles
 #define TEXT_SLOT_TILES 28        // Number of tiles allocated per text slot
-#define MAX_TEXT_SLOTS 18         // Maximum number of text strings that can be allocated
 
 // Tile slot tracking
-static u8 tile_slot_used[MAX_TEXT_SLOTS] = {0};  // 0 = free, 1 = in use
+static u8 tile_slot_used[BG_TEXT_MAX_SLOTS] = {0};  // 0 = free, 1 = in use
 static int next_free_slot = 0;
 
 // Character widths array definition
@@ -63,7 +62,7 @@ void init_bg_text() {
     clear_bg_text();
 
     // Reset slot tracking
-    for (int i = 0; i < MAX_TEXT_SLOTS; i++) {
+    for (int i = 0; i < BG_TEXT_MAX_SLOTS; i++) {
         tile_slot_used[i] = 0;
     }
     next_free_slot = 0;
@@ -179,7 +178,7 @@ static void draw_bg_text_internal(const char* str, int tile_x, int tile_y, int d
 int draw_bg_text_auto(const char* str, int tile_x, int tile_y) {
     // Find a free slot
     int slot = -1;
-    for (int i = 0; i < MAX_TEXT_SLOTS; i++) {
+    for (int i = 0; i < BG_TEXT_MAX_SLOTS; i++) {
         if (tile_slot_used[i] == 0) {
             slot = i;
             tile_slot_used[i] = 1;
@@ -197,13 +196,13 @@ int draw_bg_text_auto(const char* str, int tile_x, int tile_y) {
 
 // Update text in an existing slot
 void draw_bg_text_slot(const char* str, int tile_x, int tile_y, int slot_id) {
-    if (slot_id < 0 || slot_id >= MAX_TEXT_SLOTS) return;
+    if (slot_id < 0 || slot_id >= BG_TEXT_MAX_SLOTS) return;
     draw_bg_text_internal(str, tile_x, tile_y, slot_id);
 }
 
 // Free a slot for reuse
 void free_bg_text_slot(int slot_id) {
-    if (slot_id >= 0 && slot_id < MAX_TEXT_SLOTS) {
+    if (slot_id >= 0 && slot_id < BG_TEXT_MAX_SLOTS) {
         tile_slot_used[slot_id] = 0;
     }
 }
