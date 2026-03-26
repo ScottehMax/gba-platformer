@@ -140,6 +140,11 @@ static void translatePreservedPlayerState(Player* player, int deltaX, int deltaY
     }
 }
 
+static void restoreTransitionResources(Player* player) {
+    player->dashes = player->maxDashes;
+    player->stamina = CLIMB_MAX_STAMINA;
+}
+
 static void restorePlayerAfterTransition(Player* player, int newPlayerX, int newPlayerY) {
     if (!player) {
         return;
@@ -153,6 +158,7 @@ static void restorePlayerAfterTransition(Player* player, int newPlayerX, int new
         translatePreservedPlayerState(player, deltaX, deltaY);
         player->x = newPlayerX;
         player->y = newPlayerY;
+        restoreTransitionResources(player);
 
         hidePlayerDashTrailPositions(player);
         return;
@@ -162,6 +168,7 @@ static void restorePlayerAfterTransition(Player* player, int newPlayerX, int new
     player->y  = newPlayerY;
     player->vx = g_trans.preservedVx;
     player->vy = g_trans.preservedVy;
+    restoreTransitionResources(player);
 }
 
 #ifdef DESKTOP_BUILD

@@ -223,6 +223,7 @@
 // ============================================================
 // Constants
 // ============================================================
+const TILE_SIZE   = 8;    // world pixels — one tile
 const SNAP_DIST   = 12;   // world pixels — snap-to-edge threshold while dragging
 const EDGE_HIT    = 8;    // world pixels — click-on-edge threshold
 const CONN_COLORS = [
@@ -314,6 +315,17 @@ function w2s(wx, wy) {
 }
 function s2w(sx, sy) {
   return { x: (sx - view.offsetX) / view.scale, y: (sy - view.offsetY) / view.scale };
+}
+
+function snapToTile(value) {
+  return Math.round(value / TILE_SIZE) * TILE_SIZE;
+}
+
+function snapLevelPosition(worldX, worldY) {
+  return {
+    worldX: snapToTile(worldX),
+    worldY: snapToTile(worldY),
+  };
 }
 
 // ============================================================
@@ -837,10 +849,10 @@ function autoLayout() {
   stems.forEach((stem, i) => {
     const col = i % cols, row = Math.floor(i / cols);
     const meta = state.metadata[stem];
-    state.levels[stem] = {
-      worldX: col * (maxW + PAD),
-      worldY: row * ((meta.heightPx || 80) + PAD),
-    };
+    state.levels[stem] = snapLevelPosition(
+      col * (maxW + PAD),
+      row * ((meta.heightPx || 80) + PAD)
+    );
   });
 }
 
@@ -1208,11 +1220,11 @@ function loadJSON(data) {
   let needsAutoLayout = false;
   for (const stem of Object.keys(state.metadata)) {
     const p = lvlPositions[stem];
-    if (p && typeof p.worldX === 'number') {
-      state.levels[stem] = { worldX: p.worldX, worldY: p.worldY };
-    } else if (p && typeof p.x === 'number') {
+    if (p && typeof p.worldX === 'number' && typeof p.worldY === 'number') {
+      state.levels[stem] = snapLevelPosition(p.worldX, p.worldY);
+    } else if (p && typeof p.x === 'number' && typeof p.y === 'number') {
       // Legacy _editorLayout format
-      state.levels[stem] = { worldX: p.x, worldY: p.y };
+      state.levels[stem] = snapLevelPosition(p.x, p.y);
     } else {
       needsAutoLayout = true;
     }
@@ -1244,7 +1256,7 @@ function saveJSON() {
   delete out._editorLayout;
   out.levels = {};
   for (const [stem, pos] of Object.entries(state.levels)) {
-    out.levels[stem] = { worldX: Math.round(pos.worldX), worldY: Math.round(pos.worldY) };
+    out.levels[stem] = snapLevelPosition(pos.worldX, pos.worldY);
   }
   out.connections = state.connections.map(c => ({ a: c.a, b: c.b }));
 
@@ -1342,10 +1354,7 @@ window.addEventListener('mousemove', e => {
     const rawX = drag.startWX + (wm.x - drag.mouseWX);
     const rawY = drag.startWY + (wm.y - drag.mouseWY);
     const snap = computeSnapOffset(drag.stem, rawX, rawY);
-    state.levels[drag.stem] = {
-      worldX: rawX + snap.dx,
-      worldY: rawY + snap.dy,
-    };
+    state.levels[drag.stem] = snapLevelPosition(rawX + snap.dx, rawY + snap.dy);
     const wc = s2w(sx, sy);
     coordDisp.textContent = `${Math.round(wc.x)}, ${Math.round(wc.y)}`;
     draw();

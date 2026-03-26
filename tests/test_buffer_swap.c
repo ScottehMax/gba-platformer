@@ -541,6 +541,7 @@ static void test_scroll_player_handoff_and_trail_cleanup(void) {
         TEST_FIXED_SHIFT = 8,
         START_CAMERA_Y = 40,
         PERP_POS = 120,
+        EXPECTED_STAMINA = 110 << TEST_FIXED_SHIFT,
     };
 
     Player player = {0};
@@ -554,6 +555,9 @@ static void test_scroll_player_handoff_and_trail_cleanup(void) {
     player.stateMachine.state = ST_DASH;
     player.dashing = 5;
     player.dashAttackTimer = 7;
+    player.maxDashes = 2;
+    player.dashes = 0;
+    player.stamina = 13 << TEST_FIXED_SHIFT;
     player.trailTimer = 3;
     player.trailFadeTimer = 0;
     player.trailIndex = 1;
@@ -610,6 +614,10 @@ static void test_scroll_player_handoff_and_trail_cleanup(void) {
            "Transition commit preserves dash attack timer");
     ASSERT(player.stateMachine.state == preservedState,
            "Transition commit preserves the active dash state");
+    ASSERT(player.dashes == player.maxDashes,
+           "Transition commit refills dash charges");
+    ASSERT(player.stamina == EXPECTED_STAMINA,
+           "Transition commit refills stamina");
     ASSERT(player.trailTimer == preservedTrailTimer,
            "Transition commit preserves the remaining trail timer");
     ASSERT(player.trailIndex == preservedTrailIndex,
@@ -792,11 +800,15 @@ static void test_fade_transition_offset(void) {
         START_CAMERA_Y = 28,
         PERP_POS = 84,
         OFFSET = 13,
+        EXPECTED_STAMINA = 110 << TEST_FIXED_SHIFT,
     };
 
     Player player = {0};
     Camera camera = {0};
 
+    player.maxDashes = 2;
+    player.dashes = 0;
+    player.stamina = 9 << TEST_FIXED_SHIFT;
     player.y = PERP_POS << TEST_FIXED_SHIFT;
     camera.y = START_CAMERA_Y;
 
@@ -820,6 +832,10 @@ static void test_fade_transition_offset(void) {
     ASSERT((player.y >> TEST_FIXED_SHIFT) == PERP_POS + OFFSET, "Fade offset shifts destination player Y");
     ASSERT(((player.y >> TEST_FIXED_SHIFT) - camera.y) == (PERP_POS - START_CAMERA_Y),
            "Fade offset preserves player screen Y");
+    ASSERT(player.dashes == player.maxDashes,
+           "Fade transition refills dash charges");
+    ASSERT(player.stamina == EXPECTED_STAMINA,
+           "Fade transition refills stamina");
 
     clearTransitionTestOverrides();
 }
@@ -914,7 +930,7 @@ static void test_generated_horizontal_connection_quantization(void) {
     ScrollTransInfo info;
     getScrollTransInfo(&info);
     ASSERT(info.active, "Generated horizontal connection uses scroll transition");
-    ASSERT(info.toTileY0 == -14, "Generated connection quantizes the destination room to the nearest tile");
+    ASSERT(info.toTileY0 == -7, "Generated connection quantizes the destination room by 7 tiles");
     ASSERT(info.canReuseTilemapOnCommit, "Generated connection keeps the scrolled tilemap aligned");
 
     int minScreenY, maxScreenY, minCameraY, maxCameraY, lastScrollScreenY, lastScrollCameraY;

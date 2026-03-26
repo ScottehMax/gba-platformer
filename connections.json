@@ -34,27 +34,27 @@
   "levels": {
     "celeste1": {
       "worldX": 952,
-      "worldY": 210
+      "worldY": 208
     },
     "level1": {
       "worldX": 640,
-      "worldY": -350
+      "worldY": -352
     },
     "level2": {
-      "worldX": -59,
-      "worldY": -875
+      "worldX": -56,
+      "worldY": -872
     },
     "level3": {
       "worldX": 0,
-      "worldY": 26
+      "worldY": 24
     },
     "level4": {
-      "worldX": -500,
-      "worldY": 700
+      "worldX": -504,
+      "worldY": 704
     },
     "smb11": {
       "worldX": 640,
-      "worldY": -30
+      "worldY": -32
     }
   },
   "connections": [
