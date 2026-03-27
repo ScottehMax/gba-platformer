@@ -245,23 +245,15 @@ u16 getScrollTileEntry(int layerIdx, int virtualTileX, int virtualTileY) {
     if (fX >= 0 && fX < g_trans.fromLevel->width &&
         fY >= 0 && fY < g_trans.fromLevel->height) {
         u16 tid = getTileAt(g_trans.fromLevel, (u8)layerIdx, fX, fY);
-        u8  pal = (tid < g_trans.fromLevel->uniqueTileCount)
-                  ? g_trans.fromLevel->tilePaletteBanks[tid] : 0;
-        return (tid + (u16)g_trans.fromTileVramOffset) | ((u16)pal << 12);
+        return mapTileEntry(g_levelTileEntries, tid);
     }
     // To level?
     int tX = virtualTileX - g_trans.toTileX0;
     int tY = virtualTileY - g_trans.toTileY0;
     if (tX >= 0 && tX < g_trans.toLevel->width &&
         tY >= 0 && tY < g_trans.toLevel->height) {
-        u16 tid  = getTileBAt(g_trans.toLevel, (u8)layerIdx, tX, tY);
-        if (tid == 0) {
-            return 0;
-        }
-        u16 vtid = tid + (u16)g_trans.tileVramOffset;
-        u8  pal  = (tid < g_trans.toLevel->uniqueTileCount)
-                   ? g_trans.toLevel->tilePaletteBanks[tid] : 0;
-        return vtid | ((u16)pal << 12);
+        u16 tid = getTileBAt(g_trans.toLevel, (u8)layerIdx, tX, tY);
+        return mapTileEntry(g_levelBTileEntries, tid);
     }
     return 0;
 }

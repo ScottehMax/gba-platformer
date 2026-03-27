@@ -8,7 +8,6 @@
 // Sized for the largest possible level: 512x40 tiles, 2 layers
 // ---------------------------------------------------------------------------
 #define TILE_BUFFER_SIZE (512 * 40 * 2)  // u16s, covers 2 layers of 512x40
-#define LEVEL_VRAM_TILE_LIMIT 512
 
 #ifdef DESKTOP_BUILD
 static u16 g_tileBuffer[TILE_BUFFER_SIZE];
@@ -19,6 +18,10 @@ static u16 g_tileBBuffer[TILE_BUFFER_SIZE] __attribute__((section(".ewram"), ali
 #endif
 u16* g_levelLayerTiles[4]  = {0, 0, 0, 0};
 u16* g_levelBLayerTiles[4] = {0, 0, 0, 0};
+static u16 g_tileEntryTableA[LEVEL_VRAM_TILE_LIMIT];
+static u16 g_tileEntryTableB[LEVEL_VRAM_TILE_LIMIT];
+u16* g_levelTileEntries  = g_tileEntryTableA;
+u16* g_levelBTileEntries = g_tileEntryTableB;
 
 // Swappable base pointers: adoptLevelBBuffer swaps these so that
 // g_levelLayerTiles and the next loadLevelBToVRAM call always use
@@ -67,6 +70,21 @@ static void RLUnCompWram(const void* src, void* dst) {
 }
 #endif
 
+static void buildTileEntryTable(const Level* level, int vramOffset, u16* table) {
+    for (int i = 0; i < LEVEL_VRAM_TILE_LIMIT; i++) {
+        table[i] = 0;
+    }
+
+    u16 limit = level->uniqueTileCount;
+    if (limit > LEVEL_VRAM_TILE_LIMIT) {
+        limit = LEVEL_VRAM_TILE_LIMIT;
+    }
+
+    for (u16 i = 1; i < limit; i++) {
+        table[i] = (u16)(i + vramOffset) | ((u16)level->tilePaletteBanks[i] << 12);
+    }
+}
+
 #define TILESET_COUNT 3
 
 // Palette bank for each tileset
@@ -82,11 +100,26 @@ typedef struct {
     u8 paletteBank;
 } TilesetMetadata;
 
+#ifndef DESKTOP_BUILD
 static const TilesetMetadata tilesets[TILESET_COUNT] = {
     { 1, 55, grassy_stoneTiles, PALETTE_GRASSY_STONE },
     { 56, 215, plantsTiles, PALETTE_PLANTS },
     { 216, 1440, decalsTiles, PALETTE_DECALS }
 };
+
+static const TilesetMetadata* findTilesetForTile(u16 originalTileId) {
+    if (originalTileId >= tilesets[0].firstTileId && originalTileId <= tilesets[0].lastTileId) {
+        return &tilesets[0];
+    }
+    if (originalTileId >= tilesets[1].firstTileId && originalTileId <= tilesets[1].lastTileId) {
+        return &tilesets[1];
+    }
+    if (originalTileId >= tilesets[2].firstTileId && originalTileId <= tilesets[2].lastTileId) {
+        return &tilesets[2];
+    }
+    return 0;
+}
+#endif
 
 // Internal: write one level's unique tiles into VRAM starting at vramSlot.
 static void writeTilesToVRAM(const Level* level, int vramSlot) {
@@ -98,30 +131,51 @@ static void writeTilesToVRAM(const Level* level, int vramSlot) {
 #else
     volatile u32* bgTiles = (volatile u32*)0x06000000;
 
-    for (u16 i = 0; i < level->uniqueTileCount; i++) {
+    for (u16 i = 0; i < level->uniqueTileCount; ) {
         u16 originalTileId = level->uniqueTileIds[i];
+        u32 dstOffset = (vramSlot + i) * 8;
 
         if (originalTileId == 0) {
-            for (int j = 0; j < 8; j++)
-                bgTiles[(vramSlot + i) * 8 + j] = 0x00000000;
+            u16 runLength = 1;
+            while ((u16)(i + runLength) < level->uniqueTileCount &&
+                   level->uniqueTileIds[i + runLength] == 0) {
+                runLength++;
+            }
+
+            u32 wordCount = (u32)runLength * 8;
+            for (u32 j = 0; j < wordCount; j++) {
+                bgTiles[dstOffset + j] = 0x00000000;
+            }
+
+            i += runLength;
             continue;
         }
 
-        const TilesetMetadata* tileset = 0;
-        for (int ts = 0; ts < TILESET_COUNT; ts++) {
-            if (originalTileId >= tilesets[ts].firstTileId &&
-                originalTileId <= tilesets[ts].lastTileId) {
-                tileset = &tilesets[ts];
+        const TilesetMetadata* tileset = findTilesetForTile(originalTileId);
+        if (!tileset) {
+            i++;
+            continue;
+        }
+
+        u16 runLength = 1;
+        while ((u16)(i + runLength) < level->uniqueTileCount) {
+            u16 nextTileId = level->uniqueTileIds[i + runLength];
+            if (nextTileId != (u16)(originalTileId + runLength) ||
+                nextTileId > tileset->lastTileId) {
                 break;
             }
+            runLength++;
         }
-        if (!tileset) continue;
 
         u16 tilesetIndex = originalTileId - tileset->firstTileId;
         u32 srcOffset  = tilesetIndex * 8;
-        u32 dstOffset  = (vramSlot + i) * 8;
-        for (int j = 0; j < 8; j++)
-            bgTiles[dstOffset + j] = tileset->tileData[srcOffset + j];
+        u32 wordCount = (u32)runLength * 8;
+        const u32* src = (const u32*)&tileset->tileData[srcOffset];
+        for (u32 j = 0; j < wordCount; j++) {
+            bgTiles[dstOffset + j] = src[j];
+        }
+
+        i += runLength;
     }
 #endif // DESKTOP_BUILD
 }
@@ -141,6 +195,7 @@ void loadLevelToVRAM(const Level* level) {
     for (u8 i = level->layerCount; i < 4; i++)
         g_levelLayerTiles[i] = 0;
 
+    buildTileEntryTable(level, 0, g_levelTileEntries);
     writeTilesToVRAM(level, 0);
 }
 
@@ -158,6 +213,7 @@ void loadLevelBToVRAM(const Level* level, int vramOffset) {
     for (u8 i = level->layerCount; i < 4; i++)
         g_levelBLayerTiles[i] = 0;
 
+    buildTileEntryTable(level, vramOffset, g_levelBTileEntries);
     writeTilesToVRAM(level, vramOffset);
 }
 
@@ -172,6 +228,9 @@ void adoptLevelBBuffer(const Level* level) {
     u16* tmp    = s_mainBufBase;
     s_mainBufBase = s_sBufBase;
     s_sBufBase    = tmp;
+    u16* tmpEntries = g_levelTileEntries;
+    g_levelTileEntries = g_levelBTileEntries;
+    g_levelBTileEntries = tmpEntries;
 
     g_tileVramOffset = g_levelBTileVramOffset;
     for (u8 i = 0; i < level->layerCount && i < 4; i++) {

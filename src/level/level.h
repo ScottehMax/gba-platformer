@@ -7,6 +7,8 @@
 #include <tonc.h>
 #endif
 
+#define LEVEL_VRAM_TILE_LIMIT 512
+
 // Collision type for each tile position
 typedef enum {
     COL_NONE     = 0,  // No collision (passable)
@@ -57,6 +59,12 @@ extern u16* g_levelLayerTiles[4];
 // Populated by loadLevelBToVRAM().
 extern u16* g_levelBLayerTiles[4];
 
+// Precomputed BG tilemap entries (tile index + palette bank) for the current
+// and incoming levels. Indexed by the decompressed tile IDs stored in the
+// layer buffers above.
+extern u16* g_levelTileEntries;
+extern u16* g_levelBTileEntries;
+
 typedef struct {
     const char* name;
     u16 width;
@@ -95,6 +103,11 @@ static inline u16 getTileAt(const Level* level, u8 layerIndex, int tileX, int ti
     if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) return 0;
     if (!g_levelLayerTiles[layerIndex]) return 0;
     return g_levelLayerTiles[layerIndex][tileY * level->width + tileX];
+}
+
+static inline u16 mapTileEntry(const u16* entryTable, u16 tileId) {
+    if (tileId >= LEVEL_VRAM_TILE_LIMIT) return 0;
+    return entryTable[tileId];
 }
 
 /**

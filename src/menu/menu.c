@@ -209,9 +209,8 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
 
         for (int y = 0; y < 32; y++) {
             for (int x = 0; x < 32; x++) {
-                u16 vramIndex = getTileAt(currentLevel, layerIdx, x, y);
-                u8 paletteBank = getTilePaletteBank(vramIndex, currentLevel);
-                bgMap[y * 32 + x] = vramIndex | (paletteBank << 12);
+                u16 tileId = getTileAt(currentLevel, layerIdx, x, y);
+                bgMap[y * 32 + x] = mapTileEntry(g_levelTileEntries, tileId);
             }
         }
     }
