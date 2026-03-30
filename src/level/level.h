@@ -65,7 +65,7 @@ extern u16* g_levelBLayerTiles[4];
 extern u16* g_levelTileEntries;
 extern u16* g_levelBTileEntries;
 
-typedef struct {
+typedef struct Level {
     const char* name;
     u16 width;
     u16 height;

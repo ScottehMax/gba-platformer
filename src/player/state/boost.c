@@ -56,7 +56,7 @@ int boostUpdate(Player* player, u16 keys, const Level* level) {
     player->y = approach(player->y, targetY, BOOST_MOVE_SPEED_PF);
 
     // Check for dash press (Celeste line 3808-3815)
-    u16 pressed = keys & ~player->prevKeys;
+    u16 pressed = inputPressed(keys, player->prevKeys);
     if (pressed & BTN_DASH) {
         if (player->boostRed) {
             return ST_RED_DASH;

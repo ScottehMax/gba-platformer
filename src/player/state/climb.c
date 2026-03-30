@@ -45,10 +45,9 @@ void climbEnd(Player* player) {
 int climbUpdate(Player* player, u16 keys, const Level* level) {
     // Celeste ClimbUpdate (line 3102-3277)
 
-    // Detect button presses
-    u16 pressed = keys & ~player->prevKeys;
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
-    int moveY = keys & BTN_DOWN ? 1 : (keys & BTN_UP ? -1 : 0);
+    u16 pressed = inputPressed(keys, player->prevKeys);
+    int moveX = inputMoveX(keys);
+    int moveY = inputMoveY(keys);
     int facingDir = player->facingRight ? 1 : -1;
 
     // Refill stamina on ground (Celeste line 3107-3108)

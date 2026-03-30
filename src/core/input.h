@@ -29,4 +29,17 @@
 #define BTN_REPLAY_SAVE   KEY_B
 #define BTN_REPLAY_LOAD   KEY_DOWN
 
+// Helpers to reduce boilerplate in state update functions
+static inline u16 inputPressed(u16 keys, u16 prevKeys) {
+    return keys & ~prevKeys;
+}
+
+static inline int inputMoveX(u16 keys) {
+    return (keys & BTN_RIGHT) ? 1 : ((keys & BTN_LEFT) ? -1 : 0);
+}
+
+static inline int inputMoveY(u16 keys) {
+    return (keys & BTN_DOWN) ? 1 : ((keys & BTN_UP) ? -1 : 0);
+}
+
 #endif // INPUT_H

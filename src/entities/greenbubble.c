@@ -1,7 +1,9 @@
 #include "greenbubble.h"
+#include "entity_common.h"
 #include "player/player.h"
 #include "player/state.h"
 #include "core/game_math.h"
+#include "core/vram_layout.h"
 #include <string.h>  // For memset
 
 void initGreenBubbleManager(GreenBubbleManager* manager) {
@@ -32,13 +34,7 @@ void loadGreenBubblesFromLevel(GreenBubbleManager* manager, const Level* level) 
 }
 
 void updateGreenBubbles(GreenBubbleManager* manager, Player* player) {
-    // Get player hitbox in pixels
-    int playerX = player->x >> FIXED_SHIFT;
-    int playerY = player->y >> FIXED_SHIFT;
-    int playerLeft = playerX - PLAYER_RADIUS_X;
-    int playerRight = playerX + PLAYER_RADIUS_X;
-    int playerTop = playerY - PLAYER_RADIUS_Y;
-    int playerBottom = playerY + PLAYER_RADIUS_Y;
+    AABB pBox = playerAABB(player);
 
     // Skip collision entirely while in Boost state (being moved to bubble center)
     if (player->stateMachine.state == ST_BOOST) {
@@ -50,18 +46,12 @@ void updateGreenBubbles(GreenBubbleManager* manager, Player* player) {
         GreenBubble* bubble = &manager->bubbles[i];
         if (!bubble->active) continue;
 
-        // Bubble hitbox (centered on bubble center)
-        int bubbleLeft = bubble->x - bubble->width / 2;
-        int bubbleRight = bubble->x + bubble->width / 2;
-        int bubbleTop = bubble->y - bubble->height / 2;
-        int bubbleBottom = bubble->y + bubble->height / 2;
+        AABB bBox = entityAABBCentered(bubble->x, bubble->y,
+                                       bubble->width / 2, bubble->height / 2);
 
         // Check if this is the bubble player is currently using
         if (player->currentBubbleX == bubble->x && player->currentBubbleY == bubble->y) {
-            // Check if player has moved away from this bubble
-            int overlapping = (playerRight > bubbleLeft && playerLeft < bubbleRight &&
-                             playerBottom > bubbleTop && playerTop < bubbleBottom);
-            if (!overlapping) {
+            if (!aabbOverlap(&pBox, &bBox)) {
                 // Player has left the bubble - clear tracking (Celeste CallDashEvents line 3437)
                 player->currentBubbleX = -1000;
                 player->currentBubbleY = -1000;
@@ -71,10 +61,7 @@ void updateGreenBubbles(GreenBubbleManager* manager, Player* player) {
             }
         }
 
-        // AABB collision check
-        if (playerRight > bubbleLeft && playerLeft < bubbleRight &&
-            playerBottom > bubbleTop && playerTop < bubbleBottom) {
-
+        if (aabbOverlap(&pBox, &bBox)) {
             // Player collided with green bubble - trigger green boost
             playerGreenBoost(player, bubble->x, bubble->y);
             return;  // Only trigger one bubble per frame
@@ -84,14 +71,14 @@ void updateGreenBubbles(GreenBubbleManager* manager, Player* player) {
 
 void renderGreenBubbles(const GreenBubbleManager* manager, int cameraX, int cameraY) {
 #ifndef DESKTOP_BUILD
-    // Render all green bubbles using hardware OBJ sprites (sprites 80-111)
+    // Render all green bubbles using hardware OBJ sprites
     volatile u16* oam = (volatile u16*)MEM_OAM;
 
     for (int i = 0; i < manager->count; i++) {
         const GreenBubble* bubble = &manager->bubbles[i];
-        if (i >= 32) break;  // Only 32 bubble sprites available
+        if (i >= OAM_GREEN_BUBBLE_COUNT) break;
 
-        int spriteIndex = 80 + i;  // Sprites 80-111 for green bubbles
+        int spriteIndex = OAM_GREEN_BUBBLE_BASE + i;
         volatile u16* spriteAttrs = &oam[spriteIndex * 4];
 
         // Check if bubble is active and onscreen
@@ -120,8 +107,7 @@ void renderGreenBubbles(const GreenBubbleManager* manager, int cameraX, int came
         spriteAttrs[1] = (screenX & 0x1FF) | (0 << 14);  // X position, 8x8 size
 
         // OAM Attribute 2: Tile index and palette
-        // Tile 4 (filled square), palette bank 13 (green for green bubbles)
-        spriteAttrs[2] = 4 | (0 << 10) | (13 << 12);  // Tile 4, priority 0, palette bank 13
+        spriteAttrs[2] = TILE_OBJ_ENTITY | (0 << 10) | (PAL_OBJ_GREEN_BUBBLE << 12);
     }
 #else
     (void)manager;

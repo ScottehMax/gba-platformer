@@ -22,9 +22,8 @@ int hitSquashUpdate(Player* player, u16 keys, const Level* level) {
     player->vx = approach(player->vx, 0, HIT_SQUASH_FRICTION_PF);
     player->vy = approach(player->vy, 0, HIT_SQUASH_FRICTION_PF);
 
-    // Detect button presses
-    u16 pressed = keys & ~player->prevKeys;
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    u16 pressed = inputPressed(keys, player->prevKeys);
+    int moveX = inputMoveX(keys);
 
     // Check for jump (Celeste line 3948-3960)
     if (pressed & BTN_JUMP) {

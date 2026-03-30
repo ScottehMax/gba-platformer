@@ -16,10 +16,10 @@
 #define ST_PICKUP 8
 #define ST_DREAM_DASH 9
 
-// State function typedefs (actual types, not void*)
-typedef int (*StateUpdateFunc)(Player* player, u16 keys, const Level* level);
-typedef void (*StateBeginFunc)(Player* player, const Level* level);
-typedef void (*StateEndFunc)(Player* player);
+// State function typedefs (aliases for the canonical names in game_types.h)
+typedef StateUpdateFn StateUpdateFunc;
+typedef StateBeginFn  StateBeginFunc;
+typedef StateEndFn    StateEndFunc;
 
 // State machine functions
 void initStateMachine(StateMachine* sm);

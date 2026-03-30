@@ -23,12 +23,7 @@
 #include "entities/spring.h"
 #include "entities/redbubble.h"
 #include "entities/greenbubble.h"
-
-// Tileset palette bank assignments
-#define PALETTE_GRASSY_STONE 0
-#define PALETTE_FONT         1
-#define PALETTE_PLANTS       2
-#define PALETTE_DECALS       3
+#include "core/vram_layout.h"
 
 // Fixed slot indices for profiling (8-13)
 #define PROFILING_SLOT_FPS 8
@@ -65,31 +60,30 @@ int main() {
     // BG0 = nightsky, BG1 = decorative layer, BG2 = terrain layer, BG3 = text
     REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_BG2 | DCNT_BG3 | DCNT_OBJ | DCNT_OBJ_1D;
 
-    // Load nightsky tiles to VRAM (char block 2)
-    volatile u32* nightskyTilesDst = (volatile u32*)(0x06000000 + (2 << 14));
+    // Load nightsky tiles to VRAM
+    volatile u32* nightskyTilesDst = (volatile u32*)(0x06000000 + (CB_NIGHTSKY << 14));
     for (int i = 0; i < nightskyTilesLen / 4; i++) {
         nightskyTilesDst[i] = ((const u32*)nightskyTiles)[i];
     }
 
-    // Load nightsky tilemap to screen base 24 (BG0) - NOT 20, which is used by BG3 text!
-    // Adjust tilemap entries to use palette bank 4
-    volatile u16* nightskyMapDst = (volatile u16*)(0x06000000 + (24 << 11));
+    // Load nightsky tilemap to BG0 screen base
+    // Adjust tilemap entries to use nightsky palette bank
+    volatile u16* nightskyMapDst = (volatile u16*)(0x06000000 + (SB_NIGHTSKY << 11));
     for (int i = 0; i < nightskyMapLen / 2; i++) {
         u16 tileEntry = ((const u16*)nightskyMap)[i];
         u16 tileIndex = tileEntry & 0x03FF;  // Extract tile index
         u16 flags = tileEntry & 0xFC00;      // Extract flip/rotation flags
-        // Set palette bank 4
-        nightskyMapDst[i] = tileIndex | flags | (4 << 12);
+        nightskyMapDst[i] = tileIndex | flags | (PAL_BG_NIGHTSKY << 12);
     }
 
-    // Load nightsky palette to palette bank 4 (colors 64-79)
+    // Load nightsky palette
     volatile u16* bgPalette = pal_bg_mem;
     for (int i = 0; i < nightskyPalLen / 2; i++) {
-        bgPalette[64 + i] = nightskyPal[i];
+        bgPalette[PAL_BG_NIGHTSKY * 16 + i] = nightskyPal[i];
     }
 
-    // Set BG0 control register (4-bit color, screen base 24, char base 2, priority 3 - behind everything)
-    REG_BG0CNT = (24 << 8) | (2 << 2) | (3 << 0);
+    // Set BG0 control register (4-bit color, priority 3 - behind everything)
+    REG_BG0CNT = (SB_NIGHTSKY << 8) | (CB_NIGHTSKY << 2) | (3 << 0);
 
     // Set BG0 scroll to 0,0
     REG_BG0HOFS = 0;
@@ -104,7 +98,7 @@ int main() {
 
     // Palette bank 0: grassy_stone (colors 0-15)
     for (int i = 0; i < 16; i++) {
-        bgPalette[PALETTE_GRASSY_STONE * 16 + i] = grassy_stonePal[i];
+        bgPalette[PAL_BG_TERRAIN * 16 + i] = grassy_stonePal[i];
     }
 
     // Make palette index 0 transparent for grassy_stone
@@ -112,17 +106,17 @@ int main() {
     
     // Palette bank 1: Font (colors 16-31)
     for (int i = 0; i < 16; i++) {
-        bgPalette[PALETTE_FONT * 16 + i] = tinypixiePal[i];
+        bgPalette[PAL_BG_FONT * 16 + i] = tinypixiePal[i];
     }
     
     // Palette bank 2: plants (colors 32-47)
     for (int i = 0; i < 16; i++) {
-        bgPalette[PALETTE_PLANTS * 16 + i] = plantsPal[i];
+        bgPalette[PAL_BG_PLANTS * 16 + i] = plantsPal[i];
     }
     
     // Palette bank 3: decals (colors 48-63)
     for (int i = 0; i < 16; i++) {
-        bgPalette[PALETTE_DECALS * 16 + i] = decalsPal[i];
+        bgPalette[PAL_BG_DECALS * 16 + i] = decalsPal[i];
     }
 
     // Initialize background text system (BG3 - uses char block 1)
@@ -138,10 +132,10 @@ int main() {
 
     // Palettes 1-10: Light blue/cyan silhouettes with varying opacity for dash trail fade
     // Create 10 palettes with very gradual color transitions for smooth fade effect
-    for (int pal = 0; pal < 10; pal++) {
+    for (int pal = 0; pal < PAL_OBJ_TRAIL_COUNT; pal++) {
         for (int i = 0; i < 16; i++) {
             if (i == 0) {
-                spritePalette[(pal + 1) * 16 + i] = 0;  // Index 0 is transparent
+                spritePalette[(pal + PAL_OBJ_TRAIL_BASE) * 16 + i] = 0;  // Index 0 is transparent
             } else {
                 // Very gradual fade from bright to light blue
                 // Palette 1: Most opaque (10, 20, 31)
@@ -152,7 +146,7 @@ int main() {
                 if (r < 2) r = 2;
                 if (g < 6) g = 6;
                 if (b < 16) b = 16;
-                spritePalette[(pal + 1) * 16 + i] = RGB15(r, g, b);
+                spritePalette[(pal + PAL_OBJ_TRAIL_BASE) * 16 + i] = RGB15(r, g, b);
             }
         }
     }
@@ -163,27 +157,23 @@ int main() {
         spriteTiles[i] = skellyTiles[i];
     }
 
-    // Create red square sprite for springs (tile 4 = 8x8 red square)
-    // Tile 4 is at index 4 * 8 = 32 u32s offset (each tile is 8 u32s in 4bpp mode)
-    volatile u32* redSquareTile = &spriteTiles[32];
-    for (int i = 0; i < 8; i++) {  // 8 u32s per tile in 4bpp mode
-        // Each u32 contains 8 pixels (4 bits each)
-        // Pixel value 1 = use palette color 1 in spring palette bank (11)
-        redSquareTile[i] = 0x11111111;  // All pixels = color 1
+    // Create entity tile (8x8 filled square at tile index TILE_OBJ_ENTITY)
+    volatile u32* entityTile = &spriteTiles[TILE_OBJ_ENTITY * 8];
+    for (int i = 0; i < 8; i++) {
+        entityTile[i] = 0x11111111;  // All pixels = color 1
     }
 
-    // Create dedicated palette bank 11 for springs (colors 176-191)
-    // This avoids interfering with player palette (bank 0) or trail palettes (banks 1-10)
-    spritePalette[11 * 16 + 0] = 0;  // Transparent
-    spritePalette[11 * 16 + 1] = RGB15(31, 0, 0);  // Bright red
+    // Spring entity palette
+    spritePalette[PAL_OBJ_SPRING * 16 + 0] = 0;  // Transparent
+    spritePalette[PAL_OBJ_SPRING * 16 + 1] = RGB15(31, 0, 0);  // Bright red
 
-    // Create dedicated palette bank 12 for red bubbles (colors 192-207)
-    spritePalette[12 * 16 + 0] = 0;  // Transparent
-    spritePalette[12 * 16 + 1] = RGB15(31, 16, 0);  // Orange (red + half green)
+    // Red bubble entity palette
+    spritePalette[PAL_OBJ_RED_BUBBLE * 16 + 0] = 0;  // Transparent
+    spritePalette[PAL_OBJ_RED_BUBBLE * 16 + 1] = RGB15(31, 16, 0);  // Orange
 
-    // Create dedicated palette bank 13 for green bubbles (colors 208-223)
-    spritePalette[13 * 16 + 0] = 0;  // Transparent
-    spritePalette[13 * 16 + 1] = RGB15(0, 31, 0);  // Bright green
+    // Green bubble entity palette
+    spritePalette[PAL_OBJ_GREEN_BUBBLE * 16 + 0] = 0;  // Transparent
+    spritePalette[PAL_OBJ_GREEN_BUBBLE * 16 + 1] = RGB15(0, 31, 0);  // Bright green
 
     // Set up sprite 0 as 16x16, 16-color mode, priority 1
     volatile u16* oam = (volatile u16*)MEM_OAM;

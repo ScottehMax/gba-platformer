@@ -1,4 +1,5 @@
 #include "player_render.h"
+#include "core/vram_layout.h"
 #include <tonc.h>
 
 void drawPlayer(Player* player, Camera* camera, u16 objPriority) {
@@ -25,7 +26,7 @@ void drawPlayer(Player* player, Camera* camera, u16 objPriority) {
                 int paletteNum = baseAge + (player->trailFadeTimer / 2);
 
                 // Hide sprite only after it reaches max palette (fully faded)
-                if (paletteNum > 10) {
+                if (paletteNum > PAL_OBJ_TRAIL_COUNT) {
                     oam_mem[i + 1].attr0 = 160 << 0;  // Hide sprite
                 } else {
                     // Clamp to available palettes (1-10)

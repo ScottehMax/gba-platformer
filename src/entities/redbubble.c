@@ -1,7 +1,9 @@
 #include "redbubble.h"
+#include "entity_common.h"
 #include "player/player.h"
 #include "player/state.h"
 #include "core/game_math.h"
+#include "core/vram_layout.h"
 #include <string.h>  // For memset
 
 void initRedBubbleManager(RedBubbleManager* manager) {
@@ -32,13 +34,7 @@ void loadRedBubblesFromLevel(RedBubbleManager* manager, const Level* level) {
 }
 
 void updateRedBubbles(RedBubbleManager* manager, Player* player) {
-    // Get player hitbox in pixels
-    int playerX = player->x >> FIXED_SHIFT;
-    int playerY = player->y >> FIXED_SHIFT;
-    int playerLeft = playerX - PLAYER_RADIUS_X;
-    int playerRight = playerX + PLAYER_RADIUS_X;
-    int playerTop = playerY - PLAYER_RADIUS_Y;
-    int playerBottom = playerY + PLAYER_RADIUS_Y;
+    AABB pBox = playerAABB(player);
 
     // Skip collision entirely while in Boost state (being moved to bubble center)
     if (player->stateMachine.state == ST_BOOST) {
@@ -50,18 +46,12 @@ void updateRedBubbles(RedBubbleManager* manager, Player* player) {
         RedBubble* bubble = &manager->bubbles[i];
         if (!bubble->active) continue;
 
-        // Bubble hitbox (centered on bubble center)
-        int bubbleLeft = bubble->x - bubble->width / 2;
-        int bubbleRight = bubble->x + bubble->width / 2;
-        int bubbleTop = bubble->y - bubble->height / 2;
-        int bubbleBottom = bubble->y + bubble->height / 2;
+        AABB bBox = entityAABBCentered(bubble->x, bubble->y,
+                                       bubble->width / 2, bubble->height / 2);
 
         // Check if this is the bubble player is currently using
         if (player->currentBubbleX == bubble->x && player->currentBubbleY == bubble->y) {
-            // Check if player has moved away from this bubble
-            int overlapping = (playerRight > bubbleLeft && playerLeft < bubbleRight &&
-                             playerBottom > bubbleTop && playerTop < bubbleBottom);
-            if (!overlapping) {
+            if (!aabbOverlap(&pBox, &bBox)) {
                 // Player has left the bubble - clear tracking (Celeste CallDashEvents line 3437)
                 player->currentBubbleX = -1000;
                 player->currentBubbleY = -1000;
@@ -71,10 +61,7 @@ void updateRedBubbles(RedBubbleManager* manager, Player* player) {
             }
         }
 
-        // AABB collision check
-        if (playerRight > bubbleLeft && playerLeft < bubbleRight &&
-            playerBottom > bubbleTop && playerTop < bubbleBottom) {
-
+        if (aabbOverlap(&pBox, &bBox)) {
             // Player collided with red bubble - trigger red boost
             playerRedBoost(player, bubble->x, bubble->y);
             return;  // Only trigger one bubble per frame
@@ -84,14 +71,14 @@ void updateRedBubbles(RedBubbleManager* manager, Player* player) {
 
 void renderRedBubbles(const RedBubbleManager* manager, int cameraX, int cameraY) {
 #ifndef DESKTOP_BUILD
-    // Render all red bubbles using hardware OBJ sprites (sprites 48-79)
+    // Render all red bubbles using hardware OBJ sprites
     volatile u16* oam = (volatile u16*)MEM_OAM;
 
     for (int i = 0; i < manager->count; i++) {
         const RedBubble* bubble = &manager->bubbles[i];
-        if (i >= 32) break;  // Only 32 bubble sprites available
+        if (i >= OAM_RED_BUBBLE_COUNT) break;
 
-        int spriteIndex = 48 + i;  // Sprites 48-79 for red bubbles
+        int spriteIndex = OAM_RED_BUBBLE_BASE + i;
         volatile u16* spriteAttrs = &oam[spriteIndex * 4];
 
         // Check if bubble is active and onscreen
@@ -120,8 +107,7 @@ void renderRedBubbles(const RedBubbleManager* manager, int cameraX, int cameraY)
         spriteAttrs[1] = (screenX & 0x1FF) | (0 << 14);  // X position, 8x8 size
 
         // OAM Attribute 2: Tile index and palette
-        // Tile 4 (filled square), palette bank 12 (orange for red bubbles)
-        spriteAttrs[2] = 4 | (0 << 10) | (12 << 12);  // Tile 4, priority 0, palette bank 12
+        spriteAttrs[2] = TILE_OBJ_ENTITY | (0 << 10) | (PAL_OBJ_RED_BUBBLE << 12);
     }
 #else
     (void)manager;

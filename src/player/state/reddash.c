@@ -58,9 +58,8 @@ void redDashEnd(Player* player) {
 int redDashUpdate(Player* player, u16 keys, const Level* level) {
     // Celeste RedDashUpdate (line 3861-3916)
 
-    // Detect button presses
-    u16 pressed = keys & ~player->prevKeys;
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    u16 pressed = inputPressed(keys, player->prevKeys);
+    int moveX = inputMoveX(keys);
 
     // Trail timer (same as regular dash)
     if (player->trailTimer > 0) {

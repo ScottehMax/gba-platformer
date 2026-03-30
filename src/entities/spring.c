@@ -1,6 +1,8 @@
 #include "spring.h"
+#include "entity_common.h"
 #include "player/player.h"
 #include "core/game_math.h"
+#include "core/vram_layout.h"
 #include <string.h>  // For memset
 
 void initSpringManager(SpringManager* manager) {
@@ -52,49 +54,33 @@ void loadSpringsFromLevel(SpringManager* manager, const Level* level) {
 }
 
 void updateSprings(SpringManager* manager, Player* player) {
-    // Get player hitbox in pixels
-    int playerX = player->x >> FIXED_SHIFT;
-    int playerY = player->y >> FIXED_SHIFT;
-    int playerLeft = playerX - PLAYER_RADIUS_X;
-    int playerRight = playerX + PLAYER_RADIUS_X;
-    int playerTop = playerY - PLAYER_RADIUS_Y;
-    int playerBottom = playerY + PLAYER_RADIUS_Y;
+    AABB pBox = playerAABB(player);
 
     // Check collision with each spring
     for (int i = 0; i < manager->count; i++) {
         Spring* spring = &manager->springs[i];
         if (!spring->active) continue;
 
-        // Spring hitbox
-        int springLeft = spring->x;
-        int springRight = spring->x + spring->width;
-        int springTop = spring->y;
-        int springBottom = spring->y + spring->height;
+        AABB sBox = entityAABBTopLeft(spring->x, spring->y, spring->width, spring->height);
 
-        // AABB collision check
-        if (playerRight > springLeft && playerLeft < springRight &&
-            playerBottom > springTop && playerTop < springBottom) {
+        if (aabbOverlap(&pBox, &sBox)) {
 
             // Player collided with spring - trigger bounce
             switch (spring->type) {
                 case SPRING_NORMAL:
-                    // Normal spring bounces from top
-                    playerBounce(player, springTop);
+                    playerBounce(player, sBox.top);
                     break;
 
                 case SPRING_SUPER:
-                    // Super spring bounces from top
-                    playerSuperBounce(player, springTop);
+                    playerSuperBounce(player, sBox.top);
                     break;
 
                 case SPRING_WALL_LEFT:
-                    // Left wall spring (pushes player left)
-                    playerSideBounce(player, -1, springLeft, springTop + spring->height / 2);
+                    playerSideBounce(player, -1, sBox.left, sBox.top + spring->height / 2);
                     break;
 
                 case SPRING_WALL_RIGHT:
-                    // Right wall spring (pushes player right)
-                    playerSideBounce(player, 1, springRight, springTop + spring->height / 2);
+                    playerSideBounce(player, 1, sBox.right, sBox.top + spring->height / 2);
                     break;
             }
 
@@ -105,14 +91,14 @@ void updateSprings(SpringManager* manager, Player* player) {
 
 void renderSprings(const SpringManager* manager, int cameraX, int cameraY) {
 #ifndef DESKTOP_BUILD
-    // Render all springs using hardware OBJ sprites (sprites 16-47)
+    // Render all springs using hardware OBJ sprites
     volatile u16* oam = (volatile u16*)MEM_OAM;
 
     for (int i = 0; i < manager->count; i++) {
         const Spring* spring = &manager->springs[i];
-        if (i >= 32) break;  // Only 32 spring sprites available
+        if (i >= OAM_SPRING_COUNT) break;
 
-        int spriteIndex = 16 + i;  // Sprites 16-47 for springs
+        int spriteIndex = OAM_SPRING_BASE + i;
         volatile u16* spriteAttrs = &oam[spriteIndex * 4];
 
         // Check if spring is active and onscreen
@@ -152,12 +138,12 @@ void renderSprings(const SpringManager* manager, int cameraX, int cameraY) {
         // Bits 0-9: Tile index
         // Bits 10-11: Priority (0=highest)
         // Bits 12-15: Palette bank
-        spriteAttrs[2] = 4 | (0 << 10) | (11 << 12);  // Tile 4, priority 0, palette bank 11 (spring palette)
+        spriteAttrs[2] = TILE_OBJ_ENTITY | (0 << 10) | (PAL_OBJ_SPRING << 12);
     }
 
     // Hide remaining unused spring sprite slots
-    for (int i = manager->count; i < 32; i++) {
-        int spriteIndex = 16 + i;
+    for (int i = manager->count; i < OAM_SPRING_COUNT; i++) {
+        int spriteIndex = OAM_SPRING_BASE + i;
         oam[spriteIndex * 4] = 160;  // Y offscreen
     }
 #endif // !DESKTOP_BUILD

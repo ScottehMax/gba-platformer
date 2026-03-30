@@ -1,6 +1,7 @@
 #include "menu.h"
 #include "core/text.h"
 #include "core/input.h"
+#include "core/vram_layout.h"
 #include "level/level.h"
 #include "collision/collision.h"
 #include "generated/connections.h"
@@ -30,16 +31,13 @@ static int currentLevelIndex = -1;  // -1 means in menu
 static int oldCameraTileX = -1;
 static int oldCameraTileY = -1;
 
-#define BG1_SCREEN_BASE 25
-#define BG2_SCREEN_BASE 26
-
 static inline u8 gameplayScreenBase(u8 bgLayer) {
-    return (u8)(24 + bgLayer);
+    return (u8)(SB_NIGHTSKY + bgLayer);
 }
 
 static void clearGameplayTilemaps(void) {
-    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (BG1_SCREEN_BASE << 11));
-    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (BG2_SCREEN_BASE << 11));
+    volatile u16* bg1Map = (volatile u16*)(0x06000000 + (SB_BG1 << 11));
+    volatile u16* bg2Map = (volatile u16*)(0x06000000 + (SB_BG2 << 11));
     for (int i = 0; i < 32 * 32; i++) {
         bg1Map[i] = 0;
         bg2Map[i] = 0;
@@ -47,8 +45,8 @@ static void clearGameplayTilemaps(void) {
 }
 
 static void configureGameplayBgs(void) {
-    REG_BG1CNT = (BG1_SCREEN_BASE << 8) | (0 << 2) | (0 << 0);
-    REG_BG2CNT = (BG2_SCREEN_BASE << 8) | (0 << 2) | (1 << 0);
+    REG_BG1CNT = (SB_BG1 << 8) | (0 << 2) | (0 << 0);
+    REG_BG2CNT = (SB_BG2 << 8) | (0 << 2) | (1 << 0);
 }
 
 // Forward declarations
@@ -136,8 +134,8 @@ void returnToMenu(void) {
     volatile u16* oam = (volatile u16*)MEM_OAM;
     oam[0] = 160;  // Y coordinate offscreen
 
-    // Hide spring sprites (sprites 16-47)
-    for (int i = 16; i < 48; i++) {
+    // Hide spring sprites
+    for (int i = OAM_SPRING_BASE; i < OAM_SPRING_BASE + OAM_SPRING_COUNT; i++) {
         oam[i * 4] = 160;  // Y coordinate offscreen
     }
 

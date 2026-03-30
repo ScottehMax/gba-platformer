@@ -11,19 +11,27 @@
 
 // Forward declarations
 typedef struct Player Player;
+typedef struct Level Level;
 
-// State callback structure (using void* to avoid circular dependencies)
+// State callback function pointer types (typed to catch signature errors)
+typedef int  (*StateUpdateFn)(Player* player, u16 keys, const Level* level);
+typedef void (*StateBeginFn)(Player* player, const Level* level);
+typedef void (*StateEndFn)(Player* player);
+
+// State callback structure
 typedef struct {
-    void* update;   // int (*)(Player*, u16, const Level*)
-    void* begin;    // void (*)(Player*)
-    void* end;      // void (*)(Player*)
+    StateUpdateFn update;
+    StateBeginFn  begin;
+    StateEndFn    end;
 } StateCallbacks;
+
+#define MAX_PLAYER_STATES 10
 
 // State machine structure
 typedef struct {
     int state;
     int previousState;
-    StateCallbacks callbacks[10];  // Max 10 states for now
+    StateCallbacks callbacks[MAX_PLAYER_STATES];
 } StateMachine;
 
 // Player structure

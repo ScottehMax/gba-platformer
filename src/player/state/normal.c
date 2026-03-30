@@ -17,11 +17,8 @@ void normalEnd(Player* player) {
 }
 
 int normalUpdate(Player* player, u16 keys, const Level* level) {
-    // Detect button presses (pressed this frame but not last frame)
-    u16 pressed = keys & ~player->prevKeys;
-
-    // moveX for input direction (Celeste uses Input.MoveX)
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    u16 pressed = inputPressed(keys, player->prevKeys);
+    int moveX = inputMoveX(keys);
 
     // Force Move X - overrides input after climb hop (Celeste line 760-764)
     if (player->forceMoveXTimer > 0) {
