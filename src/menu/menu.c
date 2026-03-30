@@ -159,8 +159,8 @@ const Level* getCurrentLevel(void) {
     return currentLevel;
 }
 
-// Internal: Reset tilemap state to force full refresh
-void resetTilemapState(void) {
+// Internal: Reset menu tilemap state to force full refresh
+static void resetMenuTilemapState(void) {
     oldCameraTileX = -1;
     oldCameraTileY = -1;
 }
@@ -181,7 +181,7 @@ static void initGameplayForLevel(int levelIndex, Player* player, Camera* camera)
     configureGameplayBgs();
 
     // Reset tilemap state variables to force full refresh
-    resetTilemapState();
+    resetMenuTilemapState();
 
     // Set up BG control registers for each layer
     for (u8 i = 0; i < currentLevel->layerCount; i++) {
@@ -286,7 +286,7 @@ void loadLevelForTransition(int levelIndex) {
             REG_BG2CNT = (screenBase << 8) | (0 << 2) | (priority << 0);
         }
     }
-    // NOTE: Does NOT call initPlayer, resetTilemapState, or reset camera.
+    // NOTE: Does NOT call initPlayer, resetMenuTilemapState, or reset camera.
     // The transition system places the player and camera. The large camera
     // delta on the first gameplay frame will trigger a full tilemap refresh.
 }

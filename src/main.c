@@ -32,23 +32,6 @@
 #define PROFILING_SLOT_TILEMAP 11
 #define PROFILING_SLOT_RENDER 12
 #define PROFILING_SLOT_TOTAL 13
-// Tilemap state (used in game loop)
-static int oldCameraTileX = 0;
-static int oldCameraTileY = 0;
-static int oldCameraTileValid = 0;
-static int wasScrolling   = 0;
-static int lastScrollToTileX0 = 0;
-static int lastScrollToTileY0 = 0;
-static int lastScrollBgOriginX = 0;
-static int lastScrollBgOriginY = 0;
-static int lastScrollCanReuseTilemapOnCommit = 0;
-static int bgTileOriginX = 0;
-static int bgTileOriginY = 0;
-
-static inline int floorDiv8(int v) {
-    return (v >= 0) ? (v / 8) : -(((-v) + 7) / 8);
-}
-
 // Profiling state
 static int profilingInitialized = 0;
 
@@ -191,6 +174,8 @@ int main() {
     Camera camera;
     camera.x = 0;
     camera.y = 0;
+
+    TilemapState ts = {0};
 
     SpringManager springManager;
     initSpringManager(&springManager);
@@ -373,13 +358,7 @@ int main() {
             if (pressed & BTN_MENU) {
                 returnToMenu();
                 profilingInitialized = 0;  // Reset profiling display for next time
-                oldCameraTileValid = 0;    // Reset tilemap state
-                wasScrolling   = 0;
-                lastScrollBgOriginX = 0;
-                lastScrollBgOriginY = 0;
-                lastScrollCanReuseTilemapOnCommit = 0;
-                bgTileOriginX = 0;
-                bgTileOriginY = 0;
+                resetTilemapState(&ts);
                 continue;
             }
 
@@ -425,187 +404,10 @@ int main() {
             if (dtCamera > maxCamera) maxCamera = dtCamera;
 
             // Tilemap update - supports both normal play and scroll transitions.
-            // During a scroll transition camera.x/y are virtual coordinates spanning
-            // both levels; getScrollTileEntry() selects the right level per tile.
             ScrollTransInfo scrollInfo;
             getScrollTransInfo(&scrollInfo);
-
-            int scrollJustStarted = (!wasScrolling && scrollInfo.active);
-            int scrollJustEnded   = ( wasScrolling && !scrollInfo.active);
-            int usedSeamPrefill   = 0;
-            int scrollBgOriginX   = bgTileOriginX;
-            int scrollBgOriginY   = bgTileOriginY;
-            int scrollCameraX     = camera.x;
-            int scrollCameraY     = camera.y;
-
-            if (scrollInfo.active) {
-                if (scrollJustStarted) {
-                    getTransitionVirtualCamera(&scrollCameraX, &scrollCameraY);
-                }
-                scrollBgOriginX = bgTileOriginX - scrollInfo.fromTileX0;
-                scrollBgOriginY = bgTileOriginY - scrollInfo.fromTileY0;
-            }
-
-            if (levelChanged && !scrollJustEnded) {
-                bgTileOriginX = 0;
-                bgTileOriginY = 0;
-            }
-
-            if (scrollJustEnded) {
-                bgTileOriginX = lastScrollBgOriginX + lastScrollToTileX0;
-                bgTileOriginY = lastScrollBgOriginY + lastScrollToTileY0;
-            }
-
-            int bgCameraX = scrollInfo.active ? (scrollCameraX + scrollBgOriginX * 8)
-                                              : (camera.x + bgTileOriginX * 8);
-            int bgCameraY = scrollInfo.active ? (scrollCameraY + scrollBgOriginY * 8)
-                                              : (camera.y + bgTileOriginY * 8);
-
-            // Set hardware scroll registers first, then update tilemap.
-            // For the incremental path (delta <= 2 tiles) this is safe: the column
-            // being written is always past the visible right/bottom edge at the new
-            // scroll position, so the hardware never sees the old content there.
-            REG_BG1HOFS = bgCameraX;
-            REG_BG1VOFS = bgCameraY;
-            REG_BG2HOFS = bgCameraX;
-            REG_BG2VOFS = bgCameraY;
-
-            if (scrollInfo.active) {
-                lastScrollToTileX0 = scrollInfo.toTileX0;
-                lastScrollToTileY0 = scrollInfo.toTileY0;
-                lastScrollBgOriginX = scrollBgOriginX;
-                lastScrollBgOriginY = scrollBgOriginY;
-                lastScrollCanReuseTilemapOnCommit = scrollInfo.canReuseTilemapOnCommit;
-            }
-            wasScrolling = scrollInfo.active;
-
-            int cameraTileX = floorDiv8(bgCameraX);
-            int cameraTileY = floorDiv8(bgCameraY);
-            if (scrollJustStarted) {
-                prefillScrollIncomingOverlap(currentLevel, &scrollInfo,
-                                            scrollBgOriginX, scrollBgOriginY,
-                                            cameraTileX, cameraTileY);
-                // The trigger frame should keep showing the already-correct
-                // current view. If old camera-tile bookkeeping drifted during a
-                // prior reused handoff, seed it from the actual BG camera here
-                // so we stay on the incremental scroll path instead of doing an
-                // unnecessary full refresh on transition start.
-                oldCameraTileX = cameraTileX;
-                oldCameraTileY = cameraTileY;
-                oldCameraTileValid = 1;
-            } else if (scrollJustEnded) {
-                if (lastScrollCanReuseTilemapOnCommit) {
-                    oldCameraTileX = cameraTileX;
-                    oldCameraTileY = cameraTileY;
-                    oldCameraTileValid = 1;
-                } else {
-                    oldCameraTileValid = 0;
-                }
-                lastScrollCanReuseTilemapOnCommit = 0;
-            }
-
-            if (!oldCameraTileValid || cameraTileX != oldCameraTileX || cameraTileY != oldCameraTileY) {
-                int deltaX = oldCameraTileValid ? (cameraTileX - oldCameraTileX) : 0;
-                int deltaY = oldCameraTileValid ? (cameraTileY - oldCameraTileY) : 0;
-
-                // Always iterate all supported BG layers so extra layers get cleared
-                // (tile 0 = transparent) when switching to a level with fewer layers.
-                // Levels with fewer layers return tile 0 for out-of-range layerIdx.
-                const u8 MAX_BG_LAYERS = 2;
-
-                usedSeamPrefill = scrollInfo.active &&
-                                  scrollInfo.seamPrefillAxis != 0 &&
-                                  !scrollJustStarted;
-
-                int tileOriginX = scrollInfo.active ? scrollBgOriginX : bgTileOriginX;
-                int tileOriginY = scrollInfo.active ? scrollBgOriginY : bgTileOriginY;
-
-                for (u8 layerIdx = 0; layerIdx < MAX_BG_LAYERS; layerIdx++) {
-                    u8 bgLayer, screenBase;
-                    if (layerIdx < currentLevel->layerCount) {
-                        bgLayer = currentLevel->layers[layerIdx].bgLayer;
-                    } else if (scrollInfo.active && layerIdx < scrollInfo.toLevel->layerCount) {
-                        bgLayer = scrollInfo.toLevel->layers[layerIdx].bgLayer;
-                    } else {
-                        bgLayer = layerIdx;  // default: layer N maps to BG(N+1)
-                    }
-                    screenBase = 24 + bgLayer;
-
-                    volatile u16* bgMap = (volatile u16*)(0x06000000 + (screenBase << 11));
-
-#define TILE_ENTRY(lx, ly) \
-    (scrollInfo.active \
-        ? scrollTileEntryAt(&scrollInfo, layerIdx, \
-                            (lx) - tileOriginX, (ly) - tileOriginY) \
-        : currentTileEntryAt(currentLevel, layerIdx, \
-                             (lx) - tileOriginX, (ly) - tileOriginY))
-
-                    int adx = deltaX < 0 ? -deltaX : deltaX;
-                    int ady = deltaY < 0 ? -deltaY : deltaY;
-                    if (!oldCameraTileValid || adx > 2 || ady > 2) {
-                        // Full refresh (only on init or after large jumps like scroll end)
-                        for (int ty = 0; ty < 32; ty++) {
-                            for (int tx = 0; tx < 32; tx++) {
-                                int lx = cameraTileX + tx;
-                                int ly = cameraTileY + ty;
-                                bgMap[(ly & 31) * 32 + (lx & 31)] = TILE_ENTRY(lx, ly);
-                            }
-                        }
-                    } else {
-                        if (usedSeamPrefill) {
-                            prefillScrollSeam(bgMap, layerIdx, &scrollInfo,
-                                              scrollBgOriginX, scrollBgOriginY,
-                                              cameraTileX, cameraTileY);
-                        }
-
-                        // Incremental: write up to 2 new columns and/or rows.
-                        // At max 2 tiles/frame (16px) the new columns are always past
-                        // the visible right edge at the new register position - no glitch.
-                        if (deltaX != 0) {
-                            for (int s = 0; s < adx; s++) {
-                                int lx = (deltaX > 0) ? (cameraTileX + 31 - s)
-                                                      : (cameraTileX + s);
-                                int mx = lx & 31;
-                                if (scrollInfo.active && scrollInfo.seamPrefillAxis == 2) {
-                                    writeVerticalScrollColumn(bgMap, layerIdx, &scrollInfo,
-                                                              tileOriginX, tileOriginY,
-                                                              cameraTileY, lx);
-                                } else {
-                                    for (int ty = 0; ty < 32; ty++) {
-                                        int ly = cameraTileY + ty;
-                                        bgMap[(ly & 31) * 32 + mx] = TILE_ENTRY(lx, ly);
-                                    }
-                                }
-                            }
-                        }
-                        if (deltaY != 0) {
-                            for (int s = 0; s < ady; s++) {
-                                int ly = (deltaY > 0) ? (cameraTileY + 31 - s)
-                                                      : (cameraTileY + s);
-                                int my = ly & 31;
-                                if (scrollInfo.active && scrollInfo.seamPrefillAxis == 1) {
-                                    writeHorizontalScrollRow(bgMap, layerIdx, &scrollInfo,
-                                                             tileOriginX, tileOriginY,
-                                                             cameraTileX, ly);
-                                } else {
-                                    for (int tx = 0; tx < 32; tx++) {
-                                        int lx = cameraTileX + tx;
-                                        bgMap[my * 32 + (lx & 31)] = TILE_ENTRY(lx, ly);
-                                    }
-                                }
-                            }
-                        }
-                    }
-#undef TILE_ENTRY
-                }
-
-                if (usedSeamPrefill) {
-                    consumeTransitionSeamPrefill();
-                }
-                oldCameraTileX = cameraTileX;
-                oldCameraTileY = cameraTileY;
-                oldCameraTileValid = 1;
-            }
+            int scrollJustStarted = updateTilemapForCamera(
+                &ts, currentLevel, &scrollInfo, camera.x, camera.y, levelChanged);
 
             // Profile: Tilemap update
             u16 t3 = REG_TM0CNT_L;
