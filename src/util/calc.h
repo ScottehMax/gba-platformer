@@ -1,11 +1,7 @@
 #ifndef CALC_H
 #define CALC_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
+#include "core/game_types.h"
 
 // Smoothly approach a target value by a maximum step amount (float version)
 static inline float approach(float val, float target, float maxMove) {

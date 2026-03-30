@@ -45,8 +45,8 @@ int boostUpdate(Player* player, u16 keys, const Level* level) {
 
     // targetAdd = Input.Aim.Value * 3 (Celeste line 3803)
     // Allows player to aim slightly off-center while moving
-    int targetAddX = aimX * 3 * FIXED_ONE;
-    int targetAddY = aimY * 3 * FIXED_ONE;
+    int targetAddX = aimX * BOOST_AIM_OFFSET * FIXED_ONE;
+    int targetAddY = aimY * BOOST_AIM_OFFSET * FIXED_ONE;
 
     // Physically move player position toward bubble center at BoostMoveSpeed (Celeste line 3804-3806)
     int targetX = player->boostTargetX + targetAddX;

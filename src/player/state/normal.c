@@ -194,7 +194,7 @@ int normalUpdate(Player* player, u16 keys, const Level* level) {
 
 // Helper function: Normal Jump (Celeste Jump() method around line 1900+)
 void jump(Player* player, u16 keys) {
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    int moveX = inputMoveX(keys);
 
     player->ducking = 0;
     player->vx += moveX * JUMP_HORIZONTAL_BOOST;

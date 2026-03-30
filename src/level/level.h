@@ -1,11 +1,7 @@
 #ifndef LEVEL_H
 #define LEVEL_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
+#include "core/game_types.h"
 
 #define LEVEL_VRAM_TILE_LIMIT 512
 

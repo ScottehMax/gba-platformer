@@ -1,7 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-#include <tonc.h>
+#include "core/game_types.h"
 
 // Game action button mappings
 // Change these defines to remap controls

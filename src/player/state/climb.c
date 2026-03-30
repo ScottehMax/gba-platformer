@@ -170,7 +170,7 @@ int climbUpdate(Player* player, u16 keys, const Level* level) {
 
 // Helper: Climb Jump (Celeste line 1813-1842)
 static void climbJump(Player* player, u16 keys) {
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    int moveX = inputMoveX(keys);
 
     // Consume stamina (Celeste line 1817)
     if (!player->onGround) {
@@ -255,13 +255,13 @@ static int slipCheck(const Player* player, const Level* level, int addY) {
         // Facing left: check top-left - 1
         checkX = screenX - PLAYER_RADIUS_X - 1;
     }
-    checkY = screenY - PLAYER_RADIUS_Y + 4 + addY;
+    checkY = screenY - PLAYER_RADIUS_Y + CLIMB_SLIP_CHECK_PX + addY;
 
     int tileX = checkX / 8;
     int tileY = checkY / 8;
 
     // Also check 4 pixels above that
-    int checkY2 = checkY - 4 + addY;
+    int checkY2 = checkY - CLIMB_SLIP_CHECK_PX + addY;
     int tileY2 = checkY2 / 8;
 
     // If both positions are NOT solid, player is above the ledge

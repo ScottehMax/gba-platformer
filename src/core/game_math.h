@@ -120,6 +120,15 @@
 #define DASH_H_JUMPTHRU_NUDGE 6  // Max pixels to nudge player onto jump-thru during horizontal dash
 #define DASH_V_FLOOR_SNAP_DIST 3  // Max pixels to snap player down to floor during horizontal dash-attack (Celeste DashVFloorSnapDist)
 
+// Dash trail
+#define DASH_TRAIL_INTERVAL 5  // Frames between trail sprites (0.08s at 60fps)
+
+// Boost state
+#define BOOST_AIM_OFFSET 3  // Pixels of aim adjustment in boost state (Celeste targetAdd)
+
+// Climbing
+#define CLIMB_SLIP_CHECK_PX 4  // Pixels from top to check for ledge slip (Celeste SlipCheck)
+
 // Player constants (exactly matching Celeste's 8x11 hitbox)
 #define PLAYER_WIDTH 8
 #define PLAYER_HEIGHT 11

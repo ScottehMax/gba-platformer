@@ -1,11 +1,6 @@
 #ifndef COLLISION_H
 #define COLLISION_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
 #include "core/game_types.h"
 #include "core/game_math.h"
 #include "level/level.h"

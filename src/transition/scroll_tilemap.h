@@ -1,12 +1,6 @@
 #ifndef SCROLL_TILEMAP_H
 #define SCROLL_TILEMAP_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
-
 #include "level/level.h"
 #include "transition.h"
 

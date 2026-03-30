@@ -1,11 +1,7 @@
 #ifndef REPLAY_H
 #define REPLAY_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
+#include "core/game_types.h"
 
 // Maximum frames to record (60fps * 60 seconds = 3600 frames)
 #define MAX_REPLAY_FRAMES 3600

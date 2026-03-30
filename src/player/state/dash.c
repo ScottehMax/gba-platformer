@@ -105,7 +105,7 @@ void dashCoroutineResume(Player* player, u16 keys) {
     player->trailX[0] = player->x;
     player->trailY[0] = player->y;
     player->trailFacing[0] = player->facingRight;
-    player->trailTimer = 5;  // 0.08s for next trail
+    player->trailTimer = DASH_TRAIL_INTERVAL;
     player->trailFadeTimer = 0;
     player->trailIndex = 0;
 }

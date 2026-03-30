@@ -1,11 +1,6 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
 #include "core/game_types.h"
 #include "core/game_math.h"
 #include "collision/collision.h"

@@ -137,7 +137,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
         player->wallBoostTimer--;
         // Wall Boost (Celeste line 689-698)
         // After climb jump with no horizontal input, pressing away from wall converts to wall jump
-        int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+        int moveX = inputMoveX(keys);
         if (moveX == player->wallBoostDir) {
             // Convert climb jump to wall jump and refund stamina
             player->vx = player->wallBoostDir * WALL_JUMP_H_SPEED;
@@ -154,7 +154,7 @@ void updatePlayer(Player* player, u16 keys, const Level* level) {
     // Update facing based on input (Celeste line 786-794)
     // This allows reverse hypers: dash one direction, hold opposite direction, jump
     // NOTE: Does NOT update during climb, RedDash, HitSquash, or pickup
-    int moveX = keys & BTN_RIGHT ? 1 : (keys & BTN_LEFT ? -1 : 0);
+    int moveX = inputMoveX(keys);
     if (moveX != 0 &&
         player->stateMachine.state != ST_CLIMB &&
         player->stateMachine.state != ST_RED_DASH &&

@@ -1,12 +1,6 @@
 #ifndef REDBUBBLE_H
 #define REDBUBBLE_H
 
-#ifdef DESKTOP_BUILD
-#include "desktop/desktop_stubs.h"
-#else
-#include <tonc.h>
-#endif
-
 #include "core/game_types.h"
 #include "level/level.h"
 
