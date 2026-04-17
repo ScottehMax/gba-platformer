@@ -23,7 +23,7 @@ GRIT_OBJS = $(patsubst assets/%.png,%.o,$(ASSET_PNGS))
 LEVEL_TMXS = $(wildcard levels/*.tmx)
 LEVEL_HEADERS = $(patsubst levels/%.tmx,$(GENDIR)/%.h,$(LEVEL_TMXS))
 
-OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o greenbubble.o transition.o scroll_tilemap.o $(GRIT_OBJS)
+OBJS = main.o text.o debug_utils.o level.o camera.o collision.o player.o player_render.o menu.o state.o state_normal.o state_dash.o state_climb.o state_boost.o state_reddash.o state_hitsquash.o replay.o spring.o redbubble.o greenbubble.o entity_managers.o transition.o scroll_tilemap.o $(GRIT_OBJS)
 
 all: $(GENDIR) $(GRIT_HEADERS) $(LEVEL_HEADERS) $(GENDIR)/connections.h $(TARGET).gba
 
@@ -162,12 +162,15 @@ redbubble.o: $(SRCDIR)/entities/redbubble.c $(SRCDIR)/entities/redbubble.h $(SRC
 greenbubble.o: $(SRCDIR)/entities/greenbubble.c $(SRCDIR)/entities/greenbubble.h $(SRCDIR)/core/game_types.h $(SRCDIR)/level/level.h $(SRCDIR)/player/player.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+entity_managers.o: $(SRCDIR)/entities/entity_managers.c $(SRCDIR)/entities/entity_managers.h $(SRCDIR)/entities/spring.h $(SRCDIR)/entities/redbubble.h $(SRCDIR)/entities/greenbubble.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Main object depends on all headers
 main.o: $(SRCDIR)/main.c $(SRCDIR)/core/text.h \
 	$(SRCDIR)/core/game_math.h $(SRCDIR)/core/game_types.h $(SRCDIR)/core/debug_utils.h \
 	$(SRCDIR)/level/level.h $(SRCDIR)/camera/camera.h $(SRCDIR)/collision/collision.h \
 	$(SRCDIR)/player/player.h $(SRCDIR)/player/player_render.h $(SRCDIR)/menu/menu.h \
-	$(SRCDIR)/entities/spring.h $(SRCDIR)/transition/transition.h $(SRCDIR)/transition/scroll_tilemap.h \
+	$(SRCDIR)/entities/entity_managers.h $(SRCDIR)/transition/transition.h $(SRCDIR)/transition/scroll_tilemap.h \
 	$(GRIT_HEADERS) $(LEVEL_HEADERS) $(GENDIR)/connections.h
 	$(CC) $(CFLAGS) -c $< -o $@
 

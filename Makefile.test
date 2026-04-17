@@ -19,7 +19,8 @@ CORE_SRCS = \
 	src/core/replay.c \
 	src/entities/spring.c \
 	src/entities/redbubble.c \
-	src/entities/greenbubble.c
+	src/entities/greenbubble.c \
+	src/entities/entity_managers.c
 
 # Test framework
 TEST_FRAMEWORK_SRCS = \

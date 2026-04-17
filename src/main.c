@@ -20,9 +20,7 @@
 #include "core/replay.h"
 #include "transition/transition.h"
 #include "transition/scroll_tilemap.h"
-#include "entities/spring.h"
-#include "entities/redbubble.h"
-#include "entities/greenbubble.h"
+#include "entities/entity_managers.h"
 #include "core/vram_layout.h"
 
 // Fixed slot indices for profiling (8-13)
@@ -177,14 +175,8 @@ int main() {
 
     TilemapState ts = {0};
 
-    SpringManager springManager;
-    initSpringManager(&springManager);
-
-    RedBubbleManager redBubbleManager;
-    initRedBubbleManager(&redBubbleManager);
-
-    GreenBubbleManager greenBubbleManager;
-    initGreenBubbleManager(&greenBubbleManager);
+    EntityManagers entities;
+    initEntityManagers(&entities);
 
     // Hide player sprite initially (we're in menu mode)
     oam[0] = 160;  // Y coordinate offscreen (reuse oam pointer from above)
@@ -377,9 +369,7 @@ int main() {
                 updateTransition(&player, &camera);
             } else {
                 updatePlayer(&player, keys, currentLevel);
-                updateSprings(&springManager, &player);
-                updateRedBubbles(&redBubbleManager, &player);
-                updateGreenBubbles(&greenBubbleManager, &player);
+                updateEntities(&entities, &player);
             }
             u16 t1 = REG_TM0CNT_L;
             u16 dtPlayer = t1 - t0;
@@ -417,9 +407,7 @@ int main() {
             // Keep transition-end tilemap writes first in VBlank to avoid
             // one-frame BG1 garbage when switching levels.
             if (levelChanged) {
-                loadSpringsFromLevel(&springManager, currentLevel);
-                loadRedBubblesFromLevel(&redBubbleManager, currentLevel);
-                loadGreenBubblesFromLevel(&greenBubbleManager, currentLevel);
+                loadEntitiesFromLevel(&entities, currentLevel);
                 lastLevelIndex = currentLevelIndex;
             }
 
@@ -437,9 +425,7 @@ int main() {
             }
             u16 playerPriority = scrollInfo.active ? 0 : 1;
             drawPlayer(&player, &renderCamera, playerPriority);
-            renderSprings(&springManager, renderCamera.x, renderCamera.y);
-            renderRedBubbles(&redBubbleManager, renderCamera.x, renderCamera.y);
-            renderGreenBubbles(&greenBubbleManager, renderCamera.x, renderCamera.y);
+            renderEntities(&entities, renderCamera.x, renderCamera.y);
             u16 t4 = REG_TM0CNT_L;
             u16 dtRender = t4 - t3;
             if (dtRender > maxRender) maxRender = dtRender;
